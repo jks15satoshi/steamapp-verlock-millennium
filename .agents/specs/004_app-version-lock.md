@@ -129,6 +129,27 @@ The panel supports multi-select and batch `Refresh` and `Unlock` over the select
 
 The backend writes the appmanifest through a temporary file and renames it into place, so a failed write leaves the previous appmanifest intact. Every backend write operation for one app — `Lock`, `Refresh`, `Unlock`, and `Reapply` — is serialized, and `Restore All` excludes them all while it runs. The feature runs while the Steam client runs and assumes Steam rewrites the appmanifest; the watch reapplies the spoof, and the launch and update interception reapplies before the action proceeds.
 
+### Logging
+
+The feature records its operations through the logging mechanism of [Spec 6](006_logging.md). A record carries the level `info` for a completed state change or a batch summary, `warn` for an expected refusal or a recoverable degradation, and `error` for an I/O, parse, or persistence failure or an uncaught exception. The backend writes its records directly; the frontend writes its own and relays each through the `append_log` bridge method of [Spec 6](006_logging.md#relay-bridge). No record carries the contents of a captured dump.
+
+The backend records:
+
+- `locked app <appid> at build <buildid>`, `refreshed app <appid> to build <buildid>`, and `unlocked app <appid>` at `info` for the matching operation;
+- `reapplied app <appid>` at `info` when `reapply_app` rewrites the appmanifest, and no record when the appmanifest already matches;
+- `restored <n> app(s), kept <m>` at `info` for a Restore All summary, and `migrated the data root to <path>` at `info` for a completed migration;
+- `refused to lock app <appid>: <reason>` at `warn` for a lock the appmanifest's state forbids, and `app <appid> is no longer installed` at `warn` when discovery confirms an app is gone;
+- `<operation> failed for app <appid>: <error>` at `error` for a failed read, parse, or appmanifest or record write, and `method <name> failed: <error>` at `error` when the dispatcher catches an exception.
+
+The frontend records:
+
+- `captured build info for app <appid>` at `info` for an accepted capture;
+- `capture failed for app <appid>: <error>` at `warn` for a failed capture;
+- `aborted the lock for app <appid>: the auto-update behavior was unreadable` at `warn` when the current behavior cannot be read, and `rolled back the lock for <appid> after the auto-update write failed` at `warn` when the post-lock write fails and the lock rolls back;
+- `could not cancel the action for app <appid>; reapplied and let it proceed` at `warn` when a game action cannot be cancelled;
+- `could not restore the auto-update setting for app <appid>` at `warn` when a behavior restore fails;
+- `<operation> failed for app <appid>: <error>` at `error` for a failed backend call.
+
 ## Data Root Directory and Settings
 
 The feature resolves two root directories. The data root directory holds the lock records and resolves in three steps:
