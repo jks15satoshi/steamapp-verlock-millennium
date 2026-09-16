@@ -45,7 +45,7 @@ EditorConfig fixes line endings, indentation, and charset per file type. markdow
 
 ### Git Hooks and Continuous Integration
 
-lefthook installs a `pre-commit` hook that runs the formatters, the linters, and the type checks on staged files, and a `commit-msg` hook that checks the commit message against [Spec 3](003_collaboration-conventions.md); either hook blocks the change when a check fails. GitHub Actions runs the full check set and the test suites from [Spec 5](005_testing-strategy.md) on a Windows and an Ubuntu runner, and the `conventions` workflow checks a pull request's title, issue reference, and template sections. The two-runner matrix covers the platform-specific path and read-only behavior the plugin depends on.
+lefthook installs a `pre-commit` hook that runs the formatters, the linters, and the type checks on staged files, and a `commit-msg` hook that checks the commit message against [Spec 3](003_collaboration-conventions.md); either hook blocks the change when a check fails. GitHub Actions runs the `verification` workflow, whose jobs run the full check set on an Ubuntu runner and the test suites from [Spec 5](005_testing-strategy.md) on a Windows and an Ubuntu runner, and the `conventions` workflow, which checks a pull request's title, issue reference, and template sections. The two-runner matrix covers the platform-specific path and read-only behavior the plugin depends on.
 
 ## Alternatives Considered
 

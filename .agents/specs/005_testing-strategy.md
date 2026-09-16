@@ -73,7 +73,7 @@ The strategy reports coverage from both suites and enforces no threshold. The co
 
 ### Continuous Integration
 
-GitHub Actions runs the full check set from [Spec 1](001_toolchain.md) and both test suites on a Windows and an Ubuntu runner. On Windows, the workflow installs Lua and LuaRocks with the MSVC toolchain before it installs busted and luacov. The manual end-to-end checklist stays outside continuous integration.
+The `verification` workflow runs three parallel jobs. The `docs` job, on an Ubuntu runner, runs the spell check and markdownlint. The `static` job, on an Ubuntu runner, runs the type check, the build, the format checks, and the linters from [Spec 1](001_toolchain.md). The `tests` job runs on a Windows and an Ubuntu runner and runs both test suites and the Lua coverage; on Windows, it installs Lua and LuaRocks with the MSVC toolchain before it installs busted and luacov. The manual end-to-end checklist stays outside continuous integration.
 
 ### Undecided Items
 

@@ -1,0 +1,120 @@
+name: Verification
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  docs:
+    name: Docs checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: jdx/mise-action@v2
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Spell check
+        run: bun run spell
+
+      - name: Markdownlint
+        run: markdownlint-cli2 "**/*.md"
+
+  static:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: jdx/mise-action@v2
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Provision LuaRocks
+        run: bash scripts/setup-luarocks.sh
+
+      - name: Add LuaRocks to PATH
+        run: echo "$PWD/.rocks/bin" >> "$GITHUB_PATH"
+
+      - name: Generate type stubs
+        run: bun run prepare
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Build
+        run: bun run build
+
+      - name: Format check frontend
+        run: bunx oxfmt --check frontend
+
+      - name: Format check backend
+        run: stylua --check backend scripts
+
+      - name: Format check TOML
+        run: tombi format --check --offline .
+
+      - name: Lint
+        run: bun run lint
+
+  tests:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: jdx/mise-action@v2
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Provision LuaRocks (Linux)
+        if: runner.os == 'Linux'
+        run: bash scripts/setup-luarocks.sh
+
+      - name: Add LuaRocks to PATH (Linux)
+        if: runner.os == 'Linux'
+        run: echo "$PWD/.rocks/bin" >> "$GITHUB_PATH"
+
+      - name: Set up MSVC toolchain (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Provision LuaRocks (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/setup-luarocks.ps1
+
+      - name: Add LuaRocks to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "$GITHUB_WORKSPACE/.rocks/bin" >> "$GITHUB_PATH"
+
+      - name: Generate type stubs
+        run: bun run prepare
+
+      - name: Frontend tests
+        run: bun run test:frontend
+
+      - name: Backend tests
+        run: bun run test:backend
+
+      - name: Backend coverage
+        run: bun run test:backend:coverage
