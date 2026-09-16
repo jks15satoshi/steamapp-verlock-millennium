@@ -1,0 +1,21 @@
+// Steam App Verlock - commented VDF fixture
+"AppState"
+{
+	// identity
+	"appid"		"440"
+	"name"		"Team Fortress 2"
+
+	// install state
+	"StateFlags"		"2"
+	"buildid"		"10000000"
+	"InstalledDepots"
+	{
+		"441"
+		{
+			"manifest"		"1000000000000000001" // pinned depot
+			"size"		"100"
+		}
+	}
+	"quoted"		"say \"hi\""
+	"slashed"		"a\\b"
+}
