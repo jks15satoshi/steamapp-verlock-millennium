@@ -1,0 +1,161 @@
+import { beforeEach, expect, test } from "bun:test";
+import type * as Plugin from "../index";
+import type {
+  Ack,
+  AppId,
+  CaptureResult,
+  DataRoots,
+  LockedAppRecord,
+  LockResult,
+  MigrateResult,
+  RefreshResult,
+  RestoreResult,
+  UnlockResult,
+} from "../index";
+import * as wire from "../bridge";
+import { bridge as recorder, installSteamClient } from "./harness";
+
+interface FrontendToBackend {
+  set_build_info(appid: AppId, dump: string): Promise<Ack>;
+  lock_app(appid: AppId, auto_update_behavior?: number): Promise<LockResult>;
+  refresh_app(appid: AppId): Promise<RefreshResult>;
+  unlock_app(appid: AppId): Promise<UnlockResult>;
+  list_locked(): Promise<LockedAppRecord[] | Ack>;
+  restore_all(): Promise<RestoreResult>;
+  get_data_root(): Promise<DataRoots>;
+  set_data_root(path: string): Promise<MigrateResult>;
+  reapply_app(appid: AppId): Promise<Ack>;
+}
+
+interface BackendToFrontend {
+  request_build_info: typeof Plugin.request_build_info;
+}
+
+const FRONTEND_TO_BACKEND_METHODS = [
+  "set_build_info",
+  "lock_app",
+  "refresh_app",
+  "unlock_app",
+  "list_locked",
+  "restore_all",
+  "get_data_root",
+  "set_data_root",
+  "reapply_app",
+] as const;
+
+const BACKEND_TO_FRONTEND_METHODS = ["request_build_info"] as const;
+
+const backendToFrontend: BackendToFrontend = {
+  request_build_info: (_appid: AppId): void => {},
+};
+
+const lockRecord: LockedAppRecord = {
+  version: 1,
+  appid: "730",
+  name: "Counter-Strike 2",
+  manifest_path: "/steam/steamapps/appmanifest_730.acf",
+  locked_at: 1726000000,
+  refreshed_at: 1726003600,
+  auto_update_behavior: 0,
+  locked_build: { buildid: "22222222", depots: { "730": "2222222222222222222" } },
+  original: "appmanifest text",
+};
+
+const captureSuccess: CaptureResult = { ok: true, appid: "730", dump: "app_info_print 730" };
+const captureFailure: CaptureResult = { ok: false, error: "non-numeric appid" };
+
+beforeEach(() => {
+  recorder.reset();
+  installSteamClient({ Console: {}, Apps: {}, System: {} });
+});
+
+test("the frontend-to-backend bridge exposes the nine documented methods", () => {
+  expect(FRONTEND_TO_BACKEND_METHODS).toHaveLength(9);
+  expect(new Set(FRONTEND_TO_BACKEND_METHODS).size).toBe(9);
+  for (const method of FRONTEND_TO_BACKEND_METHODS) {
+    expect(typeof wire[method]).toBe("function");
+  }
+});
+
+test("the bridge implementation matches the shared-type signatures", () => {
+  const contract: FrontendToBackend = wire;
+  expect(typeof contract.set_build_info).toBe("function");
+});
+
+test("list_locked's union result accepts both records and the Ack error envelope", () => {
+  const as_records: Awaited<ReturnType<typeof wire.list_locked>> = [lockRecord];
+  const as_error: Awaited<ReturnType<typeof wire.list_locked>> = {
+    ok: false,
+    error: "migration in progress",
+  };
+  expect(Array.isArray(as_records)).toBe(true);
+  expect(as_error).toEqual({ ok: false, error: "migration in progress" });
+});
+
+test("the backend-to-frontend bridge exposes request_build_info", () => {
+  expect(BACKEND_TO_FRONTEND_METHODS).toEqual(["request_build_info"]);
+  expect(typeof backendToFrontend.request_build_info).toBe("function");
+});
+
+test("the shared payload and response shapes match the bridge contract", () => {
+  expect(lockRecord.version).toBe(1);
+  expect(lockRecord.refreshed_at).toBe(1726003600);
+  expect(lockRecord.auto_update_behavior).toBe(0);
+  expect(lockRecord.locked_build).toEqual({
+    buildid: "22222222",
+    depots: { "730": "2222222222222222222" },
+  });
+  expect(captureSuccess).toEqual({ ok: true, appid: "730", dump: "app_info_print 730" });
+  expect(captureFailure).toEqual({ ok: false, error: "non-numeric appid" });
+});
+
+test("set_build_info sends one JSON string argument", async () => {
+  await wire.set_build_info("730", "dump text");
+  const calls = recorder.find("set_build_info");
+  expect(calls).toHaveLength(1);
+  expect(typeof calls[0]?.payload).toBe("string");
+  expect(JSON.parse(calls[0]?.payload as string)).toEqual({ appid: "730", dump: "dump text" });
+});
+
+test("set_data_root sends one JSON string argument with the path payload", async () => {
+  await wire.set_data_root("/tmp/verlock");
+  const calls = recorder.find("set_data_root");
+  expect(calls).toHaveLength(1);
+  expect(typeof calls[0]?.payload).toBe("string");
+  expect(JSON.parse(calls[0]?.payload as string)).toEqual({ path: "/tmp/verlock" });
+});
+
+test("appid payload methods send one JSON string argument", async () => {
+  await wire.lock_app("730");
+  await wire.refresh_app("730");
+  await wire.unlock_app("730");
+  await wire.reapply_app("730");
+  for (const method of ["lock_app", "refresh_app", "unlock_app", "reapply_app"] as const) {
+    const calls = recorder.find(method);
+    expect(calls).toHaveLength(1);
+    expect(typeof calls[0]?.payload).toBe("string");
+    expect(JSON.parse(calls[0]?.payload as string)).toEqual({ appid: "730" });
+  }
+});
+
+test("lock_app includes the auto update behavior when it is provided", async () => {
+  await wire.lock_app("730", 1);
+  const calls = recorder.find("lock_app");
+  expect(calls).toHaveLength(1);
+  expect(typeof calls[0]?.payload).toBe("string");
+  expect(JSON.parse(calls[0]?.payload as string)).toEqual({
+    appid: "730",
+    auto_update_behavior: 1,
+  });
+});
+
+test("zero-argument methods send no arguments", async () => {
+  await wire.list_locked();
+  await wire.restore_all();
+  await wire.get_data_root();
+  for (const method of ["list_locked", "restore_all", "get_data_root"] as const) {
+    const calls = recorder.find(method);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.payload).toBeUndefined();
+  }
+});
