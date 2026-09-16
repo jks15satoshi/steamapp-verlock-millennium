@@ -71,6 +71,15 @@ describe("main", function()
         return decode(raw(require("json").encode(payload)))
     end
 
+    local function logged(level, fragment)
+        for _, call in ipairs(logger.calls) do
+            if call.level == level and call.message:find(fragment, 1, true) ~= nil then
+                return true
+            end
+        end
+        return false
+    end
+
     local function seed_locked_440()
         store.seed(MANIFEST, support.read_fixture("appmanifest_440.acf"))
         store.seed(CACHE_ROOT .. "/buildinfo/440.kv", support.read_fixture("app_info_print_440.txt"))
@@ -318,5 +327,23 @@ describe("main", function()
         assert.is_table(ack)
         assert.is_false(ack.ok)
         assert.is_string(ack.error)
+    end)
+
+    it("logs an error when a handler raises", function()
+        local original = main.handlers.set_build_info
+        main.handlers.set_build_info = function()
+            error("boom", 0)
+        end
+        local ack = dispatch("set_build_info", {})
+        main.handlers.set_build_info = original
+        assert.is_false(ack.ok)
+        assert.is_true(logged("error", "method set_build_info failed: boom"))
+    end)
+
+    it("logs an error when the build info cannot be stored", function()
+        store.fail_next("write", "permission denied")
+        local ack = invoke("set_build_info", { appid = "440", dump = "dump" })
+        assert.is_false(ack.ok)
+        assert.is_true(logged("error", "store failed for app 440"))
     end)
 end)

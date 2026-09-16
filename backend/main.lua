@@ -66,6 +66,7 @@ handlers.set_build_info = function(payload)
     end
     local stored, store_err = buildinfo.store(appid, payload.dump)
     if not stored then
+        log.error("store failed for app " .. appid .. ": " .. tostring(store_err or "failed to store the build info"))
         return { ok = false, error = store_err or "failed to store the build info" }
     end
     return { ok = true }
@@ -82,14 +83,17 @@ handlers.lock_app = function(payload)
     end
     local dump, dump_err = buildinfo.load(appid)
     if dump == nil then
+        log.error("lock failed for app " .. appid .. ": " .. tostring(dump_err or "no cached build info was found"))
         return { ok = false, error = dump_err or "no cached build info was found" }
     end
     local info, parse_err = buildinfo.parse(buildinfo.clean(dump), resolve_branch(appid))
     if info == nil then
+        log.error("lock failed for app " .. appid .. ": " .. tostring(parse_err))
         return { ok = false, error = parse_err }
     end
     local valid, valid_err = buildinfo.validate(info)
     if not valid then
+        log.error("lock failed for app " .. appid .. ": " .. tostring(valid_err))
         return { ok = false, error = valid_err }
     end
     return lock.lock(appid, info, auto_update_behavior)
@@ -102,14 +106,17 @@ handlers.refresh_app = function(payload)
     end
     local dump, dump_err = buildinfo.load(appid)
     if dump == nil then
+        log.error("refresh failed for app " .. appid .. ": " .. tostring(dump_err or "no cached build info was found"))
         return { ok = false, error = dump_err or "no cached build info was found" }
     end
     local info, parse_err = buildinfo.parse(buildinfo.clean(dump), resolve_branch(appid))
     if info == nil then
+        log.error("refresh failed for app " .. appid .. ": " .. tostring(parse_err))
         return { ok = false, error = parse_err }
     end
     local valid, valid_err = buildinfo.validate(info)
     if not valid then
+        log.error("refresh failed for app " .. appid .. ": " .. tostring(valid_err))
         return { ok = false, error = valid_err }
     end
     return lock.refresh(appid, info)
@@ -200,6 +207,7 @@ local function dispatch(name, payload)
     end
     local ok, result = pcall(handler, payload or {})
     if not ok then
+        log.error("method " .. tostring(name) .. " failed: " .. tostring(result))
         return { ok = false, error = tostring(result) }
     end
     if result == nil then

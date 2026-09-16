@@ -5,6 +5,7 @@ describe("lock", function()
     local state
     local paths
     local store
+    local logger
 
     local MANIFEST = "/steam/steamapps/appmanifest_440.acf"
     local MANIFEST_570 = "/steam/steamapps/appmanifest_570.acf"
@@ -98,7 +99,7 @@ describe("lock", function()
         support.reset()
         support.install_json()
         store = support.use_fake_fs()
-        support.stub_logger()
+        logger = support.stub_logger()
         support.stub_millennium({ config = { data_root = "/data" } })
         support.set_env("MILLENNIUM__STEAM_PATH", "/steam")
         support.set_env("XDG_DATA_HOME", "/xdg/data")
@@ -112,6 +113,15 @@ describe("lock", function()
         lock = modules.lock
         state = modules.state
         paths = modules.paths
+    end
+
+    local function logged(level, fragment)
+        for _, call in ipairs(logger.calls) do
+            if call.level == level and call.message:find(fragment, 1, true) ~= nil then
+                return true
+            end
+        end
+        return false
     end
 
     before_each(setup)
@@ -596,6 +606,43 @@ describe("lock", function()
         store.hook = nil
         assert.is_false(result.ok)
         assert.equals(STEAM_REWRITTEN, store.read(MANIFEST))
+    end)
+
+    it("logs a successful lock and refresh", function()
+        assert.is_true(lock.lock("440", INFO).ok)
+        assert.is_true(logged("info", "locked app 440 at build 12345678"))
+        assert.is_true(lock.refresh("440", { buildid = "22345678", depots = {} }).ok)
+        assert.is_true(logged("info", "refreshed app 440 to build 22345678"))
+    end)
+
+    it("logs a refused lock", function()
+        store.seed(MANIFEST, (ORIGINAL:gsub('"StateFlags"\t\t"4"', '"StateFlags"\t\t"1026"')))
+        assert.is_false(lock.lock("440", INFO).ok)
+        assert.is_true(logged("warn", "refused to lock app 440"))
+    end)
+
+    it("logs an error when the lock appmanifest write fails", function()
+        store.hook = function(op, path)
+            if op == "write" and path:sub(1, #MANIFEST) == MANIFEST and path:sub(-4) == ".tmp" then
+                store.fail_next("write", "permission denied")
+            end
+        end
+        assert.is_false(lock.lock("440", INFO).ok)
+        store.hook = nil
+        assert.is_true(logged("error", "lock failed for app 440"))
+    end)
+
+    it("logs not_installed on reapply", function()
+        assert.is_true(lock.lock("440", INFO).ok)
+        store.delete(MANIFEST)
+        assert.is_false(lock.reapply("440").ok)
+        assert.is_true(logged("warn", "app 440 is no longer installed"))
+    end)
+
+    it("logs the restore all summary", function()
+        assert.is_true(lock.lock("440", INFO).ok)
+        assert.is_true(lock.restore_all().ok)
+        assert.is_true(logged("info", "restored 1 app(s), kept 0"))
     end)
 
     it("does not clear buildinfo while a migration runs", function()

@@ -6,6 +6,7 @@ describe("integration", function()
     local state
     local paths
     local migrate
+    local logger
 
     local tmp
     local steam
@@ -90,11 +91,20 @@ describe("integration", function()
         return cache .. "/steamapp-verlock/buildinfo"
     end
 
+    local function logged(level, fragment)
+        for _, call in ipairs(logger.calls) do
+            if call.level == level and call.message:find(fragment, 1, true) ~= nil then
+                return true
+            end
+        end
+        return false
+    end
+
     before_each(function()
         support.reset()
         support.install_json()
         store = support.use_real_fs()
-        support.stub_logger()
+        logger = support.stub_logger()
         tmp = support.tmpdir()
         steam = tmp .. "/steam"
         library = tmp .. "/library"
@@ -135,6 +145,15 @@ describe("integration", function()
         local record = state.read("440")
         assert.equals(ORIGINAL, record.original)
         assert.same(INFO, record.locked_build)
+    end)
+
+    it("logs each lock, refresh, and unlock against a real filesystem", function()
+        assert.is_true(lock.lock("440", INFO).ok)
+        assert.is_true(logged("info", "locked app 440 at build 12345678"))
+        assert.is_true(lock.refresh("440", INFO).ok)
+        assert.is_true(logged("info", "refreshed app 440 to build 12345678"))
+        assert.is_true(lock.unlock("440").ok)
+        assert.is_true(logged("info", "unlocked app 440"))
     end)
 
     it("refreshes the locked build and timestamp", function()

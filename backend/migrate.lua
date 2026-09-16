@@ -4,6 +4,7 @@ local json = require("json")
 local millennium = require("millennium")
 local paths = require("paths")
 local state = require("state")
+local log = require("log")
 
 local running = false
 
@@ -35,6 +36,7 @@ end
 local function do_move(from, to)
     local valid, valid_err = paths.validate(to)
     if not valid then
+        log.warn("refused to migrate the data root: " .. tostring(valid_err))
         return { ok = false, error = valid_err }
     end
     local from_locks = fs.join(from, "locks")
@@ -44,17 +46,20 @@ local function do_move(from, to)
         local copied, copy_err = fs.copy_recursive(from_locks, to_locks)
         if not copied then
             fs.remove_all(to_locks)
+            log.error("migrate failed: " .. tostring(copy_err or "failed to copy the lock data"))
             return { ok = false, error = copy_err or "failed to copy the lock data" }
         end
     end
     local verified, verify_err = verify_locks(to_locks)
     if not verified then
         fs.remove_all(to_locks)
+        log.error("migrate failed: " .. tostring(verify_err))
         return { ok = false, error = verify_err }
     end
     local persisted, persist_err = millennium.config.set("data_root", to)
     if not persisted then
         fs.remove_all(to_locks)
+        log.error("migrate failed: " .. tostring(persist_err or "failed to persist the data root"))
         return { ok = false, error = persist_err or "failed to persist the data root" }
     end
     local result = { ok = true, data_root = to }
@@ -63,6 +68,10 @@ local function do_move(from, to)
         if removed == nil then
             result.warning = remove_err or "the old lock directory could not be removed"
         end
+    end
+    log.info("migrated the data root to " .. tostring(to))
+    if result.warning ~= nil then
+        log.warn("migrated the data root to " .. tostring(to) .. " but " .. tostring(result.warning))
     end
     return result
 end
@@ -80,6 +89,7 @@ local function move(from, to)
     state.set_migrating(false)
     running = false
     if not ok then
+        log.error("migrate failed: " .. tostring(result))
         return { ok = false, error = tostring(result) }
     end
     return result
