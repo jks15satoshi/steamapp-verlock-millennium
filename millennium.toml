@@ -20,8 +20,8 @@ auto_restart        = true
 reload_steamui_when = "both"
 
 [logger]
-backend_prefix  = "BCK"
-frontend_prefix = "FRT"
+backend_prefix  = "backend"
+frontend_prefix = "frontend"
 
 [inspect]
 depth       = 4

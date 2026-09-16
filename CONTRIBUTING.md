@@ -86,3 +86,4 @@ Open an issue with the matching form: `Bug`, `Feature`, or `Task`. The forms ask
 - [Spec 3](.agents/specs/003_collaboration-conventions.md) — commit, branch, issue, and pull request rules.
 - [Spec 4](.agents/specs/004_app-version-lock.md) — the plugin's behavior.
 - [Spec 5](.agents/specs/005_testing-strategy.md) — the test organization.
+- [Spec 6](.agents/specs/006_logging.md) — the logging mechanism.

@@ -13,7 +13,7 @@ import type {
   UnlockResult,
 } from "../index";
 import * as wire from "../bridge";
-import { bridge as recorder, installSteamClient } from "./harness";
+import { bridge as recorder, installSteamClient, resetBackendResponses } from "./harness";
 
 interface FrontendToBackend {
   set_build_info(appid: AppId, dump: string): Promise<Ack>;
@@ -25,6 +25,7 @@ interface FrontendToBackend {
   get_data_root(): Promise<DataRoots>;
   set_data_root(path: string): Promise<MigrateResult>;
   reapply_app(appid: AppId): Promise<Ack>;
+  append_log(level: string, message: string): Promise<Ack>;
 }
 
 interface BackendToFrontend {
@@ -41,6 +42,7 @@ const FRONTEND_TO_BACKEND_METHODS = [
   "get_data_root",
   "set_data_root",
   "reapply_app",
+  "append_log",
 ] as const;
 
 const BACKEND_TO_FRONTEND_METHODS = ["request_build_info"] as const;
@@ -66,12 +68,13 @@ const captureFailure: CaptureResult = { ok: false, error: "non-numeric appid" };
 
 beforeEach(() => {
   recorder.reset();
+  resetBackendResponses();
   installSteamClient({ Console: {}, Apps: {}, System: {} });
 });
 
-test("the frontend-to-backend bridge exposes the nine documented methods", () => {
-  expect(FRONTEND_TO_BACKEND_METHODS).toHaveLength(9);
-  expect(new Set(FRONTEND_TO_BACKEND_METHODS).size).toBe(9);
+test("the frontend-to-backend bridge exposes the ten documented methods", () => {
+  expect(FRONTEND_TO_BACKEND_METHODS).toHaveLength(10);
+  expect(new Set(FRONTEND_TO_BACKEND_METHODS).size).toBe(10);
   for (const method of FRONTEND_TO_BACKEND_METHODS) {
     expect(typeof wire[method]).toBe("function");
   }
@@ -147,6 +150,14 @@ test("lock_app includes the auto update behavior when it is provided", async () 
     appid: "730",
     auto_update_behavior: 1,
   });
+});
+
+test("append_log sends one JSON string argument with the level and message", async () => {
+  await wire.append_log("info", "hello");
+  const calls = recorder.find("append_log");
+  expect(calls).toHaveLength(1);
+  expect(typeof calls[0]?.payload).toBe("string");
+  expect(JSON.parse(calls[0]?.payload as string)).toEqual({ level: "info", message: "hello" });
 });
 
 test("zero-argument methods send no arguments", async () => {

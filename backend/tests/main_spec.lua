@@ -3,6 +3,7 @@ local support = require("support")
 describe("main", function()
     local main
     local store
+    local logger
 
     local CACHE_ROOT = "/xdg/cache/steamapp-verlock"
     local MANIFEST = "/steam/steamapps/appmanifest_440.acf"
@@ -17,6 +18,7 @@ describe("main", function()
         "get_data_root",
         "set_data_root",
         "reapply_app",
+        "append_log",
     }
 
     local function methods_table()
@@ -79,7 +81,7 @@ describe("main", function()
         support.reset()
         support.install_json()
         store = support.use_fake_fs()
-        support.stub_logger()
+        logger = support.stub_logger()
         support.stub_millennium({ config = { data_root = "/data" } })
         support.set_env("MILLENNIUM__STEAM_PATH", "/steam")
         support.set_env("XDG_DATA_HOME", "/xdg/data")
@@ -248,6 +250,29 @@ describe("main", function()
         assert.is_table(ack)
         assert.is_false(ack.ok)
         assert.equals("not_installed", ack.code)
+    end)
+
+    it("returns a success Ack from append_log and relays a frontend record", function()
+        local ack = invoke("append_log", { level = "info", message = "hello" })
+        assert.is_table(ack)
+        assert.is_true(ack.ok)
+        assert.equals(1, #logger.calls)
+        assert.equals("info", logger.calls[1].level)
+        assert.is_truthy(logger.calls[1].message:find("[frontend] hello", 1, true))
+    end)
+
+    it("fails append_log for an invalid level", function()
+        local ack = invoke("append_log", { level = "debug", message = "hello" })
+        assert.is_table(ack)
+        assert.is_false(ack.ok)
+        assert.is_string(ack.error)
+    end)
+
+    it("fails append_log for a missing message", function()
+        local ack = invoke("append_log", { level = "warn" })
+        assert.is_table(ack)
+        assert.is_false(ack.ok)
+        assert.is_string(ack.error)
     end)
 
     it("reads the beta branch from the appmanifest BetaKey", function()

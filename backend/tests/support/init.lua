@@ -3,7 +3,7 @@ local dkjson = require("dkjson")
 
 local support = {}
 
-local BACKEND_MODULES = { "vdf", "buildinfo", "acf", "state", "paths", "migrate", "lock", "main" }
+local BACKEND_MODULES = { "vdf", "buildinfo", "acf", "state", "paths", "migrate", "lock", "log", "main" }
 
 support.env = {}
 support.tmpdirs = {}
@@ -122,9 +122,17 @@ end
 
 function support.stub_logger()
     local logger = {}
-    function logger.info() end
-    function logger.warn() end
-    function logger.error() end
+    local calls = {}
+    logger.calls = calls
+    function logger.info(_, message)
+        table.insert(calls, { level = "info", message = message })
+    end
+    function logger.warn(_, message)
+        table.insert(calls, { level = "warn", message = message })
+    end
+    function logger.error(_, message)
+        table.insert(calls, { level = "error", message = message })
+    end
     function logger.log() end
     function logger.debug() end
     package.loaded["logger"] = logger

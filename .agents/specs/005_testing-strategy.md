@@ -7,7 +7,7 @@ type: process
 
 ## Summary
 
-This spec defines how the `Steam App Verlock` plugin is tested: the test layers, the doubles and seams the tests use, the fixtures that stand in for a live Steam client, the runners, and the continuous-integration matrix. [Spec 1](001_toolchain.md) owns the toolchain that provides the runners, and [Spec 4](004_app-version-lock.md) owns the behavior under test.
+This spec defines how the `Steam App Verlock` plugin is tested: the test layers, the doubles and seams the tests use, the fixtures that stand in for a live Steam client, the runners, and the continuous-integration matrix. [Spec 1](001_toolchain.md) owns the toolchain that provides the runners, [Spec 4](004_app-version-lock.md) owns the behavior under test, and [Spec 6](006_logging.md) owns the logging mechanism the tests exercise.
 
 ## Motivation
 
@@ -19,14 +19,14 @@ The plugin edits files that the Steam client also writes, and it reads its build
 
 The strategy has four layers.
 
-- Unit tests cover the pure backend logic — the `vdf.lua` codec, the `buildinfo.lua` parser, the `acf.lua` appmanifest writer, the `state.lua` record store, the `paths.lua` resolver and discovery, the `migrate.lua` migration, and the `lock.lua` operations — and the frontend logic in `console.ts`, `watch.ts`, and `locked.ts`. The tests inject a fake filesystem, a fake clock, a fake `SteamClient`, and a fake `Millennium`.
+- Unit tests cover the pure backend logic — the `vdf.lua` codec, the `buildinfo.lua` parser, the `acf.lua` appmanifest writer, the `state.lua` record store, the `paths.lua` resolver and discovery, the `migrate.lua` migration, the `lock.lua` operations, and the `log.lua` logging module — and the frontend logic in `console.ts`, `watch.ts`, `locked.ts`, and `log.ts`. The tests inject a fake filesystem, a fake clock, a fake `SteamClient`, and a fake `Millennium`.
 - Integration tests run lock, refresh, unlock, reapply, and Restore All against a temporary Steam root seeded with fixture `libraryfolders.vdf` and `appmanifest_*.acf` files, then assert the appmanifest fields, the record, and the restored text.
 - Contract tests check the frontend/backend RPC method names and payload shapes against the shared TypeScript types and Lua shape assertions.
 - Manual end-to-end tests follow a documented checklist on a real Windows and Linux client, because a test environment cannot reproduce Steam's update behavior.
 
 ### Unit Tests
 
-Backend unit tests run under busted and cover each module in [Spec 4](004_app-version-lock.md#implementation-plan).
+Backend unit tests run under busted and cover each module in [Spec 4](004_app-version-lock.md#implementation-plan) and the `log.lua` module from [Spec 6](006_logging.md).
 
 - `vdf.lua` — `parse` and `serialize` round-trip a table, `parse` returns an error on malformed text, and the codec preserves quoting, escaping, comments, and nested objects.
 - `buildinfo.lua` — `clean` strips console noise, `parse` reads `buildid` and the `InstalledDepots` manifests, and `validate` rejects a dump that lacks a required field.

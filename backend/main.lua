@@ -6,6 +6,7 @@ local acf = require("acf")
 local buildinfo = require("buildinfo")
 local lock = require("lock")
 local migrate = require("migrate")
+local log = require("log")
 
 ---@param path string|nil
 ---@return string|nil
@@ -177,6 +178,18 @@ handlers.reapply_app = function(payload)
     return lock.reapply(appid)
 end
 
+handlers.append_log = function(payload)
+    local level = payload.level
+    if level ~= "info" and level ~= "warn" and level ~= "error" then
+        return { ok = false, error = "a valid log level is required" }
+    end
+    if type(payload.message) ~= "string" then
+        return { ok = false, error = "a log message is required" }
+    end
+    log.persist("frontend", level, payload.message)
+    return { ok = true }
+end
+
 ---@param name string
 ---@param payload table
 ---@return table
@@ -297,6 +310,13 @@ end
 ---@return string
 function reapply_app(payload)
     return respond("reapply_app", payload)
+end
+
+---@ffi
+---@param payload string
+---@return string
+function append_log(payload)
+    return respond("append_log", payload)
 end
 
 return {

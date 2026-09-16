@@ -53,3 +53,7 @@ export function set_data_root(path: string): Promise<MigrateResult> {
 export function reapply_app(appid: AppId): Promise<Ack> {
   return as_result<Ack>(backend.reapply_app(JSON.stringify({ appid })));
 }
+
+export function append_log(level: string, message: string): Promise<Ack> {
+  return as_result<Ack>(backend.append_log(JSON.stringify({ level, message })));
+}

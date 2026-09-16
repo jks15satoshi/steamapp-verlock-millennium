@@ -27,7 +27,7 @@ import {
 } from "./locked";
 import * as bridge from "./bridge";
 
-const GROUP_KEY = "steam-app-verlock";
+const GROUP_KEY = "steamapp-verlock";
 
 let menu_unpatch: (() => void) | null = null;
 
@@ -77,7 +77,7 @@ async function lock_app(appid: AppId): Promise<void> {
   if (!apply_auto_update_behavior(appid, EAppAutoUpdateBehavior.Launch)) {
     await unlock_app(appid);
     console.warn(
-      `[steam-app-verlock] rolled back the lock for ${appid} after the auto-update write failed`,
+      `[steamapp-verlock] rolled back the lock for ${appid} after the auto-update write failed`,
     );
     return;
   }

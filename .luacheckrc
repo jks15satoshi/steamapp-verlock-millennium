@@ -12,6 +12,7 @@ globals = {
   "get_data_root",
   "set_data_root",
   "reapply_app",
+  "append_log",
 }
 
 read_globals = {
