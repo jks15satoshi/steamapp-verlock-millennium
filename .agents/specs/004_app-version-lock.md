@@ -125,7 +125,7 @@ The panel decides installed state per record by reading `window.appStore.GetAppO
 
 The panel supports multi-select and batch `Refresh` and `Unlock` over the selected records.
 
-The app's Properties window carries a `Steam App Verlock` tab for the app the window shows. The tab lists the lock state, the app id and name, the locked `buildid` and depot manifests, the lock and refresh times, and the auto-update behavior, and it offers `Lock` when the app is not locked and `Refresh` and `Unlock` when it is. The tab reads the same `list_locked` records and calls the same shared actions as the context menu, and it no-ops when the window's DOM shape changes.
+The app's Properties window carries a `Steam App Verlock` tab for the app the window shows. The tab lists the lock state, the app id and name, the locked `buildid` and depot manifests, the lock and refresh times, and the auto-update behavior, and it offers `Lock` when the app is not locked and `Refresh` and `Unlock` when it is. The tab reads the same `list_locked` records and calls the same shared actions as the context menu, and it no-ops when the window's DOM shape changes. It matches the client's native dialog styling through the method of [Spec 7](007_native-ui-style-alignment.md).
 
 ### Concurrency and Atomicity
 
