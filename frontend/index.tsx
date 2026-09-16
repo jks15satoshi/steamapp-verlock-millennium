@@ -1,6 +1,7 @@
 import { IconsModule, definePlugin } from "millennium";
 import { capture_then_refresh } from "./console";
 import { install_menu_patch } from "./menu";
+import { install_properties_patch } from "./properties";
 import SettingsPanel from "./settings";
 import { sync_watches, unwatch_all } from "./watch";
 
@@ -55,6 +56,7 @@ export function request_build_info(appid: string): void {
 
 export default definePlugin(() => {
   const unpatch_menu = install_menu_patch();
+  const unpatch_properties = install_properties_patch();
   void sync_watches();
 
   return {
@@ -63,6 +65,7 @@ export default definePlugin(() => {
     content: <SettingsPanel />,
     onDismount() {
       unpatch_menu();
+      unpatch_properties();
       unwatch_all();
     },
   };
