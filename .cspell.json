@@ -49,6 +49,7 @@
     "msvc",
     "newdata",
     "noadmin",
+    "PPYG",
     "rebuildable",
     "rockspec",
     "rtrim",

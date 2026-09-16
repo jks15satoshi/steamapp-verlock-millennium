@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { Millennium } from "millennium";
+import { DialogHeader, Millennium } from "millennium";
 import type { AppId, LockedAppRecord } from "./index";
 import { lock_app, refresh_app, unlock_app } from "./actions";
 import { as_record_list, is_locked, refresh_locked_ids, subscribe_locked } from "./locked";
@@ -9,7 +9,7 @@ import { log_error, log_info, log_warn } from "./log";
 
 const PROPERTIES_CONTENT_SELECTOR = "div.DialogContent[id$='/properties/general_Content']";
 const APPID_PATTERN = /\/app\/(\d+)\/properties\//;
-const PROBE_TIMEOUT_MS = 1000;
+const DIALOG_TIMEOUT_MS = 1000;
 const TAB_MARKER = "data-verlock-tab";
 const TAB_LABEL = "Steam App Verlock";
 
@@ -53,24 +53,126 @@ export function find_record(
   return records?.find((entry) => String(entry.appid) === appid) ?? null;
 }
 
-function DepotList({ record }: { record: LockedAppRecord }) {
-  const entries = Object.entries(record.locked_build?.depots ?? {});
-  if (entries.length === 0) {
-    return <div>Depots: none</div>;
+const ACCENT_FALLBACK = "#1a9fff";
+
+export function accent_color(document_ref: Document): string {
+  const view = document_ref.defaultView;
+  if (!view) {
+    return ACCENT_FALLBACK;
   }
+  let best: { color: string; size: number } | null = null;
+  let scanned = 0;
+  for (const element of document_ref.querySelectorAll("div, span, a")) {
+    scanned += 1;
+    if (scanned > 4000) {
+      break;
+    }
+    const style = view.getComputedStyle(element);
+    const match = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(style.color);
+    if (!match) {
+      continue;
+    }
+    const [r, g, b] = [Number(match[1]), Number(match[2]), Number(match[3])];
+    if (b - r <= 30 || b <= 120) {
+      continue;
+    }
+    const size = Number.parseFloat(style.fontSize) || 0;
+    if (best === null || size > best.size) {
+      best = { color: `rgb(${r}, ${g}, ${b})`, size };
+    }
+  }
+  return best?.color ?? ACCENT_FALLBACK;
+}
+
+const BUTTON_CLASS_KEY = "steamapp-verlock.button_class";
+const BUTTON_CLASS_FALLBACK =
+  "_1KAp5PPYG7si-T_66zNEcU DialogButton _DialogLayout Secondary Focusable";
+
+function native_button_class(document_ref: Document, our_page: Element): string | undefined {
+  for (const button of document_ref.querySelectorAll("button")) {
+    if (our_page.contains(button)) {
+      continue;
+    }
+    const name = button.getAttribute("class") ?? "";
+    if (name.includes("DialogButton") && name.split(/\s+/).some((part) => part.startsWith("_"))) {
+      return name;
+    }
+  }
+  return undefined;
+}
+
+function read_button_class(document_ref: Document, our_page: Element): string {
+  const sampled = native_button_class(document_ref, our_page);
+  if (sampled !== undefined) {
+    try {
+      window.localStorage.setItem(BUTTON_CLASS_KEY, sampled);
+    } catch {
+      // A storage failure only costs the cached class.
+    }
+    return sampled;
+  }
+  try {
+    const stored = window.localStorage.getItem(BUTTON_CLASS_KEY);
+    if (stored !== null && stored !== "") {
+      return stored;
+    }
+  } catch {
+    // A storage failure only costs the cached class.
+  }
+  return BUTTON_CLASS_FALLBACK;
+}
+
+function ActionButton({
+  button_class,
+  disabled,
+  onClick,
+  children,
+}: {
+  button_class: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
   return (
-    <div>
-      <div>Depots:</div>
-      {entries.map(([depot, manifest]) => (
-        <div key={depot}>
-          {depot}: {manifest}
-        </div>
-      ))}
-    </div>
+    <button type="button" className={button_class} disabled={disabled} onClick={onClick}>
+      {children}
+    </button>
   );
 }
 
-export function VerlockTabContent({ appid }: { appid: AppId }) {
+function Value({ color, children }: { color: string; children: ReactNode }) {
+  return <span style={{ color, fontWeight: 500, marginLeft: "5px" }}>{children}</span>;
+}
+
+function Row({ children }: { children: ReactNode }) {
+  return <div style={{ lineHeight: "20px" }}>{children}</div>;
+}
+
+function DepotList({ record, accent }: { record: LockedAppRecord; accent: string }) {
+  const entries = Object.entries(record.locked_build?.depots ?? {});
+  if (entries.length === 0) {
+    return <Row>Depots: none</Row>;
+  }
+  return (
+    <>
+      {entries.map(([depot, manifest]) => (
+        <Row key={depot}>
+          Depot {depot}: <Value color={accent}>{manifest}</Value>
+        </Row>
+      ))}
+    </>
+  );
+}
+
+export function VerlockTabContent({
+  appid,
+  accent,
+  button_class,
+}: {
+  appid: AppId;
+  accent: string;
+  button_class: string;
+}) {
   const [record, set_record] = useState<LockedAppRecord | null>(null);
   const [locked, set_locked] = useState<boolean>(() => is_locked(appid));
   const [busy, set_busy] = useState(false);
@@ -108,34 +210,76 @@ export function VerlockTabContent({ appid }: { appid: AppId }) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "8px" }}>
-      <div style={{ fontSize: "1.1em", fontWeight: 700 }}>{TAB_LABEL}</div>
-      <div>State: {locked ? "Locked" : "Not locked"}</div>
-      <div>App ID: {appid}</div>
-      {locked && record ? (
-        <>
-          <div>Name: {record.name}</div>
-          <div>Build: {record.locked_build?.buildid ?? "Unknown"}</div>
-          <DepotList record={record} />
-          <div>Locked: {format_time(record.locked_at)}</div>
-          <div>Refreshed: {format_time(record.refreshed_at)}</div>
-          <div>Auto-update: {behavior_label(record.auto_update_behavior)}</div>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            <button disabled={busy} onClick={() => run(() => refresh_app(appid))}>
-              Refresh
-            </button>
-            <button disabled={busy} onClick={() => run(() => unlock_app(appid))}>
-              Unlock
-            </button>
+    <div className="DialogContent_InnerWidth">
+      <DialogHeader>{TAB_LABEL}</DialogHeader>
+      <div className="DialogBody" style={{ fontSize: "14px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "8px",
+          }}
+        >
+          <span>
+            State:{" "}
+            <span
+              style={{ fontWeight: 700, marginLeft: "5px", color: locked ? accent : undefined }}
+            >
+              {locked ? "Locked" : "Not locked"}
+            </span>
+          </span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            {locked ? (
+              <>
+                <ActionButton
+                  button_class={button_class}
+                  disabled={busy}
+                  onClick={() => run(() => refresh_app(appid))}
+                >
+                  Refresh
+                </ActionButton>
+                <ActionButton
+                  button_class={button_class}
+                  disabled={busy}
+                  onClick={() => run(() => unlock_app(appid))}
+                >
+                  Unlock
+                </ActionButton>
+              </>
+            ) : (
+              <ActionButton
+                button_class={button_class}
+                disabled={busy}
+                onClick={() => run(() => lock_app(appid))}
+              >
+                Lock
+              </ActionButton>
+            )}
           </div>
-        </>
-      ) : (
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button disabled={busy || locked} onClick={() => run(() => lock_app(appid))}>
-            Lock
-          </button>
         </div>
-      )}
+        {locked && record ? (
+          <>
+            <Row>
+              App ID: <Value color={accent}>{record.appid}</Value>
+            </Row>
+            <Row>
+              Build ID: <Value color={accent}>{record.locked_build?.buildid ?? "Unknown"}</Value>
+            </Row>
+            <DepotList record={record} accent={accent} />
+            <Row>
+              Locked: <Value color={accent}>{format_time(record.locked_at)}</Value>
+            </Row>
+            <Row>
+              Refreshed: <Value color={accent}>{format_time(record.refreshed_at)}</Value>
+            </Row>
+            <Row>
+              Auto-update:{" "}
+              <Value color={accent}>{behavior_label(record.auto_update_behavior)}</Value>
+            </Row>
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -231,9 +375,12 @@ function inject(document_ref: Document, appid: string): void {
     our_area.style.display = active ? "" : "none";
   };
 
+  let refresh_content: () => void = () => {};
+
   our_tab.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
+    refresh_content();
     set_active(true);
   });
 
@@ -270,10 +417,29 @@ function inject(document_ref: Document, appid: string): void {
     });
   }
 
+  let button_class = read_button_class(document_ref, our_page);
   const root = createRoot(our_page);
   roots.push(root);
-  root.render(<VerlockTabContent appid={appid} />);
+  refresh_content = () => {
+    button_class = read_button_class(document_ref, our_page);
+    root.render(
+      <VerlockTabContent
+        appid={appid}
+        accent={accent_color(document_ref)}
+        button_class={button_class}
+      />,
+    );
+  };
+  refresh_content();
   log_info(`added the app properties tab for app ${appid}`);
+
+  const button_observer = new MutationObserver(() => {
+    const sampled = native_button_class(document_ref, our_page);
+    if (sampled !== undefined && sampled !== button_class) {
+      refresh_content();
+    }
+  });
+  button_observer.observe(document_ref.body, { subtree: true, childList: true });
 }
 
 export function install_properties_patch(): () => void {
@@ -293,7 +459,7 @@ export function install_properties_patch(): () => void {
         const matches = await Millennium.findElement(
           document_ref,
           PROPERTIES_CONTENT_SELECTOR,
-          PROBE_TIMEOUT_MS,
+          DIALOG_TIMEOUT_MS,
         );
         const general = matches[0];
         if (!general) {

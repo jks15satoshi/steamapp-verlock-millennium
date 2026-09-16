@@ -20,6 +20,9 @@ void mock.module("react-dom/client", () => ({
 void mock.module("millennium", () => ({
   Millennium: { AddWindowCreateHook: undefined, findElement: async () => [] },
   EAppAutoUpdateBehavior: { Always: 0, Launch: 1, HighPriority: 2 },
+  DialogBodyText: () => null,
+  DialogButton: () => null,
+  DialogHeader: () => null,
 }));
 
 const { behavior_label, find_record, format_time } = await import("../properties");
