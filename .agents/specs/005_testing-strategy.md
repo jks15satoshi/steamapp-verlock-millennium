@@ -19,7 +19,7 @@ The plugin edits files that the Steam client also writes, and it reads its build
 
 The strategy has four layers.
 
-- Unit tests cover the pure backend logic — the `vdf.lua` codec, the `buildinfo.lua` parser, the `acf.lua` appmanifest writer, the `state.lua` record store, the `paths.lua` resolver and discovery, the `migrate.lua` migration, the `lock.lua` operations, and the `log.lua` logging module — and the frontend logic in `console.ts`, `watch.ts`, `locked.ts`, and `log.ts`. The tests inject a fake filesystem, a fake clock, a fake `SteamClient`, and a fake `Millennium`.
+- Unit tests cover the pure backend logic — the `vdf.lua` codec, the `buildinfo.lua` parser, the `acf.lua` appmanifest writer, the `state.lua` record store, the `paths.lua` resolver and discovery, the `migrate.lua` migration, the `lock.lua` operations, and the `log.lua` logging module — and the frontend logic in `console.ts`, `watch.ts`, `locked.ts`, `log.ts`, and `properties.tsx`. The tests inject a fake filesystem, a fake clock, a fake `SteamClient`, and a fake `Millennium`.
 - Integration tests run lock, refresh, unlock, reapply, and Restore All against a temporary Steam root seeded with fixture `libraryfolders.vdf` and `appmanifest_*.acf` files, then assert the appmanifest fields, the record, and the restored text.
 - Contract tests check the frontend/backend RPC method names and payload shapes against the shared TypeScript types and Lua shape assertions.
 - Manual end-to-end tests follow a documented checklist on a real Windows and Linux client, because a test environment cannot reproduce Steam's update behavior.
@@ -43,6 +43,7 @@ Frontend unit tests run under Bun test.
 - `console.ts` — `capture_build_info` takes the first non-empty dump as the baseline, samples until a dump differs, falls back to the most recent non-empty dump when the time limit expires, and treats an empty dump as neither the baseline nor a candidate; the command builder rejects a non-numeric `appid`; `capture_build_info` stores the accepted dump through `set_build_info` before it returns, and `capture_then_refresh` refreshes only after a successful capture; an accepted capture relays an `info` record, and a failed capture relays a `warn` or an `error` record.
 - `watch.ts` — `watch_app` and `unwatch_app` register and release the Steam callbacks; the action handler cancels the action, re-applies, and re-issues it, and re-applies then lets the action proceed when the cancel fails; `unwatch_then_unlock` and `unwatch_all_then_restore` stop watching before they unlock or restore, and re-watch on failure — `unwatch_then_unlock` re-watches the app when the call fails, and `unwatch_all_then_restore` re-watches the records the result lists under `failed`, or every given app when the call itself fails; `read_auto_update_behavior` and `apply_auto_update_behavior` read and write the app's auto-update setting; `unwatch_then_unlock` reports `auto_update_restored` and `unwatch_all_then_restore` records `auto_update_failed` when a behavior write fails; a `list_locked` response of `{}` counts as an empty record list; a `not_installed` reapply, a failed action cancel, and a failed behavior restore each relay a `warn` record, and a failed backend call relays an `error` record.
 - `locked.ts` — `sync_locked_ids` replaces the local locked set from a record list, treats a `{}` response as an empty list, and keeps the set for an error envelope.
+- `properties.tsx` — `format_time` renders a time and returns `Never` for a missing or zero value, `behavior_label` names the known `EAppAutoUpdateBehavior` values and falls back for an unknown or absent one, and `find_record` selects the record for one app id regardless of its type; the tab's DOM injection stays on the manual checklist.
 - `log.ts` — `log_info`, `log_warn`, and `log_error` write the matching console method with the `[steamapp-verlock]` prefix and relay one `{ level, message }` record through `bridge.append_log`; a rejected relay is swallowed and the console line still appears.
 
 ### Integration Tests
@@ -80,7 +81,7 @@ The `verification` workflow runs three parallel jobs. The `docs` job, on an Ubun
 ### Undecided Items
 
 - The coverage threshold (see [Coverage](#coverage)).
-- Whether the `menu.tsx` and `settings.tsx` UI components get component-level tests or stay on the manual checklist.
+- Whether the `actions.ts`, `menu.tsx`, `settings.tsx`, and `properties.tsx` UI components get component-level tests or stay on the manual checklist.
 
 ## Alternatives Considered
 

@@ -125,6 +125,8 @@ The panel decides installed state per record by reading `window.appStore.GetAppO
 
 The panel supports multi-select and batch `Refresh` and `Unlock` over the selected records.
 
+The app's Properties window carries a `Steam App Verlock` tab for the app the window shows. The tab lists the lock state, the app id and name, the locked `buildid` and depot manifests, the lock and refresh times, and the auto-update behavior, and it offers `Lock` when the app is not locked and `Refresh` and `Unlock` when it is. The tab reads the same `list_locked` records and calls the same shared actions as the context menu, and it no-ops when the window's DOM shape changes.
+
 ### Concurrency and Atomicity
 
 The backend writes the appmanifest through a temporary file and renames it into place, so a failed write leaves the previous appmanifest intact. Every backend write operation for one app — `Lock`, `Refresh`, `Unlock`, and `Reapply` — is serialized, and `Restore All` excludes them all while it runs. The feature runs while the Steam client runs and assumes Steam rewrites the appmanifest; the watch reapplies the spoof, and the launch and update interception reapplies before the action proceeds.
@@ -215,8 +217,10 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 | `frontend/locked.ts` | Reactive locked-app-id store shared by the menu and settings panel |
 | `frontend/console.ts` | PICS capture |
 | `frontend/watch.ts` | App event watch and reapply triggers |
+| `frontend/actions.ts` | Shared `Lock`, `Refresh`, and `Unlock` flows used by the menu and the Properties tab |
 | `frontend/menu.tsx` | Library context menu |
 | `frontend/settings.tsx` | Settings panel |
+| `frontend/properties.tsx` | App Properties window tab |
 
 ### Function List
 
@@ -325,6 +329,20 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `unwatch_then_unlock(appid: AppId): Promise<UnlockResult>` — stop watching the app, call `unlock_app`, re-watch the app when the call fails, restore the returned `auto_update_behavior`, and set the result's `auto_update_restored` from the restore outcome.
 - `unwatch_all_then_restore(appids: AppId[]): Promise<RestoreResult>` — stop watching every app, call `restore_all`, re-watch the records the result lists under `failed` (or every given app when the call fails), restore the returned `auto_update` behaviors, and record the failed app ids in the result's `auto_update_failed`.
 
+`frontend/actions.ts`
+
+- `lock_app(appid: AppId): Promise<void>` — capture the build info, read the current auto-update behavior, call `lock_app`, set the behavior to `Launch`, and start watching the app; it rolls the lock back when the behavior write fails.
+- `refresh_app(appid: AppId): Promise<void>` — capture the build info and call `refresh_app`.
+- `unlock_app(appid: AppId): Promise<void>` — stop watching the app, call `unlock_app`, and clear the local locked mark on success.
+
+`frontend/properties.tsx`
+
+- `install_properties_patch(): () => void` — install the App Properties hook and return a disposer; a missing `AddWindowCreateHook` or a changed dialog shape makes the tab a no-op.
+- `VerlockTabContent({ appid }): JSX.Element` — the tab content: the app's lock record, status, locked build, and actions.
+- `format_time(value: number | undefined): string` — internal/test interface; render a Unix timestamp, or `Never` when it is absent.
+- `behavior_label(value: number | undefined): string` — internal/test interface; name an `EAppAutoUpdateBehavior` value.
+- `find_record(records: LockedAppRecord[] | null, appid: AppId): LockedAppRecord | null` — internal/test interface; select the record for one app id.
+
 #### Bridge
 
 frontend to backend (`backend` FFI bridge)
@@ -365,6 +383,7 @@ backend to frontend (`millennium.call_frontend_method`)
 - A data root directory migration can fail across filesystems, hit a permission error, or be interrupted — prevention: the migration copies and verifies before it persists the new path, keeps the old root directory until the new one verifies, and never touches the cache root directory.
 - A path that contains spaces or non-ASCII characters, or a data root directory on a removable drive, can break path handling — prevention: `paths.validate` rejects a data root path that is not absolute, creatable, or writable, that is equal to or nests with the current data root directory, or that is equal to or inside the cache root directory, and discovery re-resolves a path that is gone.
 - `window.appStore.GetAppOverviewByAppID` and the state flags it reflects are undocumented client internals, so the installed check in the settings panel can be unavailable or wrong — prevention: the panel treats a missing overview or a missing field as not installed, so the record still offers `Unlock`.
+- The app Properties window is an undocumented client internal, so a client update can move its tab list or content area and drop or misplace the tab — prevention: the injection lives in `frontend/properties.tsx`, the active-tab class is derived at runtime, the content area is found relative to the `role='tablist'` and `general_Content` anchors, and a missing anchor or `AddWindowCreateHook` makes the tab a no-op.
 - The feature has no uninstall hook, so removing the plugin leaves the lock records in place and stops the reapply — prevention: `Restore All` restores every record's `original` appmanifest and deletes each record after its appmanifest write succeeds, so running it before uninstalling the plugin deletes every successfully restored record, and a record whose write-back fails stays in place for a retry; uninstalling before running it leaves the lock records in place and stops the reapply.
 - Deleting a record without restoring it leaves an app locked with no restore basis — prevention: `Restore All` deletes a record only after its appmanifest write succeeds, and `Unlock` removes a record whose app is no longer installed only when discovery runs and finds no appmanifest.
 
