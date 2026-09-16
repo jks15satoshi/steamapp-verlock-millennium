@@ -1,0 +1,4 @@
+return {
+    include = { "backend/" },
+    exclude = { "backend/tests/" },
+}

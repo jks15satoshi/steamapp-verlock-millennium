@@ -1,0 +1,37 @@
+$ErrorActionPreference = "Stop"
+
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$RootDir = Split-Path -Parent $ScriptDir
+$RocksDir = Join-Path $RootDir ".rocks"
+$LuaRocksVersion = "3.13.0"
+$BuildDir = Join-Path ([System.IO.Path]::GetTempPath()) ("luarocks-build-" + [System.Guid]::NewGuid().ToString("N"))
+$Archive = Join-Path $BuildDir "luarocks-$LuaRocksVersion.tar.gz"
+$SrcDir = Join-Path $BuildDir "luarocks-$LuaRocksVersion"
+$Url = "https://luarocks.org/releases/luarocks-$LuaRocksVersion.tar.gz"
+
+New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
+
+try {
+  $LuaJitDir = (mise where luajit).Trim()
+
+  if (-not (Test-Path (Join-Path $RocksDir "luarocks.bat"))) {
+    Invoke-WebRequest -Uri $Url -OutFile $Archive
+    tar -xzf $Archive -C $BuildDir
+
+    Push-Location $SrcDir
+    try {
+      cmd /c "install.bat /P `"$RocksDir`" /TREE `"$RocksDir`" /LUA `"$LuaJitDir`" /LV 5.1 /MSVC /NOADMIN /Q /F"
+      if ($LASTEXITCODE -ne 0) {
+        throw "LuaRocks installer failed with exit code $LASTEXITCODE"
+      }
+    }
+    finally {
+      Pop-Location
+    }
+  }
+
+  & (Join-Path $RocksDir "luarocks.bat") make --deps-only (Join-Path $RootDir "steamapp-verlock-dev-1.rockspec")
+}
+finally {
+  Remove-Item -Recurse -Force $BuildDir -ErrorAction SilentlyContinue
+}

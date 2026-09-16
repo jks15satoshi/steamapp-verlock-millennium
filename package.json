@@ -1,0 +1,33 @@
+{
+  "name": "steamapp-verlock",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "starlight watch",
+    "build": "starlight pack",
+    "prepare": "starlight lsp",
+    "test": "bun run test:frontend && bun run test:backend",
+    "test:frontend": "bun test frontend",
+    "test:backend": "busted",
+    "test:backend:coverage": "busted -c",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --type-aware --type-check . && ./.rocks/bin/luacheck backend && bun run lint:toml",
+    "lint:toml": "tombi lint --offline .",
+    "format": "oxfmt frontend && stylua . && bun run fmt:toml",
+    "fmt:toml": "tombi format --offline .",
+    "check:toml": "tombi format --check --offline .",
+    "spell": "cspell . .agents",
+    "setup:lua": "bash scripts/setup-luarocks.sh"
+  },
+  "devDependencies": {
+    "@steambrew/starlight": "^1.1.5",
+    "@types/bun": "latest",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "lefthook": "^2.1.14",
+    "oxfmt": "^0.68.0",
+    "oxlint": "^1.83.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "typescript": "^5.9.0"
+  }
+}
