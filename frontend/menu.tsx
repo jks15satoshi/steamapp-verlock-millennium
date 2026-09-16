@@ -26,6 +26,7 @@ import {
   subscribe_locked,
 } from "./locked";
 import * as bridge from "./bridge";
+import { log_error, log_warn } from "./log";
 
 const GROUP_KEY = "steamapp-verlock";
 
@@ -61,24 +62,28 @@ async function lock_app(appid: AppId): Promise<void> {
 
   const auto_update_behavior = read_auto_update_behavior(appid);
   if (auto_update_behavior === undefined) {
+    log_warn(`aborted the lock for app ${appid}: the auto-update behavior was unreadable`);
     return;
   }
 
   let locked: unknown;
   try {
     locked = parse_json(await bridge.lock_app(appid, auto_update_behavior));
-  } catch {
+  } catch (error) {
+    log_error(`lock failed for app ${appid}: ${String(error)}`);
     return;
   }
-  if (!is_ack(locked) || !locked.ok) {
+  if (!is_ack(locked)) {
+    log_error(`lock failed for app ${appid}: the backend returned an invalid response`);
+    return;
+  }
+  if (!locked.ok) {
     return;
   }
 
   if (!apply_auto_update_behavior(appid, EAppAutoUpdateBehavior.Launch)) {
     await unlock_app(appid);
-    console.warn(
-      `[steamapp-verlock] rolled back the lock for ${appid} after the auto-update write failed`,
-    );
+    log_warn(`rolled back the lock for ${appid} after the auto-update write failed`);
     return;
   }
 
@@ -94,7 +99,8 @@ async function refresh_app(appid: AppId): Promise<void> {
 
   try {
     await bridge.refresh_app(appid);
-  } catch {
+  } catch (error) {
+    log_error(`refresh failed for app ${appid}: ${String(error)}`);
     return;
   }
 }

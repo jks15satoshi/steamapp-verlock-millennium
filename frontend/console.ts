@@ -1,5 +1,6 @@
 import type { Ack, AppId, CaptureResult } from "./index";
 import * as bridge from "./bridge";
+import { log_error, log_info, log_warn } from "./log";
 
 const CAPTURE_TIME_LIMIT_MS = 2000;
 const CAPTURE_SAMPLE_INTERVAL_MS = 100;
@@ -48,6 +49,7 @@ async function store_build_info(appid: AppId, dump: string): Promise<Ack> {
 export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
   const command = build_app_info_print_command(appid);
   if (command === null) {
+    log_warn(`refused to capture build info for a non-numeric appid: ${appid}`);
     return {
       ok: false,
       error: `Refusing to build a console command for a non-numeric appid: ${appid}`,
@@ -59,6 +61,7 @@ export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
     typeof console_api?.RegisterForSpewOutput !== "function" ||
     typeof console_api?.ExecCommand !== "function"
   ) {
+    log_error(`capture failed for app ${appid}: Steam console is unavailable`);
     return { ok: false, error: "Steam console is unavailable" };
   }
 
@@ -98,20 +101,27 @@ export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
       if (dump !== baseline) {
         const stored = await store_build_info(appid, dump);
         if (!stored.ok) {
+          log_error(
+            `capture failed for app ${appid}: ${stored.error ?? "Failed to store build info"}`,
+          );
           return { ok: false, error: stored.error ?? "Failed to store build info" };
         }
+        log_info(`captured build info for app ${appid}`);
         return { ok: true, appid, dump };
       }
     }
 
     if (latest.trim().length === 0) {
+      log_warn(`capture failed for app ${appid}: Timed out waiting for app info`);
       return { ok: false, error: "Timed out waiting for app info" };
     }
 
     const stored = await store_build_info(appid, latest);
     if (!stored.ok) {
+      log_error(`capture failed for app ${appid}: ${stored.error ?? "Failed to store build info"}`);
       return { ok: false, error: stored.error ?? "Failed to store build info" };
     }
+    log_info(`captured build info for app ${appid}`);
     return { ok: true, appid, dump: latest };
   } finally {
     handle.unregister();

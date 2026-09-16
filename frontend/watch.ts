@@ -2,6 +2,7 @@ import type { ELaunchSource, Unregisterable } from "millennium";
 import type { Ack, AppId, RestoreResult, UnlockResult } from "./index";
 import * as bridge from "./bridge";
 import { as_record_list } from "./locked";
+import { log_error, log_warn } from "./log";
 
 const BACKSTOP_INTERVAL_MS = 3600000;
 const SYNC_RETRY_ATTEMPTS = 5;
@@ -53,9 +54,11 @@ async function reapply(appid: AppId): Promise<void> {
   try {
     const result = parse_json(await bridge.reapply_app(appid));
     if (is_ack(result) && !result.ok && result.code === "not_installed") {
+      log_warn(`stopped watching app ${appid}: it is no longer installed`);
       unwatch_app(appid);
     }
-  } catch {
+  } catch (error) {
+    log_error(`reapply failed for app ${appid}: ${String(error)}`);
     return;
   }
 }
@@ -131,6 +134,10 @@ async function handle_game_action_start(
     cancelled = false;
   }
 
+  if (!cancelled) {
+    log_warn(`could not cancel the action for app ${appid}; reapplied and let it proceed`);
+  }
+
   await reapply(appid);
 
   if (cancelled) {
@@ -184,6 +191,7 @@ export async function sync_watches(): Promise<void> {
       }
     }
   }
+  log_warn(`could not load the lock records after ${SYNC_RETRY_ATTEMPTS} attempts`);
 }
 
 export function watch_app(appid: AppId): void {
@@ -279,6 +287,7 @@ function restore_behaviors(entries: { appid: AppId; behavior: number }[] | undef
   const failed: AppId[] = [];
   for (const entry of Array.isArray(entries) ? entries : []) {
     if (!apply_auto_update_behavior(entry.appid, entry.behavior)) {
+      log_warn(`could not restore the auto-update setting for app ${entry.appid}`);
       failed.push(entry.appid);
     }
   }
@@ -290,17 +299,24 @@ export async function unwatch_then_unlock(appid: AppId): Promise<UnlockResult> {
   let result: unknown;
   try {
     result = parse_json(await bridge.unlock_app(appid));
-  } catch {
+  } catch (error) {
+    log_error(`unlock failed for app ${appid}: ${String(error)}`);
     watch_app(appid);
     return { ok: false, error: "unlock failed" };
   }
   if (!is_ack(result) || !result.ok) {
     watch_app(appid);
+    if (!is_ack(result)) {
+      log_error(`unlock failed for app ${appid}: the backend returned an invalid response`);
+    }
     return is_ack(result) ? (result as UnlockResult) : { ok: false, error: "unlock failed" };
   }
   const unlock = result as UnlockResult;
   if (typeof unlock.auto_update_behavior === "number") {
     unlock.auto_update_restored = apply_auto_update_behavior(appid, unlock.auto_update_behavior);
+    if (!unlock.auto_update_restored) {
+      log_warn(`could not restore the auto-update setting for app ${appid}`);
+    }
   } else {
     unlock.auto_update_restored = true;
   }
@@ -312,7 +328,8 @@ export async function unwatch_all_then_restore(appids: AppId[]): Promise<Restore
   let result: unknown;
   try {
     result = parse_json(await bridge.restore_all());
-  } catch {
+  } catch (error) {
+    log_error(`restore all failed: ${String(error)}`);
     for (const appid of appids) {
       watch_app(appid);
     }
@@ -321,6 +338,9 @@ export async function unwatch_all_then_restore(appids: AppId[]): Promise<Restore
   if (!is_ack(result) || !result.ok) {
     for (const appid of appids) {
       watch_app(appid);
+    }
+    if (!is_ack(result)) {
+      log_error("restore all failed: the backend returned an invalid response");
     }
     return is_ack(result)
       ? (result as RestoreResult)

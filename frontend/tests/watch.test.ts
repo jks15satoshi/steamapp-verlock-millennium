@@ -340,6 +340,10 @@ test("a not_installed reapply result unwatches the app", async () => {
   fireAppDetails(APPID);
   await pump(100, 20);
   expect(appIdsFor("reapply_app")).toContain(APPID);
+  const relays = bridge.find("append_log");
+  expect(JSON.parse(relays[relays.length - 1]?.payload as string)).toMatchObject({
+    level: "warn",
+  });
   bridge.reset();
   fireAppDetails(APPID);
   fireOverview();
@@ -416,6 +420,10 @@ test("unwatch_then_unlock reports a failed auto-update restore", async () => {
   const result = await unwatch_then_unlock(APPID);
   expect(result.ok).toBe(true);
   expect(result.auto_update_restored).toBe(false);
+  const relays = bridge.find("append_log");
+  expect(JSON.parse(relays[relays.length - 1]?.payload as string)).toMatchObject({
+    level: "warn",
+  });
 });
 
 test("unwatch_then_unlock reports success when the record has no behavior", async () => {

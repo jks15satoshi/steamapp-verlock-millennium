@@ -112,6 +112,28 @@ test("capture_build_info rejects a non-numeric appid without running a command",
   expect(commands).toEqual([]);
 });
 
+test("capture_build_info relays an error when the console is unavailable", async () => {
+  installSteamClient({ Console: {}, Apps: {}, System: {} });
+  bridge.reset();
+  const result = await capture_build_info(APPID);
+  expect(result.ok).toBe(false);
+  const relays = bridge.find("append_log");
+  expect(JSON.parse(relays[relays.length - 1]?.payload as string)).toMatchObject({
+    level: "error",
+  });
+});
+
+test("capture_build_info relays a warn when the capture times out", async () => {
+  setup([]);
+  bridge.reset();
+  const result = await settle(capture_build_info(APPID), 4000, 20);
+  expect(result.ok).toBe(false);
+  const relays = bridge.find("append_log");
+  expect(JSON.parse(relays[relays.length - 1]?.payload as string)).toMatchObject({
+    level: "warn",
+  });
+});
+
 test("capture_build_info treats an empty first dump as neither baseline nor candidate", async () => {
   setup([emptyDump, staleFirstDump, multiDepotDump]);
   const result = await settle(capture_build_info(APPID), 4000, 20);

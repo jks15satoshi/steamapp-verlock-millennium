@@ -5,6 +5,7 @@ import { capture_build_info } from "./console";
 import { reapply_all, unwatch_all_then_restore, unwatch_then_unlock } from "./watch";
 import { as_record_list, sync_locked_ids } from "./locked";
 import * as bridge from "./bridge";
+import { log_error, log_warn } from "./log";
 
 function parse_json(raw: unknown): unknown {
   if (typeof raw === "string") {
@@ -50,6 +51,7 @@ export default function SettingsPanel() {
       const list = parse_json(await bridge.list_locked());
       const records = as_record_list(list);
       if (is_ack(list) && !list.ok) {
+        log_warn(`could not load the lock state: ${list.error ?? "unavailable"}`);
         set_status("Lock state is temporarily unavailable");
       } else {
         set_records(records ?? []);
@@ -62,7 +64,8 @@ export default function SettingsPanel() {
         set_roots(resolved);
         set_path_draft(resolved.data_root ?? "");
       }
-    } catch {
+    } catch (error) {
+      log_error(`failed to load the lock state: ${String(error)}`);
       set_status("Failed to load lock state");
     }
   }, []);
