@@ -36,12 +36,14 @@ Backend unit tests run under busted and cover each module in [Spec 4](004_app-ve
 - `migrate.lua` — `move` copies, verifies, persists, and then deletes; a failure before the new path is persisted leaves the old root intact and removes the partial copy.
 - `lock.lua` — `reapply` rewrites only when `buildid`, a depot manifest, `StateFlags`, or `TargetBuildID` differs; re-applies for one app are serialized; `restore_all` keeps a record whose appmanifest write fails and drops a record whose app is no longer installed.
 - `main.lua` — the dispatch table exposes every bridge method name, returns each handler's result as-is, and turns a raised error into an `Ack` error envelope; an unknown method returns an error.
+- `log.lua` — `info`, `warn`, and `error` append one record at their level with the `backend` source to the log file and pass it to the host `logger`, and `persist` does the same for the given level and source; a record carries a UTC timestamp, a `[<source>]` tag, and a trailing newline; `path` resolves the file under `MILLENNIUM__LOGS_PATH`; the module creates the directory once through `fs.create_directories`, skips the write when the variable is absent, ignores a failed append, and never raises.
 
 Frontend unit tests run under Bun test.
 
 - `console.ts` — `capture_build_info` takes the first non-empty dump as the baseline, samples until a dump differs, falls back to the most recent non-empty dump when the time limit expires, and treats an empty dump as neither the baseline nor a candidate; the command builder rejects a non-numeric `appid`; `capture_build_info` stores the accepted dump through `set_build_info` before it returns, and `capture_then_refresh` refreshes only after a successful capture.
 - `watch.ts` — `watch_app` and `unwatch_app` register and release the Steam callbacks; the action handler cancels the action, re-applies, and re-issues it, and re-applies then lets the action proceed when the cancel fails; `unwatch_then_unlock` and `unwatch_all_then_restore` stop watching before they unlock or restore, and re-watch on failure — `unwatch_then_unlock` re-watches the app when the call fails, and `unwatch_all_then_restore` re-watches the records the result lists under `failed`, or every given app when the call itself fails; `read_auto_update_behavior` and `apply_auto_update_behavior` read and write the app's auto-update setting; `unwatch_then_unlock` reports `auto_update_restored` and `unwatch_all_then_restore` records `auto_update_failed` when a behavior write fails; a `list_locked` response of `{}` counts as an empty record list.
 - `locked.ts` — `sync_locked_ids` replaces the local locked set from a record list, treats a `{}` response as an empty list, and keeps the set for an error envelope.
+- `log.ts` — `log_info`, `log_warn`, and `log_error` write the matching console method with the `[steamapp-verlock]` prefix and relay one `{ level, message }` record through `bridge.append_log`; a rejected relay is swallowed and the console line still appears.
 
 ### Integration Tests
 
@@ -49,11 +51,11 @@ Integration tests create a temporary Steam root, seed it with fixture `libraryfo
 
 ### Contract Tests
 
-Contract tests assert the nine frontend-to-backend method names and the one backend-to-frontend method name from [Spec 4](004_app-version-lock.md#bridge), and the payload and response shape of each against the shared TypeScript types and matching Lua shape assertions.
+Contract tests assert the ten frontend-to-backend method names and the one backend-to-frontend method name from [Spec 4](004_app-version-lock.md#bridge) and [Spec 6](006_logging.md#relay-bridge), and the payload and response shape of each against the shared TypeScript types and matching Lua shape assertions. The `append_log` method and its payload come from [Spec 6](006_logging.md#relay-bridge).
 
 ### Test Doubles and Seams
 
-The backend tests replace the filesystem module in `package.loaded` before they require the module under test, so the production functions keep the signatures [Spec 4](004_app-version-lock.md#function-list) fixes and gain no test-only parameter. The tests save and restore `os.time` for the clock. The frontend tests set `globalThis.SteamClient` to a fake with the `Console` and `Apps` methods and use the Bun fake timers. The backend tests stub the `Millennium` global for the frontend calls and the config API. Integration tests use a real temporary directory.
+The backend tests replace the filesystem module in `package.loaded` before they require the module under test, so the production functions keep the signatures [Spec 4](004_app-version-lock.md#function-list) fixes and gain no test-only parameter. The tests save and restore `os.time` for the clock. The frontend tests set `globalThis.SteamClient` to a fake with the `Console` and `Apps` methods and use the Bun fake timers. The backend tests stub the `Millennium` global for the frontend calls and the config API. The logging tests include `log` in `BACKEND_MODULES` and assert against the calls the `logger` stub records. Integration tests use a real temporary directory.
 
 ### Console Capture Tests
 

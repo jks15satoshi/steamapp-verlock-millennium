@@ -7,51 +7,45 @@ type: feature
 
 ## Summary
 
-This spec defines the plugin's logging: how the Lua backend and the TS/TSX frontend record operational events, where those records land, and how a frontend record reaches the same destination as a backend record. The mechanism routes both sides through the `logger` module of Millennium's Lua host, which prints each record, buffers it for the in-app log viewer, and appends it to one file; the plugin creates the host's log directory when the host does not. [Spec 4](004_app-version-lock.md) owns the operations that emit the records, and [Spec 5](005_testing-strategy.md) owns the tests.
+This spec defines the plugin's logging: how the Lua backend and the TS/TSX frontend record operational events, where those records land, and how a frontend record reaches the same destination as a backend record. The plugin appends every record to one file that it owns, and it also passes the record to the `logger` module of Millennium's Lua host, which fills the in-app log viewer. The host `logger` of a `.star` plugin writes no file and no console line, so the plugin's file stays the only log file. [Spec 4](004_app-version-lock.md) owns the operations that emit the records, and [Spec 5](005_testing-strategy.md) owns the tests.
 
 ## Motivation
 
-The plugin performs background work — build-info capture, refresh, reapply, and Restore All — that a user never sees directly, and a failure leaves no record once the session ends. The frontend's `console.*` output lives only in the Steam UI console, and the backend's `logger` output lives only in the Millennium log viewer and the host console for the current session.
+The plugin performs background work — build-info capture, refresh, reapply, and Restore All — that a user never sees directly, and a failure leaves no record once the session ends. The frontend's `console.*` output lives only in the Steam UI console.
 
-Millennium's Lua host already provides the natural sink. Its `logger` module forwards each call to the host's per-plugin logger, which prints the line to the console, buffers it for the in-app viewer, and appends it to `<MILLENNIUM__LOGS_PATH>/<plugin>_log.log`. The host leaves three gaps. It opens the file without creating the log directory, and on Linux no other component creates that directory, so the open fails silently and the file never appears. It provides no rotation, so the file grows without bound. And its line format is uneven: an `info` line carries no timestamp, and a `warn` or an `error` line carries no trailing newline.
+Millennium's Lua host buffers a plugin's `logger` output for the in-app log viewer ([`plugin_logger::collect_logs`, `src/system/logger.cc`](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/system/logger.cc)), but it persists nothing for a `.star` plugin. Starlight installs the plugin as `<id>.star` ([`pack.rs`](https://github.com/SteamClientHomebrew/Millennium/blob/main/starlight/src/pack.rs)); the host loads a `.star` plugin with format `star` ([`star_parser.cc`](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/engine/star_parser.cc)) and marks its logger as v2 ([`main.cc`](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/lua_host/main.cc)); the host passes that v2 flag to the plugin logger as `onlyBuffer` ([`plugin_loader.cc`](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/engine/plugin_loader.cc)); and the plugin logger then skips both the console and the file and keeps the record in memory only ([`logger.cc`](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/system/logger.cc)). The record therefore disappears when Steam restarts. This behavior is confirmed on Millennium v3.4.1, and it explains the report that a Starlight plugin's backend output reaches the viewer but not the console ([Millennium issue 895](https://github.com/SteamClientHomebrew/Millennium/issues/895)).
 
-The frontend contributes a fourth gap: the host captures frontend `console.*` lines for the viewer in memory only, so a frontend failure the user does not witness is lost at restart.
+The frontend contributes a second gap: the host captures frontend `console.*` lines for the viewer in memory only ([`console_capture.cc`](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/mep/console_capture.cc)), so a frontend failure the user does not witness is lost at restart.
 
-The plugin therefore adopts the host logger as its single sink, creates the missing directory, and gives every record a consistent timestamp and source tag. It adds no second file.
+The plugin therefore appends every record to a file that it owns, and it still calls the host `logger` so the in-app viewer shows the same record. It creates the file's directory itself and adds no second file.
 
 ## Design
 
 ### Log Layers
 
-A log record has one of three levels — `info`, `warn`, or `error` — and one of two sources — `BCK` for the Lua backend and `FRT` for the frontend. The backend writes a record by calling the host `logger`. The frontend writes a record by calling `console.*` and then relaying the record to the backend, which writes it through the same host `logger`. Both sources therefore reach the same console, the same log viewer, and the same file.
+A log record has one of three levels — `info`, `warn`, or `error` — and one of two sources, `backend` or `frontend`. The backend writes a record to the log file and passes it to the host `logger`. The frontend writes a record by calling `console.*` and then relaying the record to the backend, which writes it the same way. Both sources therefore reach the same file and the same viewer.
 
 ### Backend Logger
 
-The module `backend/log.lua` owns the backend's logging. It exports `info`, `warn`, and `error`, which each write one record at their level with the `BCK` source, and `persist`, which writes one record at a caller-given level and source for the relay.
+The module `backend/log.lua` owns the backend's logging. It exports `info`, `warn`, and `error`, which each write one record at their level with the `backend` source, and `persist`, which writes one record at a caller-given level and source for the relay.
 
-Each write formats the text as `<timestamp> [<source>] <message>`, where `<timestamp>` is an ISO 8601 instant in UTC. Because the host omits the timestamp from an `info` line and the newline from a `warn` or an `error` line, the record carries its own timestamp at every level and ends with `\n` at `warn` and `error`. A `warn` or an `error` line therefore shows the host's local timestamp and the record's UTC timestamp; the duplication is accepted for a uniform format.
-
-A write calls the host `logger` through a protected call, so a logging failure never raises into the operation that emitted the record.
-
-### Log Directory
-
-The host opens its log file without creating `MILLENNIUM__LOGS_PATH`, so the plugin creates that directory itself. `backend/log.lua` reads the directory from `utils.getenv("MILLENNIUM__LOGS_PATH")` and creates it with `fs.create_directories` before the first write. The module attempts the creation once per session and ignores its result. A missing variable or a failed creation leaves the log viewer path intact, because the failed file open affects the file only. The first write reaches the host logger after the directory exists, so the host's own open then succeeds.
-
-### Frontend Logger
-
-The module `frontend/log.ts` owns the frontend's logging. It exports `log_info`, `log_warn`, and `log_error`, which each write one line through `console.log`, `console.warn`, or `console.error` with the `[steam-app-verlock]` prefix, and then relay the record to the backend through `bridge.append_log`. The relay is fire-and-forget: a rejected call is swallowed, so a logging failure never interrupts the UI.
-
-### Relay Bridge
-
-The bridge method `append_log` carries a frontend record to the backend. Its payload is `{ level: string; message: string }`. The backend handler accepts a `level` of `info`, `warn`, or `error` and a string `message`; it rejects anything else with an `Ack` error envelope, and on success it calls `log.persist("FRT", level, message)` and returns `{ ok: true }`.
+Each write formats the text as `<timestamp> [<source>] <message>\n`, where `<timestamp>` is `os.date("!%Y-%m-%dT%H:%M:%SZ", utils.time())`, an ISO 8601 instant in UTC. The write appends the formatted line to the log file and passes the same line to the host `logger`. Both steps run under a protected call, so a logging failure never raises into the operation that emitted the record.
 
 ### Log File
 
-The single file is the host's `<MILLENNIUM__LOGS_PATH>/steamapp-verlock_log.log`. The plugin creates the directory but not the file, and it neither rotates the file nor caps its size; the host appends and flushes each line, so the file is complete through the last write even after a crash. The host formats a line around the record: an `info` line is `<plugin> <record>\n`, and a `warn` or an `error` line is `[<local time>] <plugin> <record>`, where the record supplies the newline that the host omits.
+The file is `<MILLENNIUM__LOGS_PATH>/steamapp-verlock.log`. `backend/log.lua` reads the directory from `utils.getenv("MILLENNIUM__LOGS_PATH")`, whose value Millennium sets on every platform ([`environment.cc`](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/system/environment.cc)), and creates it with `fs.create_directories` once per session. `path()` returns the file path, or `nil` when the variable is absent. When `path()` is `nil`, the write skips the file and still passes the record to the host `logger`. The file has no rotation and no size cap; the growth is observed before a cap or a rotation is added.
+
+### Frontend Logger
+
+The module `frontend/log.ts` owns the frontend's logging. It exports `log_info`, `log_warn`, and `log_error`, which each write one line through `console.log`, `console.warn`, or `console.error` with the `[steamapp-verlock]` prefix, and then relay the record to the backend through `bridge.append_log`. The relay is fire-and-forget: a rejected call is swallowed, so a logging failure never interrupts the UI.
+
+### Relay Bridge
+
+The bridge method `append_log` carries a frontend record to the backend. Its payload is `{ level: string; message: string }`. The backend handler accepts a `level` of `info`, `warn`, or `error` and a string `message`; it rejects anything else with an `Ack` error envelope, and on success it calls `log.persist("frontend", level, message)` and returns `{ ok: true }`.
 
 ### Privacy and Failure Handling
 
-A log message never contains a token, a credential, or the contents of a captured build-info dump. It carries identifiers such as an app id and an appmanifest path, and short outcome descriptions. Logging is best-effort: a failed directory creation is ignored, a rejected frontend relay is swallowed, and no logging failure changes the result of the operation that emitted the record.
+A log message never contains a token, a credential, or the contents of a captured build-info dump. It carries identifiers such as an app id and an appmanifest path, and short outcome descriptions. Logging is best-effort: a failed directory creation or append is ignored, a rejected frontend relay is swallowed, and no logging failure changes the result of the operation that emitted the record.
 
 ## Implementation Plan
 
@@ -59,7 +53,7 @@ The plugin adds `backend/log.lua` and `frontend/log.ts`, and changes `backend/ma
 
 | File | Role |
 |---|---|
-| `backend/log.lua` | New; backend logging module: level wrappers, relay, formatting, directory creation |
+| `backend/log.lua` | New; backend logging module: log file, formatting, directory creation, viewer relay |
 | `frontend/log.ts` | New; frontend logging helper: console output and relay |
 | `backend/main.lua` | Add the `append_log` handler and FFI wrapper; require `log` |
 | `frontend/bridge.ts` | Add the `append_log` method |
@@ -76,10 +70,11 @@ The plugin adds `backend/log.lua` and `frontend/log.ts`, and changes `backend/ma
 
 `backend/log.lua`
 
-- `info(message: string) -> void` — write one `info` record with source `BCK`.
-- `warn(message: string) -> void` — write one `warn` record with source `BCK`.
-- `error(message: string) -> void` — write one `error` record with source `BCK`.
+- `info(message: string) -> void` — write one `info` record with source `backend`.
+- `warn(message: string) -> void` — write one `warn` record with source `backend`.
+- `error(message: string) -> void` — write one `error` record with source `backend`.
 - `persist(source: string, level: string, message: string) -> void` — write one record at `level` with `source`; the relay entry point.
+- `path() -> string?` — internal/test interface; the log file's absolute path, or `nil` when `MILLENNIUM__LOGS_PATH` is absent.
 - `ensure_directory() -> void` — internal/test interface; create `MILLENNIUM__LOGS_PATH` once, ignoring a missing variable or a failed creation.
 
 #### Frontend
@@ -98,16 +93,14 @@ frontend to backend (`backend` FFI bridge)
 
 ## Risks
 
-- The host log file has no rotation or size cap, so it grows for the life of a Millennium installation — no preventive measure currently exists; the spec records the limitation and the rejected rotation alternative.
-- The host opens its file without creating the directory or reporting a failed open, so a host or platform change can move the file or drop it — prevention: the plugin creates the directory itself, and the log viewer keeps working when the file does not.
-- The host's line format can change across Millennium versions, so the timestamp and newline compensation can become wrong — prevention: the plugin writes through the host `logger` methods only and never parses the host file.
+- The log file has no rotation or size cap, so it grows for the life of the installation — no preventive measure currently exists; the maintainer observes the growth after release before a cap or a rotation is added.
+- The host marks a `.star` plugin's logger viewer-only, so the file is the only persistent record; a host version that also writes a file would add a second one — prevention: the plugin's file name `steamapp-verlock.log` differs from the host's `<plugin>_log.log` name ([`logger.cc`](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/system/logger.cc)).
+- The viewer depends on the host `logger`; if its v2 behavior changes, the viewer can lose backend records — prevention: the file is independent of the viewer.
 - A log record can carry an appmanifest path into a file that outlives the session — prevention: no record carries a token, a credential, or the contents of a build-info dump.
-- A read-only or full filesystem can make directory creation fail — prevention: every logging step is best-effort and never changes the emitting operation's result.
+- A read-only or full filesystem can make directory creation or the append fail — prevention: every logging step is best-effort and never changes the emitting operation's result.
 
 ## Alternatives Considered
 
-- **A plugin-owned log file with rotation** — rejected: it adds a second log artifact beside the host's file and gives up the in-app viewer, for a rotation the host does not provide.
-- **Both the host file and a plugin-owned file** — rejected: it duplicates every backend record and makes the user reconcile two files.
-- **Using the host logger without creating the log directory** — rejected: on Linux the host never creates the directory and its file open fails silently, so the file receives nothing.
-- **Frontend logging through `console.*` alone** — rejected: the host captures frontend lines in memory for the viewer only, so nothing survives a restart.
-- **No logging** — rejected: a failed lock, refresh, or reapply leaves no post-hoc record for a maintainer to inspect.
+- **Rely on the host logger alone** — rejected: a `.star` plugin's host logger keeps records in the viewer buffer only, so nothing survives a restart.
+- **Both the host file and a plugin-owned file** — rejected: it yields two files wherever the host writes one, and every backend record appears twice.
+- **Cap and rotate the file now** — deferred: a cap and a rotation are added only when observed growth justifies them.
