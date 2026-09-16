@@ -199,14 +199,12 @@ function inject(document_ref: Document, appid: string): void {
   our_page.setAttribute("aria-labelledby", tab_id);
   our_area.appendChild(our_page);
 
-  const page_list = container.children[0] ?? null;
-
   tablist.appendChild(our_tab);
   container.appendChild(our_area);
 
   const native_area = (): HTMLElement | null => {
     for (const child of [...container.children]) {
-      if (child !== our_area && child !== page_list) {
+      if (child !== our_area && !child.contains(tablist)) {
         return child as HTMLElement;
       }
     }
@@ -218,6 +216,7 @@ function inject(document_ref: Document, appid: string): void {
       for (const tab of outers) {
         tab.classList.remove(active_marker);
       }
+      our_tab.classList.remove(active_marker);
       if (active) {
         our_tab.classList.add(active_marker);
       } else if (last_native_active !== null) {
@@ -238,16 +237,38 @@ function inject(document_ref: Document, appid: string): void {
     set_active(true);
   });
 
-  tablist.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof Element) || our_tab.contains(target)) {
-      return;
-    }
-    if (target.closest("[role='tab']")) {
-      last_native_active = outers.find((tab) => tab.contains(target)) ?? last_native_active;
-      set_active(false);
-    }
-  });
+  tablist.addEventListener(
+    "click",
+    (event) => {
+      const target = event.target as Element | null;
+      if (target === null || our_tab.contains(target)) {
+        return;
+      }
+      const native = outers.find((tab) => tab.contains(target));
+      if (native !== undefined) {
+        last_native_active = native;
+        set_active(false);
+      }
+    },
+    true,
+  );
+
+  if (active_marker !== undefined) {
+    const marker = active_marker;
+    const observer = new MutationObserver(() => {
+      if (our_tab.getAttribute("aria-selected") !== "true") {
+        return;
+      }
+      if (outers.some((tab) => tab.classList.contains(marker))) {
+        set_active(false);
+      }
+    });
+    observer.observe(tablist, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "aria-selected"],
+    });
+  }
 
   const root = createRoot(our_page);
   roots.push(root);
