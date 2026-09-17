@@ -34,11 +34,16 @@ const record: LockedAppRecord = {
   original: "appmanifest text",
 };
 
-test("format_time renders a time and treats missing times as Never", () => {
-  expect(format_time(undefined)).toBe("Never");
-  expect(format_time(0)).toBe("Never");
-  expect(format_time(-1)).toBe("Never");
-  expect(format_time(1726000000)).toBe(new Date(1726000000 * 1000).toLocaleString());
+test("format_time renders a localized time and treats missing times as absent", () => {
+  expect(format_time(undefined)).toBeNull();
+  expect(format_time(0)).toBeNull();
+  expect(format_time(-1)).toBeNull();
+  expect(format_time(1726000000)).toBe(
+    new Date(1726000000 * 1000).toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }),
+  );
 });
 
 test("behavior_label maps the known behaviors and falls back", () => {

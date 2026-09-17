@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { DialogHeader, Millennium } from "millennium";
-import type { AppId, LockedAppRecord } from "./index";
+import type { Ack, AppId, FileContentResult, LockedAppRecord, PathsResult } from "./index";
 import { lock_app, refresh_app, unlock_app } from "./actions";
 import { as_record_list, is_locked, refresh_locked_ids, subscribe_locked } from "./locked";
 import * as bridge from "./bridge";
 import { log_error, log_info, log_warn } from "./log";
+import { format_error, show_failure_dialog, show_text_dialog } from "./notify";
 
 const PROPERTIES_CONTENT_SELECTOR = "div.DialogContent[id$='/properties/general_Content']";
 const APPID_PATTERN = /\/app\/(\d+)\/properties\//;
@@ -32,11 +33,14 @@ function parse_json(raw: unknown): unknown {
   return raw;
 }
 
-export function format_time(value: number | undefined): string {
+export function format_time(value: number | undefined): string | null {
   if (typeof value !== "number" || value <= 0) {
-    return "Never";
+    return null;
   }
-  return new Date(value * 1000).toLocaleString();
+  return new Date(value * 1000).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 export function behavior_label(value: number | undefined): string {
@@ -84,25 +88,57 @@ export function accent_color(document_ref: Document): string {
   return best?.color ?? ACCENT_FALLBACK;
 }
 
+const DIVIDER_FALLBACK = "rgba(59, 63, 72, 0.5)";
+
+function divider_color(document_ref: Document): string {
+  const view = document_ref.defaultView;
+  if (!view) {
+    return DIVIDER_FALLBACK;
+  }
+  let scanned = 0;
+  for (const element of document_ref.querySelectorAll("div")) {
+    scanned += 1;
+    if (scanned > 4000) {
+      break;
+    }
+    const style = view.getComputedStyle(element);
+    if (
+      style.borderTopStyle === "solid" &&
+      style.borderTopWidth !== "0px" &&
+      style.borderLeftWidth === "0px" &&
+      style.borderRightWidth === "0px" &&
+      style.borderBottomWidth === "0px"
+    ) {
+      return style.borderTopColor;
+    }
+  }
+  return DIVIDER_FALLBACK;
+}
+
 const BUTTON_CLASS_KEY = "steamapp-verlock.button_class";
 const BUTTON_CLASS_FALLBACK =
   "_1KAp5PPYG7si-T_66zNEcU DialogButton _DialogLayout Secondary Focusable";
 
-function native_button_class(document_ref: Document, our_page: Element): string | undefined {
-  for (const button of document_ref.querySelectorAll("button")) {
+function native_button_class(root: ParentNode, our_page: Element): string | undefined {
+  for (const button of root.querySelectorAll("button")) {
     if (our_page.contains(button)) {
       continue;
     }
     const name = button.getAttribute("class") ?? "";
-    if (name.includes("DialogButton") && name.split(/\s+/).some((part) => part.startsWith("_"))) {
+    if (
+      name.includes("DialogButton") &&
+      name.includes("Secondary") &&
+      !name.includes("Primary") &&
+      name.split(/\s+/).some((part) => part.startsWith("_"))
+    ) {
       return name;
     }
   }
   return undefined;
 }
 
-function read_button_class(document_ref: Document, our_page: Element): string {
-  const sampled = native_button_class(document_ref, our_page);
+function read_button_class(root: ParentNode, our_page: Element): string {
+  const sampled = native_button_class(root, our_page);
   if (sampled !== undefined) {
     try {
       window.localStorage.setItem(BUTTON_CLASS_KEY, sampled);
@@ -113,7 +149,7 @@ function read_button_class(document_ref: Document, our_page: Element): string {
   }
   try {
     const stored = window.localStorage.getItem(BUTTON_CLASS_KEY);
-    if (stored !== null && stored !== "") {
+    if (stored !== null && stored.includes("Secondary") && !stored.includes("Primary")) {
       return stored;
     }
   } catch {
@@ -140,26 +176,62 @@ function ActionButton({
   );
 }
 
-function Value({ color, children }: { color: string; children: ReactNode }) {
-  return <span style={{ color, fontWeight: 500, marginLeft: "5px" }}>{children}</span>;
+const MUTED_COLOR = "#8b929a";
+
+function Value({ children }: { children: ReactNode }) {
+  return <span style={{ marginLeft: "5px" }}>{children}</span>;
+}
+
+function StatusValue({ color, children }: { color: string; children: ReactNode }) {
+  return <span style={{ fontWeight: 700, marginLeft: "5px", color }}>{children}</span>;
+}
+
+function Muted({ children }: { children: ReactNode }) {
+  return <span style={{ color: MUTED_COLOR, marginLeft: "5px" }}>{children}</span>;
 }
 
 function Row({ children }: { children: ReactNode }) {
   return <div style={{ lineHeight: "20px" }}>{children}</div>;
 }
 
-function DepotList({ record, accent }: { record: LockedAppRecord; accent: string }) {
+function DepotSection({ record }: { record: LockedAppRecord | null }) {
+  const [expanded, set_expanded] = useState(false);
+  if (record === null) {
+    return (
+      <Row>
+        Depots: <Muted>N/A</Muted>
+      </Row>
+    );
+  }
   const entries = Object.entries(record.locked_build?.depots ?? {});
   if (entries.length === 0) {
     return <Row>Depots: none</Row>;
   }
   return (
     <>
-      {entries.map(([depot, manifest]) => (
-        <Row key={depot}>
-          Depot {depot}: <Value color={accent}>{manifest}</Value>
-        </Row>
-      ))}
+      <Row>
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={() => set_expanded((value) => !value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              set_expanded((value) => !value);
+            }
+          }}
+          style={{ cursor: "pointer" }}
+        >
+          Depots ({entries.length})&nbsp; {expanded ? "▾" : "▸"}
+        </span>
+      </Row>
+      {expanded
+        ? entries.map(([depot, manifest]) => (
+            <Row key={depot}>
+              Depot {depot}: <Value>{manifest}</Value>
+            </Row>
+          ))
+        : null}
     </>
   );
 }
@@ -167,13 +239,18 @@ function DepotList({ record, accent }: { record: LockedAppRecord; accent: string
 export function VerlockTabContent({
   appid,
   accent,
+  divider,
   button_class,
+  parent,
 }: {
   appid: AppId;
   accent: string;
+  divider: string;
   button_class: string;
+  parent?: EventTarget;
 }) {
   const [record, set_record] = useState<LockedAppRecord | null>(null);
+  const [paths, set_paths] = useState<PathsResult | null>(null);
   const [locked, set_locked] = useState<boolean>(() => is_locked(appid));
   const [busy, set_busy] = useState(false);
 
@@ -189,6 +266,16 @@ export function VerlockTabContent({
         set_record(find_record(list, appid));
       } catch {
         return;
+      }
+      try {
+        const fetched = parse_json(await bridge.get_paths(appid)) as PathsResult | undefined;
+        if (!cancelled) {
+          set_paths(fetched?.ok ? fetched : null);
+        }
+      } catch {
+        if (!cancelled) {
+          set_paths(null);
+        }
       }
     };
     void reload();
@@ -208,6 +295,56 @@ export function VerlockTabContent({
       set_busy(false);
     });
   };
+
+  const show_content = async (target: "appmanifest" | "lock"): Promise<void> => {
+    const label = target === "lock" ? "Lock File" : "Appmanifest";
+    try {
+      const fetched = parse_json(await bridge.read_file(appid, target)) as
+        | FileContentResult
+        | undefined;
+      if (fetched?.ok === true && typeof fetched.content === "string") {
+        show_text_dialog(label, fetched.content, parent);
+        return;
+      }
+      const message = fetched?.error ?? "the file could not be read";
+      log_error(`could not read the ${target} for app ${appid}: ${message}`);
+      show_failure_dialog(TAB_LABEL, message, parent);
+    } catch (caught) {
+      const message = format_error(caught);
+      log_error(`could not read the ${target} for app ${appid}: ${message}`);
+      show_failure_dialog(TAB_LABEL, message, parent);
+    }
+  };
+
+  const open = (target: "appmanifest" | "lock"): void => {
+    void (async () => {
+      try {
+        const result = parse_json(await bridge.open_path(appid, target)) as Ack | undefined;
+        if (result?.ok === true) {
+          return;
+        }
+      } catch {
+        // A rejected or invalid response falls back to the content dialog.
+      }
+      await show_content(target);
+    })();
+  };
+
+  const locked_time = locked && record ? format_time(record.locked_at) : null;
+  const refreshed_time = locked && record ? format_time(record.refreshed_at) : null;
+
+  const status = (time: string | null, not_yet: boolean): ReactNode => {
+    if (time !== null) {
+      return <StatusValue color={accent}>{time}</StatusValue>;
+    }
+    if (not_yet) {
+      return <StatusValue color={accent}>Not yet</StatusValue>;
+    }
+    return <StatusValue color={MUTED_COLOR}>N/A</StatusValue>;
+  };
+
+  const lock_path = paths?.lock;
+  const manifest_path = paths?.appmanifest;
 
   return (
     <div className="DialogContent_InnerWidth">
@@ -258,27 +395,65 @@ export function VerlockTabContent({
             )}
           </div>
         </div>
-        {locked && record ? (
-          <>
-            <Row>
-              App ID: <Value color={accent}>{record.appid}</Value>
-            </Row>
-            <Row>
-              Build ID: <Value color={accent}>{record.locked_build?.buildid ?? "Unknown"}</Value>
-            </Row>
-            <DepotList record={record} accent={accent} />
-            <Row>
-              Locked: <Value color={accent}>{format_time(record.locked_at)}</Value>
-            </Row>
-            <Row>
-              Refreshed: <Value color={accent}>{format_time(record.refreshed_at)}</Value>
-            </Row>
-            <Row>
-              Auto-update:{" "}
-              <Value color={accent}>{behavior_label(record.auto_update_behavior)}</Value>
-            </Row>
-          </>
-        ) : null}
+        <Row>Locked: {status(locked_time, false)}</Row>
+        <Row>Refreshed: {status(refreshed_time, locked_time !== null)}</Row>
+        <div
+          style={{
+            flexShrink: 0,
+            marginTop: "20px",
+            paddingTop: "20px",
+            borderTop: `1px solid ${divider}`,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "8px",
+            }}
+          >
+            <div className="SettingsDialogSubHeader">Lock Snapshot</div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              {lock_path !== undefined ? (
+                <ActionButton
+                  button_class={button_class}
+                  disabled={false}
+                  onClick={() => open("lock")}
+                >
+                  Lock File
+                </ActionButton>
+              ) : null}
+              <ActionButton
+                button_class={button_class}
+                disabled={manifest_path === undefined}
+                onClick={() => open("appmanifest")}
+              >
+                Appmanifest
+              </ActionButton>
+            </div>
+          </div>
+          <Row>
+            App ID: <Value>{record?.appid ?? appid}</Value>
+          </Row>
+          <Row>
+            Build ID:{" "}
+            {record ? (
+              <Value>{record.locked_build?.buildid ?? "Unknown"}</Value>
+            ) : (
+              <Muted>N/A</Muted>
+            )}
+          </Row>
+          <DepotSection record={record} />
+          <Row>
+            Auto-update:{" "}
+            {record ? (
+              <Value>{behavior_label(record.auto_update_behavior)}</Value>
+            ) : (
+              <Muted>N/A</Muted>
+            )}
+          </Row>
+        </div>
       </div>
     </div>
   );
@@ -417,16 +592,18 @@ function inject(document_ref: Document, appid: string): void {
     });
   }
 
-  let button_class = read_button_class(document_ref, our_page);
+  let button_class = read_button_class(container, our_page);
   const root = createRoot(our_page);
   roots.push(root);
   refresh_content = () => {
-    button_class = read_button_class(document_ref, our_page);
+    button_class = read_button_class(container, our_page);
     root.render(
       <VerlockTabContent
         appid={appid}
         accent={accent_color(document_ref)}
+        divider={divider_color(document_ref)}
         button_class={button_class}
+        parent={document_ref.defaultView ?? undefined}
       />,
     );
   };
@@ -434,12 +611,12 @@ function inject(document_ref: Document, appid: string): void {
   log_info(`added the app properties tab for app ${appid}`);
 
   const button_observer = new MutationObserver(() => {
-    const sampled = native_button_class(document_ref, our_page);
+    const sampled = native_button_class(container, our_page);
     if (sampled !== undefined && sampled !== button_class) {
       refresh_content();
     }
   });
-  button_observer.observe(document_ref.body, { subtree: true, childList: true });
+  button_observer.observe(container, { subtree: true, childList: true });
 }
 
 export function install_properties_patch(): () => void {

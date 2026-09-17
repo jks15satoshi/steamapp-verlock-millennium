@@ -19,6 +19,14 @@ void mock.module("react/jsx-runtime", () => ({
   jsxs: () => null,
 }));
 
+void mock.module("react", () => ({
+  useEffect: () => {},
+  useState: (initial: unknown) => [
+    typeof initial === "function" ? (initial as () => unknown)() : initial,
+    () => {},
+  ],
+}));
+
 const {
   apply_auto_update_behavior,
   read_auto_update_behavior,

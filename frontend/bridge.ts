@@ -2,9 +2,11 @@ import type {
   Ack,
   AppId,
   DataRoots,
+  FileContentResult,
   LockedAppRecord,
   LockResult,
   MigrateResult,
+  PathsResult,
   RefreshResult,
   RestoreResult,
   UnlockResult,
@@ -44,6 +46,21 @@ export function restore_all(): Promise<RestoreResult> {
 
 export function get_data_root(): Promise<DataRoots> {
   return as_result<DataRoots>(backend.get_data_root());
+}
+
+export function get_paths(appid: AppId): Promise<PathsResult> {
+  return as_result<PathsResult>(backend.get_paths(JSON.stringify({ appid })));
+}
+
+export function open_path(appid: AppId, target: "appmanifest" | "lock"): Promise<Ack> {
+  return as_result<Ack>(backend.open_path(JSON.stringify({ appid, target })));
+}
+
+export function read_file(
+  appid: AppId,
+  target: "appmanifest" | "lock",
+): Promise<FileContentResult> {
+  return as_result<FileContentResult>(backend.read_file(JSON.stringify({ appid, target })));
 }
 
 export function set_data_root(path: string): Promise<MigrateResult> {

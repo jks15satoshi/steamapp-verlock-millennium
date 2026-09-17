@@ -27,7 +27,10 @@ function format_time(value: number | undefined): string {
   if (typeof value !== "number" || value <= 0) {
     return "Never";
   }
-  return new Date(value * 1000).toLocaleString();
+  return new Date(value * 1000).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function is_installed(appid: AppId): boolean {

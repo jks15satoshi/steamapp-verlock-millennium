@@ -42,6 +42,10 @@ export type DataRoots = {
 
 export type MigrateResult = Ack & { data_root?: string; warning?: string; is_default?: boolean };
 
+export type PathsResult = Ack & { appmanifest?: string; lock?: string };
+
+export type FileContentResult = Ack & { content?: string };
+
 export type RestoreResult = Ack & {
   restored: number;
   failed: AppId[];

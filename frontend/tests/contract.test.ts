@@ -5,9 +5,11 @@ import type {
   AppId,
   CaptureResult,
   DataRoots,
+  FileContentResult,
   LockedAppRecord,
   LockResult,
   MigrateResult,
+  PathsResult,
   RefreshResult,
   RestoreResult,
   UnlockResult,
@@ -23,6 +25,9 @@ interface FrontendToBackend {
   list_locked(): Promise<LockedAppRecord[] | Ack>;
   restore_all(): Promise<RestoreResult>;
   get_data_root(): Promise<DataRoots>;
+  get_paths(appid: AppId): Promise<PathsResult>;
+  open_path(appid: AppId, target: "appmanifest" | "lock"): Promise<Ack>;
+  read_file(appid: AppId, target: "appmanifest" | "lock"): Promise<FileContentResult>;
   set_data_root(path: string): Promise<MigrateResult>;
   reapply_app(appid: AppId): Promise<Ack>;
   append_log(level: string, message: string): Promise<Ack>;
@@ -40,6 +45,9 @@ const FRONTEND_TO_BACKEND_METHODS = [
   "list_locked",
   "restore_all",
   "get_data_root",
+  "get_paths",
+  "open_path",
+  "read_file",
   "set_data_root",
   "reapply_app",
   "append_log",
@@ -72,9 +80,9 @@ beforeEach(() => {
   installSteamClient({ Console: {}, Apps: {}, System: {} });
 });
 
-test("the frontend-to-backend bridge exposes the ten documented methods", () => {
-  expect(FRONTEND_TO_BACKEND_METHODS).toHaveLength(10);
-  expect(new Set(FRONTEND_TO_BACKEND_METHODS).size).toBe(10);
+test("the frontend-to-backend bridge exposes the thirteen documented methods", () => {
+  expect(FRONTEND_TO_BACKEND_METHODS).toHaveLength(13);
+  expect(new Set(FRONTEND_TO_BACKEND_METHODS).size).toBe(13);
   for (const method of FRONTEND_TO_BACKEND_METHODS) {
     expect(typeof wire[method]).toBe("function");
   }
@@ -133,7 +141,14 @@ test("appid payload methods send one JSON string argument", async () => {
   await wire.refresh_app("730");
   await wire.unlock_app("730");
   await wire.reapply_app("730");
-  for (const method of ["lock_app", "refresh_app", "unlock_app", "reapply_app"] as const) {
+  await wire.get_paths("730");
+  for (const method of [
+    "lock_app",
+    "refresh_app",
+    "unlock_app",
+    "reapply_app",
+    "get_paths",
+  ] as const) {
     const calls = recorder.find(method);
     expect(calls).toHaveLength(1);
     expect(typeof calls[0]?.payload).toBe("string");
@@ -149,6 +164,25 @@ test("lock_app includes the auto update behavior when it is provided", async () 
   expect(JSON.parse(calls[0]?.payload as string)).toEqual({
     appid: "730",
     auto_update_behavior: 1,
+  });
+});
+
+test("open_path sends one JSON string argument with the appid and target", async () => {
+  await wire.open_path("730", "lock");
+  const calls = recorder.find("open_path");
+  expect(calls).toHaveLength(1);
+  expect(typeof calls[0]?.payload).toBe("string");
+  expect(JSON.parse(calls[0]?.payload as string)).toEqual({ appid: "730", target: "lock" });
+});
+
+test("read_file sends one JSON string argument with the appid and target", async () => {
+  await wire.read_file("730", "appmanifest");
+  const calls = recorder.find("read_file");
+  expect(calls).toHaveLength(1);
+  expect(typeof calls[0]?.payload).toBe("string");
+  expect(JSON.parse(calls[0]?.payload as string)).toEqual({
+    appid: "730",
+    target: "appmanifest",
   });
 });
 
