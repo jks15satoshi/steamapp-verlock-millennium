@@ -424,10 +424,6 @@ function real_fs.new()
         if failure then
             return nil, failure
         end
-        local created, create_err = ensure_directories(parent(path))
-        if not created then
-            return nil, create_err
-        end
         return write_file(path, content)
     end
 
@@ -485,9 +481,13 @@ function real_fs.new()
     store.utils = utils
 
     function store.seed(path, content)
-        local written, err = utils.write_file(path, content)
-        if not written then
+        local created, err = ensure_directories(parent(path))
+        if not created then
             error(err)
+        end
+        local written, write_err = utils.write_file(path, content)
+        if not written then
+            error(write_err)
         end
         return path
     end

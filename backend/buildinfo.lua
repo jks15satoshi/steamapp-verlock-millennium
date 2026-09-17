@@ -12,6 +12,25 @@ local NOISE_PATTERNS = {
     "^%s*AppID%s*:",
 }
 
+---@param line string
+---@param state boolean
+---@return boolean
+local function advance_string_state(line, state)
+    local position = 1
+    while position <= #line do
+        local char = line:sub(position, position)
+        if char == "\\" then
+            position = position + 2
+        elseif char == '"' then
+            state = not state
+            position = position + 1
+        else
+            position = position + 1
+        end
+    end
+    return state
+end
+
 ---@param raw string
 ---@return string
 local function clean(raw)
@@ -19,20 +38,31 @@ local function clean(raw)
         return ""
     end
     local lines = {}
+    local in_string = false
     for line in (raw .. "\n"):gmatch("(.-)\n") do
         local trimmed = line:gsub("\r$", "")
         local drop = false
-        for _, pattern in ipairs(NOISE_PATTERNS) do
-            if trimmed:match(pattern) then
+        if not in_string then
+            local stripped = trimmed:match("^%s*(.*)$") or trimmed
+            local first = stripped:sub(1, 1)
+            if stripped ~= "" and first ~= '"' and first ~= "{" and first ~= "}" then
                 drop = true
-                break
             end
-        end
-        if not drop and trimmed:find("Connectivity state changed", 1, true) then
-            drop = true
+            if not drop then
+                for _, pattern in ipairs(NOISE_PATTERNS) do
+                    if trimmed:match(pattern) then
+                        drop = true
+                        break
+                    end
+                end
+            end
+            if not drop and trimmed:find("Connectivity state changed", 1, true) then
+                drop = true
+            end
         end
         if not drop then
             table.insert(lines, trimmed)
+            in_string = advance_string_state(trimmed, in_string)
         end
     end
     return table.concat(lines, "\n")
@@ -187,7 +217,12 @@ local function store(appid, dump)
     if cache_root == nil then
         return false, cache_err
     end
-    return utils.write_file(fs.join(cache_root, "buildinfo", tostring(appid) .. ".kv"), dump)
+    local directory = fs.join(cache_root, "buildinfo")
+    local created, create_err = fs.create_directories(directory)
+    if not created and not fs.is_directory(directory) then
+        return false, create_err or "the buildinfo directory cannot be created"
+    end
+    return utils.write_file(fs.join(directory, tostring(appid) .. ".kv"), dump)
 end
 
 ---@param appid string

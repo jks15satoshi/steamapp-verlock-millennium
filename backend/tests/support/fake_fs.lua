@@ -475,9 +475,9 @@ function fake_fs.new()
         if failure then
             return nil, failure
         end
-        local ok, err = ensure_directories(parent(path))
-        if not ok then
-            return nil, err
+        local node = get(parent(path))
+        if node == nil or node.kind ~= "dir" then
+            return nil, "Failed to open file for writing"
         end
         store.nodes[normalize(path)] = { kind = "file", content = content or "", mtime = clock() }
         return true, nil
@@ -571,9 +571,13 @@ function fake_fs.new()
     store.utils = utils
 
     function store.seed(path, content)
-        local ok, err = utils.write_file(path, content)
+        local ok, err = ensure_directories(parent(path))
         if not ok then
             error(err)
+        end
+        local written, write_err = utils.write_file(path, content)
+        if not written then
+            error(write_err)
         end
         return path
     end

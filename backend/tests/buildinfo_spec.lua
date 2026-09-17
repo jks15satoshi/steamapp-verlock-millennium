@@ -28,6 +28,35 @@ describe("buildinfo", function()
         assert.is_not_nil(cleaned:find("buildid", 1, true))
     end)
 
+    it("drops command echoes and trailing notes before parsing", function()
+        local raw = table.concat({
+            "app_info_update 1",
+            "app_info_print 1222670",
+            "AppID : 1222670, change number : 1/0",
+            '"1222670"',
+            "{",
+            '\t"appid"\t\t"1222670"',
+            '\t"buildid"\t\t"42"',
+            '\t"depots"',
+            "\t{",
+            '\t\t"441"',
+            "\t\t{",
+            '\t\t\t"manifests"',
+            "\t\t\t{",
+            '\t\t\t\t"public"\t\t"7"',
+            "\t\t\t}",
+            "\t\t}",
+            "\t}",
+            "}",
+            "Connectivity state changed: 2",
+            "",
+        }, "\n")
+        local info, err = buildinfo.parse(buildinfo.clean(raw))
+        assert.is_nil(err)
+        assert.equals("42", info.buildid)
+        assert.equals("7", info.depots["441"])
+    end)
+
     it("parses the buildid and depot manifests", function()
         local info, err = buildinfo.parse(buildinfo.clean(support.read_fixture("app_info_print_440.txt")))
         assert.is_nil(err)

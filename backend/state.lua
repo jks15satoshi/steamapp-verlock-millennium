@@ -120,6 +120,11 @@ local function write(record)
     if type(record) ~= "table" or record.appid == nil then
         return false, "a lock record with an appid is required"
     end
+    local directory = locks_directory()
+    local created, create_err = fs.create_directories(directory)
+    if not created and not fs.is_directory(directory) then
+        return false, create_err or "the lock directory cannot be created"
+    end
     local target = path(record.appid)
     local temporary = target .. "." .. tostring(utils.uuid()) .. ".tmp"
     local encoded = json.encode(record)
