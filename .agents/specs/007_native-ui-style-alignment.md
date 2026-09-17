@@ -63,6 +63,18 @@ The probe measured the following on the client. The accent color, the title, and
 | Label | `font-size`, `color` | `14px`, `rgb(139, 146, 154)` |
 | Value | `font-size`, `font-weight`, `color` | `14px`, `500`, the accent color |
 | Value | `margin-left` | `5px` |
+| Section heading | `class` | `SettingsDialogSubHeader` |
+| Section heading | `font-size`, `font-weight`, `line-height` | `16px`, `500`, `36px` |
+| Section heading | `color`, `margin` | `rgb(220, 222, 223)`, `0px 26px 0px 0px` |
+| Divider | `border-top` | `1px solid rgba(59, 63, 72, 0.5)` |
+| Divider | `margin`, `padding` | `20px 0px 0px`, `20px 0px 0px` |
+| Text box | `class` | three hashed classes followed by `Panel` |
+| Text box | `box-shadow` | `rgba(0, 0, 0, 0.25) 0px 4px 4px 0px inset` |
+| Text box | `border`, `border-radius` | `1px solid rgb(14, 20, 27)`, `2px` |
+| Text box | `background` | `rgb(35, 38, 46)` |
+| Text box | `padding`, `margin`, `height` | `0px 20px`, `10px 0px 0px`, `320px` |
+| Text box | `overflow-y`, `scrollable` | `scroll`, `true` |
+| Text box content | `font-size`, `line-height`, `color` | `14px`, `22px`, `rgb(184, 188, 191)` |
 | Accent color | sampled `color` | `rgb(26, 159, 255)` |
 | Button class fallback | cached `class` | `_1KAp5PPYG7si-T_66zNEcU DialogButton _DialogLayout Secondary Focusable` |
 
@@ -70,7 +82,7 @@ The recorded values are the client's values at the time of measurement; they are
 
 ### Application
 
-`frontend/properties.tsx` applies the method. Its tab content renders `DialogContent_InnerWidth`, `DialogHeader`, and `DialogBody`, and its rows use the measured font size and line height. The accent color comes from `accent_color`, which samples the color of the largest blue text in the dialog and falls back to `#1a9fff`. The action buttons render as a plain `button` whose class name comes from `read_button_class`, which samples the full class name of a native dialog button, caches it in `localStorage` under `steamapp-verlock.button_class`, and falls back to the recorded class constant. A mutation observer re-samples the class when a native button appears.
+`frontend/properties.tsx` applies the method. Its tab content renders `DialogContent_InnerWidth`, `DialogHeader`, and `DialogBody`, and its rows use the measured font size and line height. The accent color comes from `accent_color`, which samples the color of the largest blue text in the dialog and falls back to `#1a9fff`. The `State` value and the lock and refresh status values use the measured value style — `font-weight` `700` and the accent color — while the static values, the app id, the locked build id, the depot manifests, and the auto-update behavior, render in the body text color at the body weight, with no `font-weight` override, and an absent status value renders a gray `N/A` at `rgb(139, 146, 154)`, the measured label color. The static section's `Lock Snapshot` heading reuses the stable `SettingsDialogSubHeader` class, and its divider color comes from `divider_color`, which samples the `border-top` color of a native one-sided divider and falls back to `rgba(59, 63, 72, 0.5)`. The action buttons render as a plain `button` whose class name comes from `read_button_class`, which samples the full class name of a native dialog button from the dialog's content root, accepts only a class that carries `Secondary` and not `Primary`, caches it in `localStorage` under `steamapp-verlock.button_class`, and falls back to the recorded class constant. A mutation observer watches that content root and re-samples the class when a native button appears; scoping the sampler and the observer to the content root and rejecting a primary class keep a modal's buttons from changing the tab's button style. `frontend/notify.tsx` builds its failure and file content dialogs from the SDK's `ConfirmModal`, and its plain-HTML fallback from `DialogHeader`, so the dialogs inherit the native dialog styling without a hand-authored stylesheet. The file content box uses the recorded text-box values above as a constant, because the reference box lives in the System Information window and carries only hashed classes the plugin cannot author. The content dialog hides the modal's `Cancel` button after it renders and does not pass `closeModal`, so its `Copy` button (the OK button) keeps the dialog open; `Close` and the escape key dismiss it, and React state toggles the `Copy` label to `Copied`.
 
 ## Risks
 

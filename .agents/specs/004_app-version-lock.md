@@ -31,7 +31,7 @@ The feature supports the Windows and Linux desktop Steam clients, the platforms 
 
 ### Architecture
 
-The feature is built on the Millennium plugin system, with a Lua backend and a TypeScript/TSX frontend; [Spec 1](001_toolchain.md) owns the language and toolchain choices. The backend owns filesystem access, the [Valve Data File (VDF)](https://developer.valvesoftware.com/wiki/VDF) codecs, the lock state, and the `Lock`, `Refresh`, `Unlock`, and `Restore All` operations. The frontend owns the Steam React UI, the Steam client console, which only the frontend can reach, and the watch lifecycle, which starts and stops the per-app event handlers. The frontend calls backend methods through Millennium's `backend` FFI bridge, and the backend calls frontend methods through Millennium's `millennium.call_frontend_method` bridge; the backend never blocks on a synchronous frontend call.
+The feature is built on the Millennium plugin system, with a Lua backend and a TypeScript/TSX frontend; [Spec 1](001_toolchain.md) owns the language and toolchain choices. The backend owns filesystem access, the [Valve Data File (VDF)](https://developer.valvesoftware.com/wiki/VDF) codecs, the lock state, the `Lock`, `Refresh`, `Unlock`, and `Restore All` operations, and opening the appmanifest and lock file with the OS default application. The frontend owns the Steam React UI, the Steam client console, which only the frontend can reach, and the watch lifecycle, which starts and stops the per-app event handlers. The frontend calls backend methods through Millennium's `backend` FFI bridge, and the backend calls frontend methods through Millennium's `millennium.call_frontend_method` bridge; the backend never blocks on a synchronous frontend call.
 
 ### Build Info Capture
 
@@ -125,11 +125,21 @@ The panel decides installed state per record by reading `window.appStore.GetAppO
 
 The panel supports multi-select and batch `Refresh` and `Unlock` over the selected records.
 
-The app's Properties window carries a `Steam App Verlock` tab for the app the window shows. The tab lists the lock state, the app id and name, the locked `buildid` and depot manifests, the lock and refresh times, and the auto-update behavior, and it offers `Lock` when the app is not locked and `Refresh` and `Unlock` when it is. The tab reads the same `list_locked` records and calls the same shared actions as the context menu, and it no-ops when the window's DOM shape changes. It matches the client's native dialog styling through the method of [Spec 7](007_native-ui-style-alignment.md).
+The app's Properties window carries a `Steam App Verlock` tab for the app the window shows. The tab shows the lock state, then the lock and refresh times: those times always render, an unlocked app shows a gray `N/A`, and a locked app with no refresh yet shows `Not yet` in the accent color. Below a divider and a `Lock Snapshot` heading, the tab always shows the app id, the locked `buildid`, the depot manifests under a `Depots` list that is collapsed until clicked, and the auto-update behavior; the values a lock record supplies render as a gray `N/A` when there is no record, and these static values render without the accent color. The section carries an `Appmanifest` button that opens the appmanifest with the system default application, and, while a record exists, a `Lock File` button that opens the lock record the same way to its left; when the system opener reports an unreliable result, the tab shows the file's text in a native modal instead. The `Lock File` button is absent when there is no record. The tab offers `Lock` when the app is not locked and `Refresh` and `Unlock` when it is. It reads the same `list_locked` records and calls the same shared actions as the context menu, and it no-ops when the window's DOM shape changes. It matches the client's native dialog styling through the method of [Spec 7](007_native-ui-style-alignment.md).
 
 A user-initiated operation that fails reports its failure instead of staying silent: `Lock`, `Refresh`, `Unlock`, the batch and `Restore All` actions, and the data-directory change each open the same native modal, which names the operation and shows the error text with a `Copy error` button; a second failure replaces the open dialog instead of stacking. A warning that degrades but lets the operation complete — a failed action cancel or a failed auto-update restore — shows a transient toast instead. Background work that has no user gesture, such as the reapply path and the startup sync, stays log-only.
 
-The failure dialog and the warning toast are built by `frontend/notify.tsx` from the `showModal`, `ConfirmModal`, and `toaster` exports of the Millennium SDK; `frontend/errors.ts` normalizes an error value for both the dialog and the log.
+The failure dialog, the file content dialog, and the warning toast are built by `frontend/notify.tsx` from the `showModal`, `ConfirmModal`, and `toaster` exports of the Millennium SDK; `frontend/errors.ts` normalizes an error value for both the dialog and the log. The content dialog and the read-failure dialog receive the Properties popup window as the modal's `parent` (see [Open File](#open-file)).
+
+### Open File
+
+The `Appmanifest` and `Lock File` buttons call the backend's `open_path` method, which resolves the file path itself and opens it with the OS default application. `open_path` validates the numeric `appid` and a `target` of `appmanifest` or `lock`; for `lock` it requires a record and uses `state.path`, and for `appmanifest` it uses the record's `manifest_path` or, without a record, discovery.
+
+The backend builds the opener command with `open_command(path, windows)` and runs it through the Lua host's `utils.exec`. On Windows the command is `start "" "<path>"`, which the host's `utils.exec` runs through `cmd.exe /c`; elsewhere it is `xdg-open '<path>'` with a POSIX single-quote escape. `open_command` rejects a path that carries a control character and, on Windows, one that carries `"`, `%`, or `!`.
+
+A non-zero `utils.exec` status is an unreliable signal rather than a definite failure: on Linux `xdg-open` exits non-zero for a text file whose extension carries no MIME association, even though the file is intact. The tab therefore falls back to the backend's `read_file` method, which resolves the same path and returns the file's text, and shows it in a native modal through the `show_text_dialog` helper of `frontend/notify.tsx`. The helper builds the same `ConfirmModal` shape as the failure dialog, with a bordered scrollable text box styled after the client's System Information panel and `Copy` and `Close` buttons side by side below it, without a cancel button; `Copy` changes its own label to `Copied` for one second and leaves the dialog open, and a read failure or a file larger than 512 KiB shows the failure dialog instead.
+
+The tab passes the Properties popup's window, `document.defaultView`, as the modal's `parent`. The Millennium `showModal` falls back to its `findSP` helper when `parent` is absent, and `findSP` dereferences the gamepad navigation tree's root, which the Properties popup lacks, so an absent `parent` throws inside the host before any dialog renders. Passing the popup window skips that fallback and renders the modal in the window the tab lives in.
 
 ### Concurrency and Atomicity
 
@@ -145,7 +155,8 @@ The backend records:
 - `reapplied app <appid>` at `info` when `reapply_app` rewrites the appmanifest, and no record when the appmanifest already matches;
 - `restored <n> app(s), kept <m>` at `info` for a Restore All summary, and `migrated the data root to <path>` at `info` for a completed migration;
 - `refused to lock app <appid>: <reason>` at `warn` for a lock the appmanifest's state forbids, and `app <appid> is no longer installed` at `warn` when discovery confirms an app is gone;
-- `<operation> failed for app <appid>: <error>` at `error` for a failed read, parse, or appmanifest or record write, and `method <name> failed: <error>` at `error` when the dispatcher catches an exception.
+- `<operation> failed for app <appid>: <error>` at `error` for a failed read, parse, or appmanifest or record write, and `method <name> failed: <error>` at `error` when the dispatcher catches an exception;
+- `could not open the <target> for app <appid>: <error>` at `error` when `open_path` cannot build or run the opener.
 
 The frontend records:
 
@@ -154,6 +165,7 @@ The frontend records:
 - `aborted the lock for app <appid>: the auto-update behavior was unreadable` at `error` when the current behavior cannot be read, and `rolled back the lock for <appid> after the auto-update write failed` at `error` when the post-lock write fails and the lock rolls back;
 - `could not cancel the action for app <appid>; reapplied and let it proceed` at `warn` when a game action cannot be cancelled;
 - `could not restore the auto-update setting for app <appid>` at `warn` when a behavior restore fails but the unlock or restore completes;
+- `could not read the <target> for app <appid>: <error>` at `error` when `read_file` fails after an unreliable open;
 - `<operation> failed for app <appid>: <error>` at `error` for a failed backend call.
 
 ## Data Root Directory and Settings
@@ -242,6 +254,8 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `LockedAppRecord = { version: number; appid: AppId; name: string; manifest_path: string; locked_at: number; refreshed_at?: number; auto_update_behavior?: number; locked_build: BuildInfo; original: string }` — the persisted locked-app record.
 - `DataRoots = { data_root: string; cache_root: string; is_default: boolean }` — the resolved data and cache root directories; `is_default` reports whether the data root directory resolved from the OS-conventional path (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
 - `MigrateResult = Ack & { data_root?: string; warning?: string; is_default?: boolean }` — the migration result; success carries the new data root directory, `warning` carries a non-fatal cleanup failure, and `is_default` is `true` when an empty `set_data_root` reset the root to the OS-conventional default.
+- `PathsResult = Ack & { appmanifest?: string; lock?: string }` — the resolved file paths for one app; `appmanifest` is the appmanifest path and `lock` is the lock record path, and a path that cannot be resolved is absent.
+- `FileContentResult = Ack & { content?: string }` — the `read_file` result; success carries the file's text.
 - `RestoreResult = Ack & { restored: number; failed: AppId[]; auto_update?: { appid: AppId; behavior: number }[]; auto_update_failed?: AppId[] }` — the `Restore All` result; `restored` counts the apps put back, `failed` lists the ones left in place, a record dropped as no longer installed counts as neither, `auto_update` lists the auto-update behaviors the frontend restores, and the frontend sets `auto_update_failed` to the app ids whose behavior write failed.
 
 #### Backend
@@ -255,6 +269,7 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `handlers` — internal/test interface; the table that maps each bridge method name to its handler.
 - `set_data_root(payload: table) -> MigrateResult` — migrate the data root directory to `payload.path`; an empty path resets to the OS-conventional default (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
 - `clear_data_root_config() -> void` — internal; clear the `data_root` config key through `config.delete`, or through `config.set("data_root", nil)` when `config.delete` is unavailable.
+- `open_command(path: string, windows: boolean) -> command: string?, err: string?` — internal/test interface; build the platform opener command for a path, or return an error when the path carries a character the platform opener cannot carry.
 
 `backend/vdf.lua`
 
@@ -355,7 +370,7 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 
 - `install_properties_patch(): () => void` — install the App Properties hook and return a disposer; a missing `AddWindowCreateHook` or a changed dialog shape makes the tab a no-op.
 - `VerlockTabContent({ appid }): JSX.Element` — the tab content: the app's lock record, status, locked build, and actions.
-- `format_time(value: number | undefined): string` — internal/test interface; render a Unix timestamp, or `Never` when it is absent.
+- `format_time(value: number | undefined): string | null` — internal/test interface; render a Unix timestamp in the client locale's medium date and short time, or `null` when it is absent, so the tab chooses between `N/A` and `Not yet`.
 - `behavior_label(value: number | undefined): string` — internal/test interface; name an `EAppAutoUpdateBehavior` value.
 - `find_record(records: LockedAppRecord[] | null, appid: AppId): LockedAppRecord | null` — internal/test interface; select the record for one app id.
 
@@ -370,6 +385,9 @@ frontend to backend (`backend` FFI bridge)
 - `list_locked(): Promise<LockedAppRecord[] | Ack>` — return the locked-app records for the UI directly; a migration in progress makes it return an error envelope instead of records.
 - `restore_all(): Promise<RestoreResult>` — restore every locked app and clear the latest captured dumps.
 - `get_data_root(): Promise<DataRoots>` — return the resolved root directories directly.
+- `get_paths(payload: { appid: AppId }): Promise<PathsResult>` — return the app's appmanifest path — from the lock record when one exists, otherwise from discovery — and the lock record path when a record exists.
+- `open_path(payload: { appid: AppId; target: "appmanifest" | "lock" }): Promise<Ack>` — resolve the target file from the lock record or discovery and open it with the OS default application.
+- `read_file(payload: { appid: AppId; target: "appmanifest" | "lock" }): Promise<FileContentResult>` — resolve the same target file and return its text for the tab's content dialog; a file larger than 512 KiB is refused.
 - `set_data_root(payload: { path: string }): Promise<MigrateResult>` — migrate the data root directory to `path`; an empty `path` resets to the OS-conventional default and clears the `data_root` config key (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
 - `reapply_app(payload: { appid: AppId }): Promise<Ack>` — reapply a locked app's spoof when its appmanifest no longer matches; return `code = "not_installed"` when the app is gone.
 
@@ -398,6 +416,10 @@ backend to frontend (`millennium.call_frontend_method`)
 - A concurrent Steam write can race the plugin's appmanifest write — prevention: the backend writes through a temporary file and renames it into place, and per-app write operations are serialized.
 - A data root directory migration can fail across filesystems, hit a permission error, or be interrupted — prevention: the migration copies and verifies before it persists the new path, keeps the old root directory until the new one verifies, and never touches the cache root directory.
 - A path that contains spaces or non-ASCII characters, or a data root directory on a removable drive, can break path handling — prevention: `paths.validate` rejects a data root path that is not absolute, creatable, or writable, that is equal to or nests with the current data root directory, or that is equal to or inside the cache root directory, and discovery re-resolves a path that is gone.
+- A path that carries shell metacharacters can inject a command into the opener — prevention: `open_path` resolves the path itself from the lock record or discovery, `open_command` rejects a control character and, on Windows, `"`, `%`, and `!`, and single-quote-escapes a POSIX path, so a rejected command aborts with an error instead of reaching `utils.exec`.
+- `utils.exec` is a Lua host function and the system opener may be absent — prevention: `open_path` returns an error when `utils.exec` is unavailable or the opener exits non-zero, and the frontend falls back to the content dialog instead of staying silent.
+- `xdg-open` exits non-zero for a file whose extension carries no MIME association, so the external open appears to fail — prevention: the tab treats a non-zero status as an unreliable signal and falls back to `read_file` and the content dialog.
+- The host's `showModal` throws when it can fall back to `findSP`, which the Properties popup cannot satisfy — prevention: the tab passes the popup window as the modal's `parent`, so `showModal` skips the `findSP` fallback.
 - `window.appStore.GetAppOverviewByAppID` and the state flags it reflects are undocumented client internals, so the installed check in the settings panel can be unavailable or wrong — prevention: the panel treats a missing overview or a missing field as not installed, so the record still offers `Unlock`.
 - The app Properties window is an undocumented client internal, so a client update can move its tab list or content area and drop or misplace the tab — prevention: the injection lives in `frontend/properties.tsx`, the active-tab class is derived at runtime, the content area is found relative to the `role='tablist'` and `general_Content` anchors, and a missing anchor or `AddWindowCreateHook` makes the tab a no-op.
 - The feature has no uninstall hook, so removing the plugin leaves the lock records in place and stops the reapply — prevention: `Restore All` restores every record's `original` appmanifest and deletes each record after its appmanifest write succeeds, so running it before uninstalling the plugin deletes every successfully restored record, and a record whose write-back fails stays in place for a retry; uninstalling before running it leaves the lock records in place and stops the reapply.
