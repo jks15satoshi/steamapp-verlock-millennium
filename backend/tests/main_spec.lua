@@ -16,6 +16,9 @@ describe("main", function()
         "list_locked",
         "restore_all",
         "get_data_root",
+        "get_paths",
+        "open_path",
+        "read_file",
         "set_data_root",
         "reapply_app",
         "append_log",
@@ -213,6 +216,151 @@ describe("main", function()
         assert.equals("440", locked[1].appid)
         assert.is_string(locked[1].manifest_path)
         assert.is_table(locked[1].locked_build)
+    end)
+
+    it("returns the manifest and lock paths from get_paths while locked", function()
+        assert.is_true(seed_locked_440().ok)
+        local paths = invoke("get_paths", { appid = "440" })
+        assert.is_table(paths)
+        assert.is_true(paths.ok)
+        assert.equals(MANIFEST, paths.appmanifest)
+        assert.equals("/data/locks/440.lock", paths.lock)
+    end)
+
+    it("returns only the discovered manifest from get_paths while unlocked", function()
+        store.seed(MANIFEST, support.read_fixture("appmanifest_440.acf"))
+        local paths = invoke("get_paths", { appid = "440" })
+        assert.is_table(paths)
+        assert.is_true(paths.ok)
+        assert.equals(MANIFEST, paths.appmanifest)
+        assert.is_nil(paths.lock)
+    end)
+
+    it("returns an empty result from get_paths when nothing is installed", function()
+        local paths = invoke("get_paths", { appid = "440" })
+        assert.is_table(paths)
+        assert.is_true(paths.ok)
+        assert.is_nil(paths.appmanifest)
+        assert.is_nil(paths.lock)
+    end)
+
+    it("fails get_paths for a non-numeric appid", function()
+        local ack = invoke("get_paths", { appid = "abc" })
+        assert.is_table(ack)
+        assert.is_false(ack.ok)
+        assert.is_string(ack.error)
+    end)
+
+    it("opens a locked app's appmanifest with the platform opener", function()
+        assert.is_true(seed_locked_440().ok)
+        local ack = invoke("open_path", { appid = "440", target = "appmanifest" })
+        assert.is_table(ack)
+        assert.is_true(ack.ok)
+        assert.equals(1, #store.exec_calls)
+        assert.is_truthy(store.exec_calls[1]:find(MANIFEST, 1, true))
+    end)
+
+    it("opens a locked app's lock record", function()
+        assert.is_true(seed_locked_440().ok)
+        local ack = invoke("open_path", { appid = "440", target = "lock" })
+        assert.is_true(ack.ok)
+        assert.is_truthy(store.exec_calls[1]:find("/data/locks/440.lock", 1, true))
+    end)
+
+    it("opens the discovered appmanifest while unlocked", function()
+        store.seed(MANIFEST, support.read_fixture("appmanifest_440.acf"))
+        local ack = invoke("open_path", { appid = "440", target = "appmanifest" })
+        assert.is_true(ack.ok)
+        assert.is_truthy(store.exec_calls[1]:find(MANIFEST, 1, true))
+    end)
+
+    it("fails open_path for a non-numeric appid", function()
+        local ack = invoke("open_path", { appid = "abc", target = "appmanifest" })
+        assert.is_false(ack.ok)
+        assert.is_string(ack.error)
+    end)
+
+    it("fails open_path for an invalid target", function()
+        assert.is_true(seed_locked_440().ok)
+        local ack = invoke("open_path", { appid = "440", target = "other" })
+        assert.is_false(ack.ok)
+        assert.is_string(ack.error)
+    end)
+
+    it("fails open_path for a lock record that does not exist", function()
+        local ack = invoke("open_path", { appid = "440", target = "lock" })
+        assert.is_false(ack.ok)
+        assert.is_string(ack.error)
+    end)
+
+    it("fails open_path when the appmanifest is not found", function()
+        local ack = invoke("open_path", { appid = "440", target = "appmanifest" })
+        assert.is_false(ack.ok)
+        assert.is_string(ack.error)
+    end)
+
+    it("fails open_path when the system opener fails", function()
+        assert.is_true(seed_locked_440().ok)
+        store.exec_status = 1
+        local ack = invoke("open_path", { appid = "440", target = "appmanifest" })
+        assert.is_false(ack.ok)
+        assert.is_string(ack.error)
+    end)
+
+    it("builds the platform opener command", function()
+        assert.equals("xdg-open '/a b/c.acf'", main.open_command("/a b/c.acf", false))
+        assert.equals('start "" "C:\\a b\\c.acf"', main.open_command("C:\\a b\\c.acf", true))
+    end)
+
+    it("quotes a single quote in a POSIX path", function()
+        assert.equals("xdg-open '/a'\\''b.acf'", main.open_command("/a'b.acf", false))
+    end)
+
+    it("rejects an unsupported character in a Windows path", function()
+        assert.is_nil(main.open_command("C:\\a%b\\c.acf", true))
+    end)
+
+    it("returns the appmanifest text from read_file while locked", function()
+        assert.is_true(seed_locked_440().ok)
+        local result = invoke("read_file", { appid = "440", target = "appmanifest" })
+        assert.is_true(result.ok)
+        assert.is_string(result.content)
+        assert.is_truthy(result.content:find('"appid"', 1, true))
+    end)
+
+    it("returns the lock record text from read_file", function()
+        assert.is_true(seed_locked_440().ok)
+        local result = invoke("read_file", { appid = "440", target = "lock" })
+        assert.is_true(result.ok)
+        assert.is_string(result.content)
+        assert.is_truthy(result.content:find('"appid"', 1, true))
+    end)
+
+    it("returns the discovered appmanifest text from read_file while unlocked", function()
+        store.seed(MANIFEST, support.read_fixture("appmanifest_440.acf"))
+        local result = invoke("read_file", { appid = "440", target = "appmanifest" })
+        assert.is_true(result.ok)
+        assert.is_string(result.content)
+    end)
+
+    it("fails read_file for a non-numeric appid", function()
+        local ack = invoke("read_file", { appid = "abc", target = "appmanifest" })
+        assert.is_false(ack.ok)
+        assert.is_string(ack.error)
+    end)
+
+    it("fails read_file for a lock record that does not exist", function()
+        local ack = invoke("read_file", { appid = "440", target = "lock" })
+        assert.is_false(ack.ok)
+        assert.is_string(ack.error)
+    end)
+
+    it("fails read_file when the file is gone", function()
+        assert.is_true(seed_locked_440().ok)
+        store.delete(MANIFEST)
+        local ack = invoke("read_file", { appid = "440", target = "appmanifest" })
+        assert.is_false(ack.ok)
+        assert.is_string(ack.error)
     end)
 
     it("returns restored and failed from restore_all", function()

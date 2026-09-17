@@ -1,5 +1,6 @@
 local json = require("json")
 local millennium = require("millennium")
+local utils = require("utils")
 local paths = require("paths")
 local state = require("state")
 local acf = require("acf")
@@ -52,6 +53,55 @@ local function clear_data_root_config()
     elseif type(millennium.config.set) == "function" then
         millennium.config.set("data_root", nil)
     end
+end
+
+---@return boolean
+local function is_windows()
+    return jit ~= nil and jit.os == "Windows"
+end
+
+---@param path string|nil
+---@param windows boolean
+---@return string|nil, string|nil
+local function open_command(path, windows)
+    if type(path) ~= "string" or path == "" then
+        return nil, "the path is unavailable"
+    end
+    if path:find("[%z\1-\31]") then
+        return nil, "the path contains an unsupported character"
+    end
+    if windows then
+        if path:find('["%%!]') then
+            return nil, "the path contains an unsupported character"
+        end
+        return 'start "" "' .. path .. '"'
+    end
+    return "xdg-open '" .. path:gsub("'", "'\\''") .. "'"
+end
+
+local MAX_READ = 512 * 1024
+
+---@param appid string
+---@param target string
+---@return string|nil, string|nil
+local function resolve_target(appid, target)
+    local record = state.read(appid)
+    if target == "lock" then
+        if record == nil then
+            return nil, "the app has no lock record"
+        end
+        return state.path(appid)
+    end
+    local path
+    if record ~= nil then
+        path = record.manifest_path
+    else
+        path = paths.find_appmanifest(appid)
+    end
+    if path == nil then
+        return nil, "the appmanifest was not found"
+    end
+    return path
 end
 
 local handlers = {}
@@ -144,6 +194,86 @@ end
 
 handlers.get_data_root = function()
     return paths.resolve()
+end
+
+handlers.get_paths = function(payload)
+    local appid = payload.appid
+    if not is_numeric_appid(appid) then
+        return { ok = false, error = "a numeric appid is required" }
+    end
+    local record = state.read(appid)
+    local manifest
+    local lock_path
+    if record ~= nil then
+        manifest = record.manifest_path
+        lock_path = state.path(appid)
+    else
+        manifest = paths.find_appmanifest(appid)
+    end
+    return { ok = true, appmanifest = manifest, lock = lock_path }
+end
+
+handlers.open_path = function(payload)
+    local appid = payload.appid
+    if not is_numeric_appid(appid) then
+        return { ok = false, error = "a numeric appid is required" }
+    end
+    local target = payload.target
+    if target ~= "appmanifest" and target ~= "lock" then
+        return { ok = false, error = "a valid target is required" }
+    end
+    local path, path_err = resolve_target(appid, target)
+    if path == nil then
+        return { ok = false, error = path_err }
+    end
+    if type(utils.exec) ~= "function" then
+        return { ok = false, error = "the system opener is unavailable" }
+    end
+    local command, command_err = open_command(path, is_windows())
+    if command == nil then
+        log.error("could not open the " .. target .. " for app " .. appid .. ": " .. command_err)
+        return { ok = false, error = command_err }
+    end
+    local _, status = utils.exec(command)
+    if status ~= 0 then
+        log.error(
+            "could not open the "
+                .. target
+                .. " for app "
+                .. appid
+                .. ": the system opener failed ("
+                .. tostring(status)
+                .. ")"
+        )
+        return { ok = false, error = "the system opener failed" }
+    end
+    return { ok = true }
+end
+
+handlers.read_file = function(payload)
+    local appid = payload.appid
+    if not is_numeric_appid(appid) then
+        return { ok = false, error = "a numeric appid is required" }
+    end
+    local target = payload.target
+    if target ~= "appmanifest" and target ~= "lock" then
+        return { ok = false, error = "a valid target is required" }
+    end
+    local path, path_err = resolve_target(appid, target)
+    if path == nil then
+        return { ok = false, error = path_err }
+    end
+    if type(utils.read_file) ~= "function" then
+        return { ok = false, error = "the file reader is unavailable" }
+    end
+    local content, read_err = utils.read_file(path)
+    if content == nil then
+        return { ok = false, error = read_err or "the file could not be read" }
+    end
+    if #content > MAX_READ then
+        return { ok = false, error = "the file is too large to display" }
+    end
+    return { ok = true, content = content }
 end
 
 handlers.set_data_root = function(payload)
@@ -327,10 +457,32 @@ function append_log(payload)
     return respond("append_log", payload)
 end
 
+---@ffi
+---@param payload string
+---@return string
+function get_paths(payload)
+    return respond("get_paths", payload)
+end
+
+---@ffi
+---@param payload string
+---@return string
+function open_path(payload)
+    return respond("open_path", payload)
+end
+
+---@ffi
+---@param payload string
+---@return string
+function read_file(payload)
+    return respond("read_file", payload)
+end
+
 return {
     on_load = on_load,
     on_frontend_loaded = on_frontend_loaded,
     on_unload = on_unload,
     dispatch = dispatch,
     handlers = handlers,
+    open_command = open_command,
 }
