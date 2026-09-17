@@ -3,9 +3,10 @@ import betaBranchDump from "./fixtures/beta-branch.txt";
 import emptyDump from "./fixtures/empty.txt";
 import multiDepotDump from "./fixtures/multi-depot.txt";
 import staleFirstDump from "./fixtures/stale-first.txt";
-import { bridge, installSteamClient, Millennium, settle, sleep } from "./harness";
+import { bridge, installSteamClient, settle } from "./harness";
+import { millennium_mock } from "./millennium_mock";
 
-void mock.module("millennium", () => ({ Millennium, sleep }));
+void mock.module("millennium", () => millennium_mock());
 
 const { capture_build_info, capture_then_refresh } = await import("../console");
 
@@ -123,14 +124,14 @@ test("capture_build_info relays an error when the console is unavailable", async
   });
 });
 
-test("capture_build_info relays a warn when the capture times out", async () => {
+test("capture_build_info relays an error when the capture times out", async () => {
   setup([]);
   bridge.reset();
   const result = await settle(capture_build_info(APPID), 4000, 20);
   expect(result.ok).toBe(false);
   const relays = bridge.find("append_log");
   expect(JSON.parse(relays[relays.length - 1]?.payload as string)).toMatchObject({
-    level: "warn",
+    level: "error",
   });
 });
 

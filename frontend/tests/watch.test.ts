@@ -4,14 +4,20 @@ import {
   bridge,
   flush,
   installSteamClient,
-  Millennium,
   pump,
   resetBackendResponses,
   setBackendResponse,
   settle,
 } from "./harness";
+import { millennium_mock } from "./millennium_mock";
 
-void mock.module("millennium", () => ({ Millennium }));
+void mock.module("millennium", () => millennium_mock());
+
+void mock.module("react/jsx-runtime", () => ({
+  Fragment: Symbol("Fragment"),
+  jsx: () => null,
+  jsxs: () => null,
+}));
 
 const {
   apply_auto_update_behavior,
@@ -366,16 +372,29 @@ test("a transient reapply error keeps the app watched", async () => {
   expect(appIdsFor("reapply_app")).toContain(APPID);
 });
 
-test("read_auto_update_behavior reads eAutoUpdateValue from the app store", () => {
+test("read_auto_update_behavior reads eAutoUpdateValue from the app details store", () => {
   const globals = globalThis as Record<string, unknown>;
+  globals.window = {
+    appDetailsStore: { GetAppDetails: () => ({ eAutoUpdateValue: 2 }) },
+  };
+  expect(read_auto_update_behavior(APPID)).toBe(2);
+
+  globals.window = {
+    appDetailsStore: { GetAppData: () => ({ details: { eAutoUpdateValue: 1 } }) },
+  };
+  expect(read_auto_update_behavior(APPID)).toBe(1);
+
   globals.window = {
     appStore: { GetAppOverviewByAppID: () => ({ eAutoUpdateValue: 2 }) },
   };
   expect(read_auto_update_behavior(APPID)).toBe(2);
+
   globals.window = {
+    appDetailsStore: { GetAppDetails: () => ({}) },
     appStore: { GetAppOverviewByAppID: () => ({}) },
   };
   expect(read_auto_update_behavior(APPID)).toBeUndefined();
+
   globals.window = undefined;
   expect(read_auto_update_behavior(APPID)).toBeUndefined();
 });

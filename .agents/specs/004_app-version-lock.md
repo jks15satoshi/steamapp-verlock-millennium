@@ -62,7 +62,7 @@ The backend locates the app's `appmanifest_<appid>.acf` (see [Data Discovery](#d
 
 The backend records the file's verbatim text as the `original` field of the lock record (the persisted JSON file described in [Lock Data Structure](#lock-data-structure)). It sets `StateFlags` to `4` and `TargetBuildID` to `0`, writes the captured latest `buildid` and each captured `InstalledDepots` manifest into the appmanifest, and stores the same values in the record's `locked_build` field.
 
-The frontend reads the app's current auto-update behavior from `SteamAppOverview.eAutoUpdateValue` (`EAppAutoUpdateBehavior`), sends it in the `lock_app` payload, and, after a successful lock, sets the behavior to `Launch` through `SteamClient.Apps.SetAppAutoUpdateBehavior(appid, Launch)`. It then starts watching the app (see [Watch and Reapply](#watch-and-reapply)).
+The frontend reads the app's current auto-update behavior from `AppDetails.eAutoUpdateValue` (`EAppAutoUpdateBehavior`), through `window.appDetailsStore.GetAppDetails(...)` with `window.appDetailsStore.GetAppData(...).details` and then `window.appStore.GetAppOverviewByAppID(...)` as fallbacks, sends it in the `lock_app` payload, and, after a successful lock, sets the behavior to `Launch` through `SteamClient.Apps.SetAppAutoUpdateBehavior(appid, Launch)`. It then starts watching the app (see [Watch and Reapply](#watch-and-reapply)).
 
 The behavior change matters because Steam's `Always` value schedules background updates that never pass through a launch action; setting `Launch` turns every update into a launch-time action, which the watch can intercept. When the frontend cannot read the current value, it aborts the lock, the same as a failed capture, so the original value is never lost. When the post-lock behavior write fails, the frontend rolls the lock back by calling `unlock_app` and reports the failure.
 
@@ -127,13 +127,17 @@ The panel supports multi-select and batch `Refresh` and `Unlock` over the select
 
 The app's Properties window carries a `Steam App Verlock` tab for the app the window shows. The tab lists the lock state, the app id and name, the locked `buildid` and depot manifests, the lock and refresh times, and the auto-update behavior, and it offers `Lock` when the app is not locked and `Refresh` and `Unlock` when it is. The tab reads the same `list_locked` records and calls the same shared actions as the context menu, and it no-ops when the window's DOM shape changes. It matches the client's native dialog styling through the method of [Spec 7](007_native-ui-style-alignment.md).
 
+A user-initiated operation that fails reports its failure instead of staying silent: `Lock`, `Refresh`, `Unlock`, the batch and `Restore All` actions, and the data-directory change each open the same native modal, which names the operation and shows the error text with a `Copy error` button; a second failure replaces the open dialog instead of stacking. A warning that degrades but lets the operation complete — a failed action cancel or a failed auto-update restore — shows a transient toast instead. Background work that has no user gesture, such as the reapply path and the startup sync, stays log-only.
+
+The failure dialog and the warning toast are built by `frontend/notify.tsx` from the `showModal`, `ConfirmModal`, and `toaster` exports of the Millennium SDK; `frontend/errors.ts` normalizes an error value for both the dialog and the log.
+
 ### Concurrency and Atomicity
 
 The backend writes the appmanifest through a temporary file and renames it into place, so a failed write leaves the previous appmanifest intact. Every backend write operation for one app — `Lock`, `Refresh`, `Unlock`, and `Reapply` — is serialized, and `Restore All` excludes them all while it runs. The feature runs while the Steam client runs and assumes Steam rewrites the appmanifest; the watch reapplies the spoof, and the launch and update interception reapplies before the action proceeds.
 
 ### Logging
 
-The feature records its operations through the logging mechanism of [Spec 6](006_logging.md). A record carries the level `info` for a completed state change or a batch summary, `warn` for an expected refusal or a recoverable degradation, and `error` for an I/O, parse, or persistence failure or an uncaught exception. The backend writes its records directly; the frontend writes its own and relays each through the `append_log` bridge method of [Spec 6](006_logging.md#relay-bridge). No record carries the contents of a captured dump.
+The feature records its operations through the logging mechanism of [Spec 6](006_logging.md). A record carries the level `info` for a completed state change or a batch summary, `warn` for an expected refusal or a recoverable degradation that lets the operation complete, and `error` for an I/O, parse, or persistence failure, a user-initiated operation that aborts or fails, or an uncaught exception. The backend writes its records directly; the frontend writes its own and relays each through the `append_log` bridge method of [Spec 6](006_logging.md#relay-bridge). No record carries the contents of a captured dump.
 
 The backend records:
 
@@ -146,10 +150,10 @@ The backend records:
 The frontend records:
 
 - `captured build info for app <appid>` at `info` for an accepted capture;
-- `capture failed for app <appid>: <error>` at `warn` for a failed capture;
-- `aborted the lock for app <appid>: the auto-update behavior was unreadable` at `warn` when the current behavior cannot be read, and `rolled back the lock for <appid> after the auto-update write failed` at `warn` when the post-lock write fails and the lock rolls back;
+- `capture failed for app <appid>: <error>` at `error` for a failed capture, because the lock or refresh that requested it aborts;
+- `aborted the lock for app <appid>: the auto-update behavior was unreadable` at `error` when the current behavior cannot be read, and `rolled back the lock for <appid> after the auto-update write failed` at `error` when the post-lock write fails and the lock rolls back;
 - `could not cancel the action for app <appid>; reapplied and let it proceed` at `warn` when a game action cannot be cancelled;
-- `could not restore the auto-update setting for app <appid>` at `warn` when a behavior restore fails;
+- `could not restore the auto-update setting for app <appid>` at `warn` when a behavior restore fails but the unlock or restore completes;
 - `<operation> failed for app <appid>: <error>` at `error` for a failed backend call.
 
 ## Data Root Directory and Settings
@@ -218,6 +222,8 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 | `frontend/console.ts` | PICS capture |
 | `frontend/watch.ts` | App event watch and reapply triggers |
 | `frontend/actions.ts` | Shared `Lock`, `Refresh`, and `Unlock` flows used by the menu and the Properties tab |
+| `frontend/errors.ts` | Error-value normalization for the failure dialog and its log record |
+| `frontend/notify.tsx` | Failure dialog and warning toast |
 | `frontend/menu.tsx` | Library context menu |
 | `frontend/settings.tsx` | Settings panel |
 | `frontend/properties.tsx` | App Properties window tab |
@@ -302,6 +308,10 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 
 #### Frontend
 
+`frontend/errors.ts`
+
+- `format_error(error: unknown): string` — normalize an `Error`, string, object, or empty value into the text shown in both the failure dialog and its log record.
+
 `frontend/locked.ts`
 
 - `is_locked(appid: AppId): boolean` — report whether an app id is in the local locked set.
@@ -317,6 +327,12 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `capture_build_info(appid: AppId): Promise<CaptureResult>` — run the two console commands, wait for the refresh, store the accepted dump through `set_build_info`, and return the reassembled dump.
 - `capture_then_refresh(appid: AppId): Promise<void>` — call `capture_build_info` and, on success, call `refresh_app`; the background-refresh entry point.
 
+`frontend/notify.tsx`
+
+- `show_failure_dialog(title: string, message: string): void` — open the native failure modal, or replace the open one, with the message and a `Copy error` control.
+- `report_failure(title: string, message: string): void` — record the message at `error` and open the failure modal.
+- `report_warning(message: string, title?: string): void` — record the message at `warn` and show a toast.
+
 `frontend/watch.ts`
 
 - `watch_app(appid: AppId): void` — start watching one locked app and reapplying its spoof on a Steam write.
@@ -324,7 +340,7 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `sync_watches(): Promise<void>` — read every persisted lock record, start watching each app, and ensure the global handlers and backstop timer run; retry a failed or non-array `list_locked` read a bounded number of times, with the retry count and interval undecided (their home is constants in `frontend/watch.ts`; the current working values are 5 attempts and 1 second).
 - `reapply_all(): Promise<void>` — reapply every watched app's spoof and ensure the global handlers and backstop timer are running.
 - `unwatch_all(): void` — stop watching every app, unregister the handlers that expose `unregister`, neutralize the overview callback by clearing the watch set, and stop the backstop timer.
-- `read_auto_update_behavior(appid: AppId): number | undefined` — read the app's current `EAppAutoUpdateBehavior` from the app overview store.
+- `read_auto_update_behavior(appid: AppId): number | undefined` — read the app's current `EAppAutoUpdateBehavior` from the app details store (`window.appDetailsStore.GetAppDetails`), with `GetAppData(...).details` and the app overview store as fallbacks.
 - `apply_auto_update_behavior(appid: AppId, behavior: number): boolean` — write one auto-update behavior through `SetAppAutoUpdateBehavior` and report whether the write succeeded.
 - `unwatch_then_unlock(appid: AppId): Promise<UnlockResult>` — stop watching the app, call `unlock_app`, re-watch the app when the call fails, restore the returned `auto_update_behavior`, and set the result's `auto_update_restored` from the restore outcome.
 - `unwatch_all_then_restore(appids: AppId[]): Promise<RestoreResult>` — stop watching every app, call `restore_all`, re-watch the records the result lists under `failed` (or every given app when the call fails), restore the returned `auto_update` behaviors, and record the failed app ids in the result's `auto_update_failed`.

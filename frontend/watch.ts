@@ -3,6 +3,7 @@ import type { Ack, AppId, RestoreResult, UnlockResult } from "./index";
 import * as bridge from "./bridge";
 import { as_record_list } from "./locked";
 import { log_error, log_warn } from "./log";
+import { report_warning } from "./notify";
 
 const BACKSTOP_INTERVAL_MS = 3600000;
 const SYNC_RETRY_ATTEMPTS = 5;
@@ -135,7 +136,7 @@ async function handle_game_action_start(
   }
 
   if (!cancelled) {
-    log_warn(`could not cancel the action for app ${appid}; reapplied and let it proceed`);
+    report_warning(`could not cancel the action for app ${appid}; reapplied and let it proceed`);
   }
 
   await reapply(appid);
@@ -263,12 +264,19 @@ export async function reapply_all(): Promise<void> {
 
 export function read_auto_update_behavior(appid: AppId): number | undefined {
   try {
-    const overview = window.appStore?.GetAppOverviewByAppID?.(Number(appid)) as
+    const id = Number(appid);
+    const details_store = window.appDetailsStore;
+    const details = details_store?.GetAppDetails?.(id) ?? details_store?.GetAppData?.(id)?.details;
+    const value = details?.eAutoUpdateValue;
+    if (typeof value === "number") {
+      return value;
+    }
+    const overview = window.appStore?.GetAppOverviewByAppID?.(id) as
       | { eAutoUpdateValue?: unknown }
       | null
       | undefined;
-    const value = overview?.eAutoUpdateValue;
-    return typeof value === "number" ? value : undefined;
+    const fallback = overview?.eAutoUpdateValue;
+    return typeof fallback === "number" ? fallback : undefined;
   } catch {
     return undefined;
   }
@@ -287,7 +295,7 @@ function restore_behaviors(entries: { appid: AppId; behavior: number }[] | undef
   const failed: AppId[] = [];
   for (const entry of Array.isArray(entries) ? entries : []) {
     if (!apply_auto_update_behavior(entry.appid, entry.behavior)) {
-      log_warn(`could not restore the auto-update setting for app ${entry.appid}`);
+      report_warning(`could not restore the auto-update setting for app ${entry.appid}`);
       failed.push(entry.appid);
     }
   }
@@ -315,7 +323,7 @@ export async function unwatch_then_unlock(appid: AppId): Promise<UnlockResult> {
   if (typeof unlock.auto_update_behavior === "number") {
     unlock.auto_update_restored = apply_auto_update_behavior(appid, unlock.auto_update_behavior);
     if (!unlock.auto_update_restored) {
-      log_warn(`could not restore the auto-update setting for app ${appid}`);
+      report_warning(`could not restore the auto-update setting for app ${appid}`);
     }
   } else {
     unlock.auto_update_restored = true;

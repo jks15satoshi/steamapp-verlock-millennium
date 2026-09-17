@@ -6,6 +6,7 @@ import { reapply_all, unwatch_all_then_restore, unwatch_then_unlock } from "./wa
 import { as_record_list, sync_locked_ids } from "./locked";
 import * as bridge from "./bridge";
 import { log_error, log_warn } from "./log";
+import { format_error, report_failure, show_failure_dialog } from "./notify";
 
 function parse_json(raw: unknown): unknown {
   if (typeof raw === "string") {
@@ -83,8 +84,9 @@ export default function SettingsPanel() {
     set_status("");
     try {
       await task();
-    } catch {
+    } catch (error) {
       set_status("Operation failed");
+      report_failure("Operation failed", format_error(error));
     } finally {
       set_busy(false);
     }
@@ -94,19 +96,24 @@ export default function SettingsPanel() {
     const captured = await capture_build_info(appid);
     if (!captured.ok) {
       set_status(captured.error);
+      show_failure_dialog(`Refresh failed for app ${appid}`, captured.error);
       return;
     }
 
     const refreshed = parse_json(await bridge.refresh_app(appid));
     if (is_ack(refreshed) && !refreshed.ok) {
-      set_status(refreshed.error ?? "Refresh failed");
+      const message = refreshed.error ?? "Refresh failed";
+      set_status(message);
+      show_failure_dialog(`Refresh failed for app ${appid}`, message);
     }
   }
 
   async function unlock_one(appid: AppId): Promise<void> {
     const result = await unwatch_then_unlock(appid);
     if (!result.ok) {
-      set_status(result.error ?? "Unlock failed");
+      const message = result.error ?? "Unlock failed";
+      set_status(message);
+      show_failure_dialog(`Unlock failed for app ${appid}`, message);
     } else if (result.auto_update_restored === false) {
       set_status(`Unlocked ${appid}, but the auto-update setting could not be restored`);
     }
@@ -156,7 +163,9 @@ export default function SettingsPanel() {
           set_status("Restored all locked apps");
         }
       } else {
-        set_status(restore.error ?? "Restore All failed");
+        const message = restore.error ?? "Restore All failed";
+        set_status(message);
+        show_failure_dialog("Restore All failed", message);
       }
       await reload();
     });
@@ -166,7 +175,9 @@ export default function SettingsPanel() {
     void run(async () => {
       const result = parse_json(await bridge.set_data_root(next_path));
       if (is_ack(result) && !result.ok) {
-        set_status(result.error ?? "Data directory change failed");
+        const message = result.error ?? "Data directory change failed";
+        set_status(message);
+        show_failure_dialog("Data directory change failed", message);
         return;
       }
       const migrated = result as MigrateResult | undefined;

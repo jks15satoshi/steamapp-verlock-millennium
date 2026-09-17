@@ -112,7 +112,7 @@ export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
     }
 
     if (latest.trim().length === 0) {
-      log_warn(`capture failed for app ${appid}: Timed out waiting for app info`);
+      log_error(`capture failed for app ${appid}: Timed out waiting for app info`);
       return { ok: false, error: "Timed out waiting for app info" };
     }
 
