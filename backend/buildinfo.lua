@@ -1,34 +1,59 @@
 local vdf = require("vdf")
-local fs = require("fs")
-local utils = require("utils")
-local paths = require("paths")
 
 ---@class BuildInfo
 ---@field buildid string
 ---@field depots table<string, string>
 
-local NOISE_PATTERNS = {
-    "^%s*%]",
-    "^%s*AppID%s*:",
-}
-
----@param line string
----@param state boolean
----@return boolean
-local function advance_string_state(line, state)
-    local position = 1
-    while position <= #line do
-        local char = line:sub(position, position)
-        if char == "\\" then
-            position = position + 2
+---@param text string
+---@param start integer
+---@return string|nil
+local function extract_block(text, start)
+    local depth = 0
+    local index = start
+    local in_string = false
+    local length = #text
+    while index <= length do
+        local char = text:sub(index, index)
+        if in_string then
+            if char == "\\" then
+                index = index + 2
+            else
+                if char == '"' then
+                    in_string = false
+                end
+                index = index + 1
+            end
         elseif char == '"' then
-            state = not state
-            position = position + 1
+            in_string = true
+            index = index + 1
+        elseif char == "{" then
+            depth = depth + 1
+            index = index + 1
+        elseif char == "}" then
+            depth = depth - 1
+            if depth == 0 then
+                return text:sub(start, index)
+            end
+            index = index + 1
         else
-            position = position + 1
+            index = index + 1
         end
     end
-    return state
+    return nil
+end
+
+---@param text string
+---@return string
+local function strip_prefixes(text)
+    local lines = {}
+    for line in (text .. "\n"):gmatch("(.-)\n") do
+        local trimmed = line:gsub("\r$", "")
+        local start = trimmed:find('["{}]')
+        if start ~= nil then
+            table.insert(lines, trimmed:sub(start))
+        end
+    end
+    return table.concat(lines, "\n")
 end
 
 ---@param raw string
@@ -37,35 +62,16 @@ local function clean(raw)
     if type(raw) ~= "string" then
         return ""
     end
-    local lines = {}
-    local in_string = false
-    for line in (raw .. "\n"):gmatch("(.-)\n") do
-        local trimmed = line:gsub("\r$", "")
-        local drop = false
-        if not in_string then
-            local stripped = trimmed:match("^%s*(.*)$") or trimmed
-            local first = stripped:sub(1, 1)
-            if stripped ~= "" and first ~= '"' and first ~= "{" and first ~= "}" then
-                drop = true
-            end
-            if not drop then
-                for _, pattern in ipairs(NOISE_PATTERNS) do
-                    if trimmed:match(pattern) then
-                        drop = true
-                        break
-                    end
-                end
-            end
-            if not drop and trimmed:find("Connectivity state changed", 1, true) then
-                drop = true
-            end
-        end
-        if not drop then
-            table.insert(lines, trimmed)
-            in_string = advance_string_state(trimmed, in_string)
+    local text = raw:gsub("\27%[[%d;]*m", "")
+    text = strip_prefixes(text)
+    local start = text:find('"(%d+)"%s*{')
+    if start ~= nil then
+        local block = extract_block(text, start)
+        if block ~= nil then
+            return block
         end
     end
-    return table.concat(lines, "\n")
+    return ""
 end
 
 ---@param tbl table
@@ -194,71 +200,8 @@ local function validate(info)
     return true
 end
 
----@return string|nil, string|nil
-local function store_path()
-    local cache_root = paths.resolve().cache_root
-    if type(cache_root) ~= "string" or cache_root == "" then
-        return nil, "the cache root is unavailable"
-    end
-    return cache_root
-end
-
----@param appid string
----@param dump string
----@return boolean, string|nil
-local function store(appid, dump)
-    if type(appid) ~= "string" or appid == "" then
-        return false, "an appid is required"
-    end
-    if type(dump) ~= "string" then
-        return false, "a build info dump is required"
-    end
-    local cache_root, cache_err = store_path()
-    if cache_root == nil then
-        return false, cache_err
-    end
-    local directory = fs.join(cache_root, "buildinfo")
-    local created, create_err = fs.create_directories(directory)
-    if not created and not fs.is_directory(directory) then
-        return false, create_err or "the buildinfo directory cannot be created"
-    end
-    return utils.write_file(fs.join(directory, tostring(appid) .. ".kv"), dump)
-end
-
----@param appid string
----@return string|nil, string|nil
-local function load(appid)
-    if type(appid) ~= "string" or appid == "" then
-        return nil, "an appid is required"
-    end
-    local cache_root, cache_err = store_path()
-    if cache_root == nil then
-        return nil, cache_err
-    end
-    return utils.read_file(fs.join(cache_root, "buildinfo", tostring(appid) .. ".kv"))
-end
-
----@return void
-local function clear_all()
-    local cache_root = store_path()
-    if cache_root == nil then
-        return
-    end
-    local directory = fs.join(cache_root, "buildinfo")
-    if not fs.is_directory(directory) then
-        return
-    end
-    local entries = fs.list(directory)
-    for _, entry in ipairs(entries or {}) do
-        fs.remove_all(entry.path)
-    end
-end
-
 return {
     clean = clean,
     parse = parse,
     validate = validate,
-    store = store,
-    load = load,
-    clear_all = clear_all,
 }

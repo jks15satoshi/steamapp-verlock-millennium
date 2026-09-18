@@ -214,6 +214,13 @@ function DialogHost({
   );
 }
 
+function default_parent(): EventTarget | undefined {
+  if (typeof window !== "undefined") {
+    return window;
+  }
+  return undefined;
+}
+
 function open_dialog(
   title: string,
   message: string,
@@ -233,12 +240,13 @@ function open_dialog(
     copy_timer = null;
   }
 
+  const modal_parent = parent ?? default_parent();
   active = millennium.showModal(
     <DialogHost
       title={title}
       message={message}
       copy_label={copy_label}
-      parent={parent}
+      parent={modal_parent}
       on_close={() => {
         if (copy_timer !== null) {
           clearTimeout(copy_timer);
@@ -248,7 +256,7 @@ function open_dialog(
         active = null;
       }}
     />,
-    parent,
+    modal_parent,
     {
       fnOnClose: () => {
         if (copy_timer !== null) {

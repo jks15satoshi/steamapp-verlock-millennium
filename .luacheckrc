@@ -3,7 +3,6 @@ std = "luajit"
 globals = {
   "millennium",
   "logger",
-  "set_build_info",
   "lock_app",
   "refresh_app",
   "unlock_app",

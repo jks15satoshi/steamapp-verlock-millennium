@@ -11,7 +11,6 @@ describe("integration", function()
     local tmp
     local steam
     local library
-    local cache
     local data
     local manifest
     local manifest_570
@@ -87,10 +86,6 @@ describe("integration", function()
         return library .. "/steamapps"
     end
 
-    local function cache_buildinfo()
-        return cache .. "/steamapp-verlock/buildinfo"
-    end
-
     local function logged(level, fragment)
         for _, call in ipairs(logger.calls) do
             if call.level == level and call.message:find(fragment, 1, true) ~= nil then
@@ -108,7 +103,6 @@ describe("integration", function()
         tmp = support.tmpdir()
         steam = tmp .. "/steam"
         library = tmp .. "/library"
-        cache = tmp .. "/cache"
         data = tmp .. "/data"
         manifest = steamapps() .. "/appmanifest_440.acf"
         manifest_570 = steamapps() .. "/appmanifest_570.acf"
@@ -121,7 +115,6 @@ describe("integration", function()
         support.stub_millennium({ config = { data_root = data } })
         support.set_env("MILLENNIUM__STEAM_PATH", steam)
         support.set_env("XDG_DATA_HOME", tmp .. "/xdg-data")
-        support.set_env("XDG_CACHE_HOME", cache)
         support.set_time(1000)
         local modules = support.load("lock", "state", "paths", "migrate")
         lock = modules.lock
@@ -251,11 +244,9 @@ describe("integration", function()
         assert.is_false(store.exists(target .. "/locks/440.lock"))
     end)
 
-    it("restores healthy apps and clears buildinfo while keeping the directory", function()
+    it("restores every healthy app", function()
         assert.is_true(lock.lock("440", INFO).ok)
         assert.is_true(lock.lock("570", INFO_570).ok)
-        store.seed(cache_buildinfo() .. "/440.kv", "dump 440")
-        store.seed(cache_buildinfo() .. "/570.kv", "dump 570")
         local result = lock.restore_all()
         assert.is_true(result.ok)
         assert.equals(2, result.restored)
@@ -264,9 +255,6 @@ describe("integration", function()
         assert.equals(ORIGINAL_570, store.read(manifest_570))
         assert.is_nil(state.read("440"))
         assert.is_nil(state.read("570"))
-        assert.is_false(store.exists(cache_buildinfo() .. "/440.kv"))
-        assert.is_false(store.exists(cache_buildinfo() .. "/570.kv"))
-        assert.is_true(store.exists(cache_buildinfo()))
     end)
 
     it("keeps failed records and drops uninstalled records", function()

@@ -3,7 +3,6 @@ local utils = require("utils")
 local acf = require("acf")
 local state = require("state")
 local paths = require("paths")
-local buildinfo = require("buildinfo")
 local log = require("log")
 
 ---@class LockResult
@@ -98,11 +97,11 @@ local function apply_spoof(state_table, info)
     end
 end
 
--- A depot the record does not list never matches, but apply_spoof only
--- overwrites and never trims, so an appmanifest that persistently carries
--- such a depot is rewritten on every reapply trigger. The repeated rewrite
--- is bounded (one temp-file write per trigger) and deliberate: trimming a
--- depot Steam wrote itself is riskier than rewriting the spoof.
+-- A depot the record does not list is ignored, because apply_spoof only
+-- overwrites and never trims: requiring the appmanifest to drop such a depot
+-- would leave the file permanently unmatched and rewrite the spoof on every
+-- trigger. A recorded depot that is missing or carries a different manifest
+-- still forces the rewrite.
 ---@param state_table table
 ---@param info BuildInfo
 ---@return boolean
@@ -124,11 +123,6 @@ local function matches_spoof(state_table, info)
     for depot_id, manifest_id in pairs(info.depots or {}) do
         local entry = depots[depot_id]
         if type(entry) ~= "table" or tostring(entry.manifest) ~= tostring(manifest_id) then
-            return false
-        end
-    end
-    for depot_id in pairs(depots) do
-        if info.depots == nil or info.depots[depot_id] == nil then
             return false
         end
     end
@@ -495,7 +489,6 @@ local function do_restore_all()
             end
         end
     end
-    buildinfo.clear_all()
     log.info("restored " .. tostring(restored) .. " app(s), kept " .. tostring(#failed))
     return { ok = true, restored = restored, failed = failed, auto_update = auto_update }
 end

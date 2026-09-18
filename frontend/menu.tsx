@@ -95,7 +95,7 @@ function LockedMenuGroup({ appid }: { appid: AppId }) {
         key={`${GROUP_KEY}-lock`}
         disabled={locked}
         onSelected={() => {
-          void lock_app(appid);
+          void lock_app(appid, window);
         }}
       >
         Lock
@@ -104,7 +104,7 @@ function LockedMenuGroup({ appid }: { appid: AppId }) {
         key={`${GROUP_KEY}-refresh`}
         disabled={!locked}
         onSelected={() => {
-          void refresh_app(appid);
+          void refresh_app(appid, window);
         }}
       >
         Refresh
@@ -113,7 +113,7 @@ function LockedMenuGroup({ appid }: { appid: AppId }) {
         key={`${GROUP_KEY}-unlock`}
         disabled={!locked}
         onSelected={() => {
-          void unlock_app(appid);
+          void unlock_app(appid, window);
         }}
       >
         Unlock

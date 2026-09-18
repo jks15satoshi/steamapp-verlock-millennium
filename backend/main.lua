@@ -106,22 +106,6 @@ end
 
 local handlers = {}
 
-handlers.set_build_info = function(payload)
-    local appid = payload.appid
-    if not is_numeric_appid(appid) then
-        return { ok = false, error = "a numeric appid is required" }
-    end
-    if type(payload.dump) ~= "string" then
-        return { ok = false, error = "a build info dump is required" }
-    end
-    local stored, store_err = buildinfo.store(appid, payload.dump)
-    if not stored then
-        log.error("store failed for app " .. appid .. ": " .. tostring(store_err or "failed to store the build info"))
-        return { ok = false, error = store_err or "failed to store the build info" }
-    end
-    return { ok = true }
-end
-
 handlers.lock_app = function(payload)
     local appid = payload.appid
     if not is_numeric_appid(appid) then
@@ -131,12 +115,10 @@ handlers.lock_app = function(payload)
     if auto_update_behavior ~= nil and type(auto_update_behavior) ~= "number" then
         return { ok = false, error = "the auto update behavior must be a number" }
     end
-    local dump, dump_err = buildinfo.load(appid)
-    if dump == nil then
-        log.error("lock failed for app " .. appid .. ": " .. tostring(dump_err or "no cached build info was found"))
-        return { ok = false, error = dump_err or "no cached build info was found" }
+    if type(payload.dump) ~= "string" or payload.dump == "" then
+        return { ok = false, error = "a build info dump is required" }
     end
-    local info, parse_err = buildinfo.parse(buildinfo.clean(dump), resolve_branch(appid))
+    local info, parse_err = buildinfo.parse(buildinfo.clean(payload.dump), resolve_branch(appid))
     if info == nil then
         log.error("lock failed for app " .. appid .. ": " .. tostring(parse_err))
         return { ok = false, error = parse_err }
@@ -154,12 +136,10 @@ handlers.refresh_app = function(payload)
     if not is_numeric_appid(appid) then
         return { ok = false, error = "a numeric appid is required" }
     end
-    local dump, dump_err = buildinfo.load(appid)
-    if dump == nil then
-        log.error("refresh failed for app " .. appid .. ": " .. tostring(dump_err or "no cached build info was found"))
-        return { ok = false, error = dump_err or "no cached build info was found" }
+    if type(payload.dump) ~= "string" or payload.dump == "" then
+        return { ok = false, error = "a build info dump is required" }
     end
-    local info, parse_err = buildinfo.parse(buildinfo.clean(dump), resolve_branch(appid))
+    local info, parse_err = buildinfo.parse(buildinfo.clean(payload.dump), resolve_branch(appid))
     if info == nil then
         log.error("refresh failed for app " .. appid .. ": " .. tostring(parse_err))
         return { ok = false, error = parse_err }
@@ -389,13 +369,6 @@ end
 
 ---@return void
 local function on_unload() end
-
----@ffi
----@param payload string
----@return string
-function set_build_info(payload)
-    return respond("set_build_info", payload)
-end
 
 ---@ffi
 ---@param payload string

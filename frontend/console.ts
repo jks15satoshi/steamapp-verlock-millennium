@@ -1,4 +1,4 @@
-import type { Ack, AppId, CaptureResult } from "./index";
+import type { AppId, CaptureResult } from "./index";
 import * as bridge from "./bridge";
 import { log_error, log_info, log_warn } from "./log";
 
@@ -12,21 +12,6 @@ function delay(ms: number): Promise<void> {
   });
 }
 
-function parse_json(raw: unknown): unknown {
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return undefined;
-    }
-  }
-  return raw;
-}
-
-function is_ack(value: unknown): value is Ack {
-  return Boolean(value) && typeof value === "object" && typeof (value as Ack).ok === "boolean";
-}
-
 function build_app_info_print_command(appid: AppId): string | null {
   if (!NUMERIC_APPID_PATTERN.test(appid)) {
     return null;
@@ -34,16 +19,8 @@ function build_app_info_print_command(appid: AppId): string | null {
   return `app_info_print ${appid}`;
 }
 
-async function store_build_info(appid: AppId, dump: string): Promise<Ack> {
-  try {
-    const stored = parse_json(await bridge.set_build_info(appid, dump));
-    if (is_ack(stored)) {
-      return stored;
-    }
-    return { ok: false, error: "Invalid set_build_info response" };
-  } catch {
-    return { ok: false, error: "Failed to store build info" };
-  }
+function has_app_block(dump: string, appid: AppId): boolean {
+  return dump.includes(`"${appid}"`) && dump.includes('"depots"');
 }
 
 export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
@@ -72,57 +49,23 @@ export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
 
   try {
     captured = "";
-    console_api.ExecCommand("app_info_update 1");
+    console_api.ExecCommand(command);
 
     const started_at = Date.now();
-    let baseline: string | null = null;
-    let latest = "";
-
     while (Date.now() - started_at < CAPTURE_TIME_LIMIT_MS) {
-      captured = "";
-      console_api.ExecCommand(command);
+      if (has_app_block(captured, appid)) {
+        break;
+      }
       await delay(CAPTURE_SAMPLE_INTERVAL_MS);
-
-      const dump = captured;
-      if (dump.trim().length === 0) {
-        if (Date.now() - started_at >= CAPTURE_TIME_LIMIT_MS) {
-          break;
-        }
-        continue;
-      }
-
-      latest = dump;
-
-      if (baseline === null) {
-        baseline = dump;
-        continue;
-      }
-
-      if (dump !== baseline) {
-        const stored = await store_build_info(appid, dump);
-        if (!stored.ok) {
-          log_error(
-            `capture failed for app ${appid}: ${stored.error ?? "Failed to store build info"}`,
-          );
-          return { ok: false, error: stored.error ?? "Failed to store build info" };
-        }
-        log_info(`captured build info for app ${appid}`);
-        return { ok: true, appid, dump };
-      }
     }
 
-    if (latest.trim().length === 0) {
-      log_error(`capture failed for app ${appid}: Timed out waiting for app info`);
-      return { ok: false, error: "Timed out waiting for app info" };
+    if (!has_app_block(captured, appid)) {
+      log_error(`capture failed for app ${appid}: the client returned no app info`);
+      return { ok: false, error: "the client returned no app info" };
     }
 
-    const stored = await store_build_info(appid, latest);
-    if (!stored.ok) {
-      log_error(`capture failed for app ${appid}: ${stored.error ?? "Failed to store build info"}`);
-      return { ok: false, error: stored.error ?? "Failed to store build info" };
-    }
     log_info(`captured build info for app ${appid}`);
-    return { ok: true, appid, dump: latest };
+    return { ok: true, appid, dump: captured };
   } finally {
     handle.unregister();
   }
@@ -134,7 +77,7 @@ export async function capture_then_refresh(appid: AppId): Promise<void> {
     return;
   }
   try {
-    await bridge.refresh_app(appid);
+    await bridge.refresh_app(appid, captured.dump);
   } catch {
     return;
   }

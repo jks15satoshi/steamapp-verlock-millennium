@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, expect, jest, mock, test } from "bun:test";
-import betaBranchDump from "./fixtures/beta-branch.txt";
-import emptyDump from "./fixtures/empty.txt";
 import multiDepotDump from "./fixtures/multi-depot.txt";
-import staleFirstDump from "./fixtures/stale-first.txt";
 import { bridge, installSteamClient, settle } from "./harness";
 import { millennium_mock } from "./millennium_mock";
 
@@ -70,34 +67,23 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-test("capture_build_info accepts the first dump that differs from the stale baseline", async () => {
-  setup([staleFirstDump, multiDepotDump]);
+test("capture_build_info returns the dump that carries the app block", async () => {
+  setup([multiDepotDump]);
   const result = await settle(capture_build_info(APPID), 4000, 20);
   expect(result.ok).toBe(true);
   if (result.ok) {
     expect(result.appid).toBe(APPID);
     expect(result.dump).toBe(multiDepotDump);
   }
-  expect(commands[0]).toBe("app_info_update 1");
-  expect(commands).toContain(`app_info_print ${APPID}`);
+  expect(commands).toEqual([`app_info_print ${APPID}`]);
 });
 
-test("capture_build_info falls back to the most recent dump when the time limit expires", async () => {
-  setup([staleFirstDump]);
+test("capture_build_info rejects a dump that carries only the command echo", async () => {
+  setup([`app_info_print ${APPID}\n`]);
+  bridge.reset();
   const result = await settle(capture_build_info(APPID), 4000, 20);
-  expect(result.ok).toBe(true);
-  if (result.ok) {
-    expect(result.dump).toBe(staleFirstDump);
-  }
-});
-
-test("capture_build_info keeps sampling past an empty dump", async () => {
-  setup([emptyDump, betaBranchDump]);
-  const result = await settle(capture_build_info(APPID), 4000, 20);
-  expect(result.ok).toBe(true);
-  if (result.ok) {
-    expect(result.dump).toBe(betaBranchDump);
-  }
+  expect(result.ok).toBe(false);
+  expect(bridge.find("refresh_app")).toHaveLength(0);
 });
 
 test("capture_build_info rejects a non-numeric appid without running a command", async () => {
@@ -135,23 +121,16 @@ test("capture_build_info relays an error when the capture times out", async () =
   });
 });
 
-test("capture_build_info treats an empty first dump as neither baseline nor candidate", async () => {
-  setup([emptyDump, staleFirstDump, multiDepotDump]);
-  const result = await settle(capture_build_info(APPID), 4000, 20);
-  expect(result.ok).toBe(true);
-  if (result.ok) {
-    expect(result.dump).toBe(multiDepotDump);
-  }
-});
-
-test("capture_then_refresh stores the dump and then refreshes the app", async () => {
-  setup([staleFirstDump, multiDepotDump]);
+test("capture_then_refresh refreshes the app with the captured dump", async () => {
+  setup([multiDepotDump]);
   bridge.reset();
   await settle(capture_then_refresh(APPID), 4000, 20);
-  const methods = bridge.calls.map((call) => call.method);
-  expect(methods).toContain("set_build_info");
-  expect(methods).toContain("refresh_app");
-  expect(methods.indexOf("set_build_info")).toBeLessThan(methods.indexOf("refresh_app"));
+  const refreshes = bridge.find("refresh_app");
+  expect(refreshes).toHaveLength(1);
+  expect(JSON.parse(refreshes[0]?.payload as string)).toEqual({
+    appid: APPID,
+    dump: multiDepotDump,
+  });
 });
 
 test("capture_then_refresh does not refresh when the capture fails", async () => {

@@ -79,6 +79,8 @@ describe("lock", function()
         '\t\t"442"',
         "\t\t{",
         '\t\t\t"manifest"\t\t"1000000000000000002"',
+        '\t\t\t"size"\t\t"12345"',
+        '\t\t\t"dlcappid"\t\t"442"',
         "\t\t}",
         "\t}",
         "}",
@@ -188,16 +190,31 @@ describe("lock", function()
         assert.is_not_nil(written:find('"7588696787324571854"'))
     end)
 
-    it("rewrites an appmanifest that carries an extra depot", function()
+    it("does not rewrite an appmanifest that only carries an extra depot", function()
         assert.is_true(lock.lock("440", INFO).ok)
         store.seed(MANIFEST, EXTRA_DEPOT)
         local writes_before = store.calls.write or 0
+        local renames_before = store.calls.rename or 0
         local result = lock.reapply("440")
         assert.is_true(result.ok)
-        assert.is_true((store.calls.write or 0) > writes_before)
+        assert.equals(writes_before, store.calls.write or 0)
+        assert.equals(renames_before, store.calls.rename or 0)
+        assert.equals(EXTRA_DEPOT, store.read(MANIFEST))
+    end)
+
+    it("keeps an extra depot when a real mismatch forces a rewrite", function()
+        assert.is_true(lock.lock("440", INFO).ok)
+        local drifted = EXTRA_DEPOT:gsub('"buildid"%s+"12345678"', '"buildid"\t\t"30000000"')
+        store.seed(MANIFEST, drifted)
+        local result = lock.reapply("440")
+        assert.is_true(result.ok)
         local written = store.read(MANIFEST)
         assert.is_not_nil(written:find('"buildid"%s+"12345678"'))
-        assert.is_not_nil(written:find('"7588696787324571854"'))
+        assert.is_not_nil(written:find('"441"'))
+        assert.is_not_nil(written:find('"442"'))
+        assert.is_not_nil(written:find('"manifest"%s+"1000000000000000002"'))
+        assert.is_not_nil(written:find('"size"%s+"12345"'))
+        assert.is_not_nil(written:find('"dlcappid"%s+"442"'))
     end)
 
     it("keeps a repair for one app idempotent", function()
@@ -237,11 +254,9 @@ describe("lock", function()
         assert.is_not_nil(store.read(MANIFEST):find('"buildid"%s+"12345678"'))
     end)
 
-    it("restores every healthy app and clears the cached dumps", function()
+    it("restores every healthy app", function()
         assert.is_true(lock.lock("440", INFO).ok)
         assert.is_true(lock.lock("570", INFO_570).ok)
-        store.seed("/xdg/cache/steamapp-verlock/buildinfo/440.kv", "dump 440")
-        store.seed("/xdg/cache/steamapp-verlock/buildinfo/570.kv", "dump 570")
         local result = lock.restore_all()
         assert.is_true(result.ok)
         assert.equals(2, result.restored)
@@ -250,9 +265,6 @@ describe("lock", function()
         assert.equals(ORIGINAL_570, store.read(MANIFEST_570))
         assert.is_nil(state.read("440"))
         assert.is_nil(state.read("570"))
-        assert.is_false(store.exists("/xdg/cache/steamapp-verlock/buildinfo/440.kv"))
-        assert.is_false(store.exists("/xdg/cache/steamapp-verlock/buildinfo/570.kv"))
-        assert.is_true(store.exists("/xdg/cache/steamapp-verlock/buildinfo"))
     end)
 
     it("keeps a record whose appmanifest cannot be written", function()
@@ -645,14 +657,12 @@ describe("lock", function()
         assert.is_true(logged("info", "restored 1 app(s), kept 0"))
     end)
 
-    it("does not clear buildinfo while a migration runs", function()
+    it("keeps the records while a migration runs", function()
         assert.is_true(lock.lock("440", INFO).ok)
-        store.seed("/xdg/cache/steamapp-verlock/buildinfo/440.kv", "dump")
         state.set_migrating(true)
         local result = lock.restore_all()
         state.set_migrating(false)
         assert.is_false(result.ok)
-        assert.is_true(store.exists("/xdg/cache/steamapp-verlock/buildinfo/440.kv"))
         assert.is_not_nil(state.read("440"))
     end)
 end)

@@ -36,7 +36,6 @@ export type LockedAppRecord = {
 
 export type DataRoots = {
   data_root: string;
-  cache_root: string;
   is_default: boolean;
 };
 

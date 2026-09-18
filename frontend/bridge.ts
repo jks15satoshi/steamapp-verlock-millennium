@@ -16,20 +16,20 @@ function as_result<T>(result: Promise<unknown>): Promise<T> {
   return result as Promise<T>;
 }
 
-export function set_build_info(appid: AppId, dump: string): Promise<Ack> {
-  return as_result<Ack>(backend.set_build_info(JSON.stringify({ appid, dump })));
-}
-
-export function lock_app(appid: AppId, auto_update_behavior?: number): Promise<LockResult> {
-  const payload: { appid: AppId; auto_update_behavior?: number } = { appid };
+export function lock_app(
+  appid: AppId,
+  dump: string,
+  auto_update_behavior?: number,
+): Promise<LockResult> {
+  const payload: { appid: AppId; dump: string; auto_update_behavior?: number } = { appid, dump };
   if (typeof auto_update_behavior === "number") {
     payload.auto_update_behavior = auto_update_behavior;
   }
   return as_result<LockResult>(backend.lock_app(JSON.stringify(payload)));
 }
 
-export function refresh_app(appid: AppId): Promise<RefreshResult> {
-  return as_result<RefreshResult>(backend.refresh_app(JSON.stringify({ appid })));
+export function refresh_app(appid: AppId, dump: string): Promise<RefreshResult> {
+  return as_result<RefreshResult>(backend.refresh_app(JSON.stringify({ appid, dump })));
 }
 
 export function unlock_app(appid: AppId): Promise<UnlockResult> {

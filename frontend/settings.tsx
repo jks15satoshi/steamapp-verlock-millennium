@@ -103,7 +103,7 @@ export default function SettingsPanel() {
       return;
     }
 
-    const refreshed = parse_json(await bridge.refresh_app(appid));
+    const refreshed = parse_json(await bridge.refresh_app(appid, captured.dump));
     if (is_ack(refreshed) && !refreshed.ok) {
       const message = refreshed.error ?? "Refresh failed";
       set_status(message);
@@ -347,7 +347,6 @@ export default function SettingsPanel() {
                 Open Folder
               </Button>
             </div>
-            <div>Cache: {roots?.cache_root ?? "Unknown"}</div>
           </div>
         </PanelSectionRow>
       </PanelSection>

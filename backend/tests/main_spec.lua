@@ -5,11 +5,9 @@ describe("main", function()
     local store
     local logger
 
-    local CACHE_ROOT = "/xdg/cache/steamapp-verlock"
     local MANIFEST = "/steam/steamapps/appmanifest_440.acf"
 
     local BRIDGE_METHODS = {
-        "set_build_info",
         "lock_app",
         "refresh_app",
         "unlock_app",
@@ -85,8 +83,10 @@ describe("main", function()
 
     local function seed_locked_440()
         store.seed(MANIFEST, support.read_fixture("appmanifest_440.acf"))
-        store.seed(CACHE_ROOT .. "/buildinfo/440.kv", support.read_fixture("app_info_print_440.txt"))
-        return invoke("lock_app", { appid = "440" })
+        return invoke("lock_app", {
+            appid = "440",
+            dump = support.read_fixture("app_info_print_440.txt"),
+        })
     end
 
     before_each(function()
@@ -97,7 +97,6 @@ describe("main", function()
         support.stub_millennium({ config = { data_root = "/data" } })
         support.set_env("MILLENNIUM__STEAM_PATH", "/steam")
         support.set_env("XDG_DATA_HOME", "/xdg/data")
-        support.set_env("XDG_CACHE_HOME", "/xdg/cache")
         main = support.require_fresh("main")
     end)
 
@@ -141,40 +140,21 @@ describe("main", function()
         assert.is_string(ack.error)
     end)
 
-    it("returns a success Ack from set_build_info for a valid dump", function()
-        local ack = invoke("set_build_info", {
-            appid = "440",
-            dump = support.read_fixture("app_info_print_440.txt"),
-        })
-        assert.is_table(ack)
-        assert.is_true(ack.ok)
-        assert.is_nil(ack.error)
-        assert.is_nil(ack.code)
-    end)
-
-    it("fails set_build_info for a non-numeric appid", function()
-        local ack = invoke("set_build_info", { appid = "four-forty", dump = "dump" })
-        assert.is_table(ack)
-        assert.is_false(ack.ok)
-        assert.is_string(ack.error)
-        assert.equals("a numeric appid is required", ack.error)
-        assert.is_nil(ack.code)
-    end)
-
-    it("fails set_build_info for a missing appid", function()
-        local ack = invoke("set_build_info", { dump = "dump" })
-        assert.is_table(ack)
-        assert.is_false(ack.ok)
-        assert.equals("a numeric appid is required", ack.error)
-        assert.is_nil(ack.code)
-    end)
-
-    it("fails set_build_info for a missing dump", function()
-        local ack = invoke("set_build_info", { appid = "440" })
+    it("fails lock_app for a missing dump", function()
+        store.seed(MANIFEST, support.read_fixture("appmanifest_440.acf"))
+        local ack = invoke("lock_app", { appid = "440" })
         assert.is_table(ack)
         assert.is_false(ack.ok)
         assert.equals("a build info dump is required", ack.error)
         assert.is_nil(ack.code)
+    end)
+
+    it("fails lock_app for an echo-only dump", function()
+        store.seed(MANIFEST, support.read_fixture("appmanifest_440.acf"))
+        local ack = invoke("lock_app", { appid = "440", dump = "app_info_print 440\n" })
+        assert.is_table(ack)
+        assert.is_false(ack.ok)
+        assert.is_string(ack.error)
     end)
 
     it("returns an Ack with a lock record from lock_app", function()
@@ -195,7 +175,10 @@ describe("main", function()
 
     it("returns an Ack from refresh_app", function()
         assert.is_true(seed_locked_440().ok)
-        local ack = invoke("refresh_app", { appid = "440" })
+        local ack = invoke("refresh_app", {
+            appid = "440",
+            dump = support.read_fixture("app_info_print_440.txt"),
+        })
         assert.is_table(ack)
         assert.is_true(ack.ok)
     end)
@@ -374,11 +357,10 @@ describe("main", function()
         assert.equals(0, #ack.failed)
     end)
 
-    it("returns the root directories from get_data_root", function()
+    it("returns the root directory from get_data_root", function()
         local roots = invoke("get_data_root")
         assert.is_table(roots)
         assert.equals("/data", roots.data_root)
-        assert.equals(CACHE_ROOT, roots.cache_root)
         assert.is_boolean(roots.is_default)
         assert.is_false(roots.is_default)
     end)
@@ -390,9 +372,8 @@ describe("main", function()
         assert.equals("/newdata", ack.data_root)
     end)
 
-    it("resets to the default data root when it contains the cache root", function()
+    it("resets to the default data root when given an empty path", function()
         support.set_env("XDG_DATA_HOME", "/base")
-        support.set_env("XDG_CACHE_HOME", "/base/steamapp-verlock")
         local ack = invoke("set_data_root", { path = "" })
         assert.is_table(ack)
         assert.is_true(ack.ok)
@@ -434,16 +415,20 @@ describe("main", function()
 
     it("reads the beta branch from the appmanifest BetaKey", function()
         store.seed("/steam/steamapps/appmanifest_730.acf", support.read_fixture("appmanifest_730_beta.acf"))
-        store.seed(CACHE_ROOT .. "/buildinfo/730.kv", support.read_fixture("app_info_print_beta.txt"))
-        local ack = invoke("lock_app", { appid = "730" })
+        local ack = invoke("lock_app", {
+            appid = "730",
+            dump = support.read_fixture("app_info_print_beta.txt"),
+        })
         assert.is_true(ack.ok)
         assert.equals("30000001", ack.record.locked_build.buildid)
     end)
 
     it("defaults to the public branch when the appmanifest has no BetaKey", function()
         store.seed("/steam/steamapps/appmanifest_730.acf", support.read_fixture("appmanifest_730.acf"))
-        store.seed(CACHE_ROOT .. "/buildinfo/730.kv", support.read_fixture("app_info_print_beta.txt"))
-        local ack = invoke("lock_app", { appid = "730" })
+        local ack = invoke("lock_app", {
+            appid = "730",
+            dump = support.read_fixture("app_info_print_beta.txt"),
+        })
         assert.is_true(ack.ok)
         assert.equals("30000000", ack.record.locked_build.buildid)
     end)
@@ -451,8 +436,10 @@ describe("main", function()
     it("requests build info for every record on frontend load", function()
         assert.is_true(seed_locked_440().ok)
         store.seed("/steam/steamapps/appmanifest_570.acf", support.read_fixture("appmanifest_570.acf"))
-        store.seed(CACHE_ROOT .. "/buildinfo/570.kv", support.read_fixture("app_info_print_multi_depot.txt"))
-        assert.is_true(invoke("lock_app", { appid = "570" }).ok)
+        assert.is_true(invoke("lock_app", {
+            appid = "570",
+            dump = support.read_fixture("app_info_print_multi_depot.txt"),
+        }).ok)
 
         main.on_frontend_loaded()
 
@@ -478,20 +465,13 @@ describe("main", function()
     end)
 
     it("logs an error when a handler raises", function()
-        local original = main.handlers.set_build_info
-        main.handlers.set_build_info = function()
+        local original = main.handlers.lock_app
+        main.handlers.lock_app = function()
             error("boom", 0)
         end
-        local ack = dispatch("set_build_info", {})
-        main.handlers.set_build_info = original
+        local ack = dispatch("lock_app", {})
+        main.handlers.lock_app = original
         assert.is_false(ack.ok)
-        assert.is_true(logged("error", "method set_build_info failed: boom"))
-    end)
-
-    it("logs an error when the build info cannot be stored", function()
-        store.fail_next("write", "permission denied")
-        local ack = invoke("set_build_info", { appid = "440", dump = "dump" })
-        assert.is_false(ack.ok)
-        assert.is_true(logged("error", "store failed for app 440"))
+        assert.is_true(logged("error", "method lock_app failed: boom"))
     end)
 end)

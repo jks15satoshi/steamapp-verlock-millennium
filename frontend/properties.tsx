@@ -372,14 +372,14 @@ export function VerlockTabContent({
                 <ActionButton
                   button_class={button_class}
                   disabled={busy}
-                  onClick={() => run(() => refresh_app(appid))}
+                  onClick={() => run(() => refresh_app(appid, parent))}
                 >
                   Refresh
                 </ActionButton>
                 <ActionButton
                   button_class={button_class}
                   disabled={busy}
-                  onClick={() => run(() => unlock_app(appid))}
+                  onClick={() => run(() => unlock_app(appid, parent))}
                 >
                   Unlock
                 </ActionButton>
@@ -388,7 +388,7 @@ export function VerlockTabContent({
               <ActionButton
                 button_class={button_class}
                 disabled={busy}
-                onClick={() => run(() => lock_app(appid))}
+                onClick={() => run(() => lock_app(appid, parent))}
               >
                 Lock
               </ActionButton>

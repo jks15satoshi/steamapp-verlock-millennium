@@ -26,10 +26,10 @@ function is_ack(value: unknown): value is Ack {
   return Boolean(value) && typeof value === "object" && typeof (value as Ack).ok === "boolean";
 }
 
-export async function lock_app(appid: AppId): Promise<void> {
+export async function lock_app(appid: AppId, parent?: EventTarget): Promise<void> {
   const captured = await capture_build_info(appid);
   if (!captured.ok) {
-    show_failure_dialog(`Lock failed for app ${appid}`, captured.error);
+    show_failure_dialog(`Lock failed for app ${appid}`, captured.error, parent);
     return;
   }
 
@@ -38,17 +38,19 @@ export async function lock_app(appid: AppId): Promise<void> {
     report_failure(
       `Lock failed for app ${appid}`,
       `aborted the lock for app ${appid}: the auto-update behavior was unreadable`,
+      parent,
     );
     return;
   }
 
   let locked: unknown;
   try {
-    locked = parse_json(await bridge.lock_app(appid, auto_update_behavior));
+    locked = parse_json(await bridge.lock_app(appid, captured.dump, auto_update_behavior));
   } catch (error) {
     report_failure(
       `Lock failed for app ${appid}`,
       `lock failed for app ${appid}: ${format_error(error)}`,
+      parent,
     );
     return;
   }
@@ -56,19 +58,25 @@ export async function lock_app(appid: AppId): Promise<void> {
     report_failure(
       `Lock failed for app ${appid}`,
       `lock failed for app ${appid}: the backend returned an invalid response`,
+      parent,
     );
     return;
   }
   if (!locked.ok) {
-    show_failure_dialog(`Lock failed for app ${appid}`, locked.error ?? "the lock was refused");
+    show_failure_dialog(
+      `Lock failed for app ${appid}`,
+      locked.error ?? "the lock was refused",
+      parent,
+    );
     return;
   }
 
   if (!apply_auto_update_behavior(appid, EAppAutoUpdateBehavior.Launch)) {
-    await unlock_app(appid);
+    await unlock_app(appid, parent);
     report_failure(
       `Lock failed for app ${appid}`,
       `rolled back the lock for ${appid} after the auto-update write failed`,
+      parent,
     );
     return;
   }
@@ -77,20 +85,21 @@ export async function lock_app(appid: AppId): Promise<void> {
   mark_locked(appid);
 }
 
-export async function refresh_app(appid: AppId): Promise<void> {
+export async function refresh_app(appid: AppId, parent?: EventTarget): Promise<void> {
   const captured = await capture_build_info(appid);
   if (!captured.ok) {
-    show_failure_dialog(`Refresh failed for app ${appid}`, captured.error);
+    show_failure_dialog(`Refresh failed for app ${appid}`, captured.error, parent);
     return;
   }
 
   let refreshed: unknown;
   try {
-    refreshed = parse_json(await bridge.refresh_app(appid));
+    refreshed = parse_json(await bridge.refresh_app(appid, captured.dump));
   } catch (error) {
     report_failure(
       `Refresh failed for app ${appid}`,
       `refresh failed for app ${appid}: ${format_error(error)}`,
+      parent,
     );
     return;
   }
@@ -98,6 +107,7 @@ export async function refresh_app(appid: AppId): Promise<void> {
     report_failure(
       `Refresh failed for app ${appid}`,
       `refresh failed for app ${appid}: the backend returned an invalid response`,
+      parent,
     );
     return;
   }
@@ -105,15 +115,20 @@ export async function refresh_app(appid: AppId): Promise<void> {
     show_failure_dialog(
       `Refresh failed for app ${appid}`,
       refreshed.error ?? "the refresh was refused",
+      parent,
     );
   }
 }
 
-export async function unlock_app(appid: AppId): Promise<void> {
+export async function unlock_app(appid: AppId, parent?: EventTarget): Promise<void> {
   const result = await unwatch_then_unlock(appid);
   if (result.ok) {
     mark_unlocked(appid);
     return;
   }
-  show_failure_dialog(`Unlock failed for app ${appid}`, result.error ?? "the unlock was refused");
+  show_failure_dialog(
+    `Unlock failed for app ${appid}`,
+    result.error ?? "the unlock was refused",
+    parent,
+  );
 }

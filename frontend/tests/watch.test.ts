@@ -166,6 +166,35 @@ function createSystem(): SystemHarness {
 const apps = createApps();
 const system = createSystem();
 
+const spewSubscribers = new Set<(output: { spew: string; spew_type: string }) => void>();
+
+function install_console(dump: string): void {
+  installSteamClient({
+    Console: {
+      ExecCommand(command: string): void {
+        if (!command.startsWith("app_info_print")) {
+          return;
+        }
+        for (const callback of spewSubscribers) {
+          callback({ spew: dump, spew_type: "info" });
+        }
+      },
+      RegisterForSpewOutput(callback: (output: { spew: string; spew_type: string }) => void): {
+        unregister(): void;
+      } {
+        spewSubscribers.add(callback);
+        return {
+          unregister(): void {
+            spewSubscribers.delete(callback);
+          },
+        };
+      },
+    },
+    Apps: apps.apps,
+    System: system.system,
+  });
+}
+
 installSteamClient({ Console: {}, Apps: apps.apps, System: system.system });
 
 function fireAppDetails(appid: string): void {
@@ -277,21 +306,23 @@ test("the game action handler re-issues an update action through ContinueGameAct
   expect(apps.runGameCalls).toHaveLength(0);
 });
 
-test("the backstop timer re-applies a watched app", async () => {
+test("the backstop timer refreshes a watched app", async () => {
+  install_console('"730"\n{\n"depots"\n{\n}\n}');
   watch_app(APPID);
   await flush();
   bridge.reset();
   await pump(3_700_000, 60_000);
-  expect(appIdsFor("reapply_app")).toContain(APPID);
+  expect(appIdsFor("refresh_app")).toContain(APPID);
 });
 
 test("unwatch_app stops the backstop for that app", async () => {
+  install_console('"730"\n{\n"depots"\n{\n}\n}');
   watch_app(APPID);
   await flush();
   unwatch_app(APPID);
   bridge.reset();
   await pump(3_700_000, 60_000);
-  expect(appIdsFor("reapply_app")).not.toContain(APPID);
+  expect(appIdsFor("refresh_app")).not.toContain(APPID);
 });
 
 test("a prior overview callback stays inert after unwatch_all and re-watch", async () => {

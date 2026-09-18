@@ -18,9 +18,8 @@ import * as wire from "../bridge";
 import { bridge as recorder, installSteamClient, resetBackendResponses } from "./harness";
 
 interface FrontendToBackend {
-  set_build_info(appid: AppId, dump: string): Promise<Ack>;
-  lock_app(appid: AppId, auto_update_behavior?: number): Promise<LockResult>;
-  refresh_app(appid: AppId): Promise<RefreshResult>;
+  lock_app(appid: AppId, dump: string, auto_update_behavior?: number): Promise<LockResult>;
+  refresh_app(appid: AppId, dump: string): Promise<RefreshResult>;
   unlock_app(appid: AppId): Promise<UnlockResult>;
   list_locked(): Promise<LockedAppRecord[] | Ack>;
   restore_all(): Promise<RestoreResult>;
@@ -38,7 +37,6 @@ interface BackendToFrontend {
 }
 
 const FRONTEND_TO_BACKEND_METHODS = [
-  "set_build_info",
   "lock_app",
   "refresh_app",
   "unlock_app",
@@ -80,9 +78,9 @@ beforeEach(() => {
   installSteamClient({ Console: {}, Apps: {}, System: {} });
 });
 
-test("the frontend-to-backend bridge exposes the thirteen documented methods", () => {
-  expect(FRONTEND_TO_BACKEND_METHODS).toHaveLength(13);
-  expect(new Set(FRONTEND_TO_BACKEND_METHODS).size).toBe(13);
+test("the frontend-to-backend bridge exposes the twelve documented methods", () => {
+  expect(FRONTEND_TO_BACKEND_METHODS).toHaveLength(12);
+  expect(new Set(FRONTEND_TO_BACKEND_METHODS).size).toBe(12);
   for (const method of FRONTEND_TO_BACKEND_METHODS) {
     expect(typeof wire[method]).toBe("function");
   }
@@ -90,7 +88,8 @@ test("the frontend-to-backend bridge exposes the thirteen documented methods", (
 
 test("the bridge implementation matches the shared-type signatures", () => {
   const contract: FrontendToBackend = wire;
-  expect(typeof contract.set_build_info).toBe("function");
+  expect(typeof contract.lock_app).toBe("function");
+  expect(typeof contract.refresh_app).toBe("function");
 });
 
 test("list_locked's union result accepts both records and the Ack error envelope", () => {
@@ -120,14 +119,6 @@ test("the shared payload and response shapes match the bridge contract", () => {
   expect(captureFailure).toEqual({ ok: false, error: "non-numeric appid" });
 });
 
-test("set_build_info sends one JSON string argument", async () => {
-  await wire.set_build_info("730", "dump text");
-  const calls = recorder.find("set_build_info");
-  expect(calls).toHaveLength(1);
-  expect(typeof calls[0]?.payload).toBe("string");
-  expect(JSON.parse(calls[0]?.payload as string)).toEqual({ appid: "730", dump: "dump text" });
-});
-
 test("set_data_root sends one JSON string argument with the path payload", async () => {
   await wire.set_data_root("/tmp/verlock");
   const calls = recorder.find("set_data_root");
@@ -137,11 +128,18 @@ test("set_data_root sends one JSON string argument with the path payload", async
 });
 
 test("appid payload methods send one JSON string argument", async () => {
-  await wire.lock_app("730");
-  await wire.refresh_app("730");
+  await wire.lock_app("730", "dump text");
+  await wire.refresh_app("730", "dump text");
   await wire.unlock_app("730");
   await wire.reapply_app("730");
   await wire.get_paths("730");
+  const expected: Record<string, unknown> = {
+    lock_app: { appid: "730", dump: "dump text" },
+    refresh_app: { appid: "730", dump: "dump text" },
+    unlock_app: { appid: "730" },
+    reapply_app: { appid: "730" },
+    get_paths: { appid: "730" },
+  };
   for (const method of [
     "lock_app",
     "refresh_app",
@@ -152,17 +150,18 @@ test("appid payload methods send one JSON string argument", async () => {
     const calls = recorder.find(method);
     expect(calls).toHaveLength(1);
     expect(typeof calls[0]?.payload).toBe("string");
-    expect(JSON.parse(calls[0]?.payload as string)).toEqual({ appid: "730" });
+    expect(JSON.parse(calls[0]?.payload as string)).toEqual(expected[method]);
   }
 });
 
 test("lock_app includes the auto update behavior when it is provided", async () => {
-  await wire.lock_app("730", 1);
+  await wire.lock_app("730", "dump text", 1);
   const calls = recorder.find("lock_app");
   expect(calls).toHaveLength(1);
   expect(typeof calls[0]?.payload).toBe("string");
   expect(JSON.parse(calls[0]?.payload as string)).toEqual({
     appid: "730",
+    dump: "dump text",
     auto_update_behavior: 1,
   });
 });

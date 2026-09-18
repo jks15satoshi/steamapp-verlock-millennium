@@ -1,6 +1,7 @@
 import type { ELaunchSource, Unregisterable } from "millennium";
 import type { Ack, AppId, RestoreResult, UnlockResult } from "./index";
 import * as bridge from "./bridge";
+import { capture_build_info } from "./console";
 import { as_record_list } from "./locked";
 import { log_error, log_warn } from "./log";
 import { report_warning } from "./notify";
@@ -61,6 +62,23 @@ async function reapply(appid: AppId): Promise<void> {
   } catch (error) {
     log_error(`reapply failed for app ${appid}: ${String(error)}`);
     return;
+  }
+}
+
+async function refresh(appid: AppId): Promise<void> {
+  const captured = await capture_build_info(appid);
+  if (!captured.ok) {
+    await reapply(appid);
+    return;
+  }
+  try {
+    const result = parse_json(await bridge.refresh_app(appid, captured.dump));
+    if (is_ack(result) && !result.ok && result.code === "not_installed") {
+      log_warn(`stopped watching app ${appid}: it is no longer installed`);
+      unwatch_app(appid);
+    }
+  } catch (error) {
+    log_error(`refresh failed for app ${appid}: ${String(error)}`);
   }
 }
 
@@ -152,7 +170,7 @@ function start_backstop(): void {
   }
   backstop_started = true;
   backstop_timer = setInterval(() => {
-    void reapply_all();
+    void refresh_all();
   }, BACKSTOP_INTERVAL_MS);
 }
 
@@ -260,6 +278,15 @@ export async function reapply_all(): Promise<void> {
     return;
   }
   await Promise.all([...watched].map((appid) => reapply(appid)));
+}
+
+export async function refresh_all(): Promise<void> {
+  const generation = watch_generation;
+  await sync_watches();
+  if (generation !== watch_generation) {
+    return;
+  }
+  await Promise.all([...watched].map((appid) => refresh(appid)));
 }
 
 export function read_auto_update_behavior(appid: AppId): number | undefined {

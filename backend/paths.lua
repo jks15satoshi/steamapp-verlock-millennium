@@ -6,7 +6,6 @@ local acf = require("acf")
 
 ---@class DataRoots
 ---@field data_root string
----@field cache_root string
 ---@field is_default boolean
 
 ---@param path string|nil
@@ -64,27 +63,16 @@ local function data_default(base)
     return fs.join(base, "steamapp-verlock")
 end
 
----@param base string|nil
----@return string|nil
-local function cache_default(base)
-    if base == nil or base == "" then
-        return nil
-    end
-    return fs.join(base, "steamapp-verlock")
-end
-
 ---@return DataRoots
 local function defaults()
     if jit and jit.os == "Windows" then
         local local_app_data = utils.getenv("LOCALAPPDATA")
-        local data_root, cache_root
+        local data_root
         if local_app_data ~= nil and local_app_data ~= "" then
             data_root = fs.join(local_app_data, "steamapp-verlock")
-            cache_root = fs.join(local_app_data, "steamapp-verlock", "cache")
         end
         return {
             data_root = data_root,
-            cache_root = cache_root,
             is_default = true,
         }
     end
@@ -95,16 +83,8 @@ local function defaults()
             data_home = fs.join(home, ".local", "share")
         end
     end
-    local cache_home = utils.getenv("XDG_CACHE_HOME")
-    if cache_home == nil or cache_home == "" then
-        local home = utils.getenv("HOME")
-        if home ~= nil and home ~= "" then
-            cache_home = fs.join(home, ".cache")
-        end
-    end
     return {
         data_root = data_default(data_home),
-        cache_root = cache_default(cache_home),
         is_default = true,
     }
 end
@@ -132,12 +112,6 @@ local function resolve()
         resolved.data_root = data_default(config_base())
         resolved.is_default = false
     end
-    if resolved.cache_root == nil or resolved.cache_root == "" then
-        local base = config_base()
-        if base ~= nil and base ~= "" then
-            resolved.cache_root = fs.join(base, "steamapp-verlock", "cache")
-        end
-    end
     return resolved
 end
 
@@ -153,9 +127,6 @@ local function validate(path)
     local current = resolve()
     if is_within(path, current.data_root) or is_within(current.data_root, path) then
         return false, "the data root path must not nest with the current data root"
-    end
-    if is_within(path, current.cache_root) then
-        return false, "the data root path must not be inside the cache root"
     end
     local created, create_err = fs.create_directories(path)
     if not created and not fs.is_directory(path) then
