@@ -20,7 +20,8 @@ void mock.module("react-dom/client", () => ({
 
 void mock.module("millennium", () => millennium_mock());
 
-const { behavior_label, find_record, format_time } = await import("../properties");
+const { behavior_label, find_record, format_lock_text, format_time } =
+  await import("../properties");
 
 const record: LockedAppRecord = {
   version: 1,
@@ -44,6 +45,20 @@ test("format_time renders a localized time and treats missing times as absent", 
       timeStyle: "short",
     }),
   );
+});
+
+test("format_lock_text pretty-prints a JSON object with two-space indentation", () => {
+  const compact = JSON.stringify(record);
+  const pretty = format_lock_text(compact);
+  expect(pretty).toBe(JSON.stringify(record, null, 2));
+  expect(JSON.parse(pretty)).toEqual(record);
+});
+
+test("format_lock_text returns the text unchanged when it is not a JSON object", () => {
+  expect(format_lock_text("not json")).toBe("not json");
+  expect(format_lock_text("42")).toBe("42");
+  expect(format_lock_text('"text"')).toBe('"text"');
+  expect(format_lock_text("null")).toBe("null");
 });
 
 test("behavior_label maps the known behaviors and falls back", () => {

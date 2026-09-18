@@ -55,30 +55,6 @@ local function clear_data_root_config()
     end
 end
 
----@return boolean
-local function is_windows()
-    return jit ~= nil and jit.os == "Windows"
-end
-
----@param path string|nil
----@param windows boolean
----@return string|nil, string|nil
-local function open_command(path, windows)
-    if type(path) ~= "string" or path == "" then
-        return nil, "the path is unavailable"
-    end
-    if path:find("[%z\1-\31]") then
-        return nil, "the path contains an unsupported character"
-    end
-    if windows then
-        if path:find('["%%!]') then
-            return nil, "the path contains an unsupported character"
-        end
-        return 'start "" "' .. path .. '"'
-    end
-    return "xdg-open '" .. path:gsub("'", "'\\''") .. "'"
-end
-
 local MAX_READ = 512 * 1024
 
 ---@param appid string
@@ -250,43 +226,6 @@ handlers.get_paths = function(payload)
         manifest = paths.find_appmanifest(appid)
     end
     return { ok = true, appmanifest = manifest, lock = lock_path }
-end
-
-handlers.open_path = function(payload)
-    local appid = payload.appid
-    if not is_numeric_appid(appid) then
-        return { ok = false, error = "a numeric appid is required" }
-    end
-    local target = payload.target
-    if target ~= "appmanifest" and target ~= "lock" then
-        return { ok = false, error = "a valid target is required" }
-    end
-    local path, path_err = resolve_target(appid, target)
-    if path == nil then
-        return { ok = false, error = path_err }
-    end
-    if type(utils.exec) ~= "function" then
-        return { ok = false, error = "the system opener is unavailable" }
-    end
-    local command, command_err = open_command(path, is_windows())
-    if command == nil then
-        log.error("could not open the " .. target .. " for app " .. appid .. ": " .. command_err)
-        return { ok = false, error = command_err }
-    end
-    local _, status = utils.exec(command)
-    if status ~= 0 then
-        log.error(
-            "could not open the "
-                .. target
-                .. " for app "
-                .. appid
-                .. ": the system opener failed ("
-                .. tostring(status)
-                .. ")"
-        )
-        return { ok = false, error = "the system opener failed" }
-    end
-    return { ok = true }
 end
 
 handlers.read_file = function(payload)
@@ -506,13 +445,6 @@ end
 ---@ffi
 ---@param payload string
 ---@return string
-function open_path(payload)
-    return respond("open_path", payload)
-end
-
----@ffi
----@param payload string
----@return string
 function read_file(payload)
     return respond("read_file", payload)
 end
@@ -523,5 +455,4 @@ return {
     on_unload = on_unload,
     dispatch = dispatch,
     handlers = handlers,
-    open_command = open_command,
 }

@@ -61,10 +61,6 @@ export function get_paths(appid: AppId): Promise<PathsResult> {
   return as_result<PathsResult>(backend.get_paths(JSON.stringify({ appid })));
 }
 
-export function open_path(appid: AppId, target: "appmanifest" | "lock"): Promise<Ack> {
-  return as_result<Ack>(backend.open_path(JSON.stringify({ appid, target })));
-}
-
 export function read_file(
   appid: AppId,
   target: "appmanifest" | "lock",

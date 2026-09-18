@@ -7,6 +7,13 @@ export { format_error } from "./errors";
 
 const TOAST_TITLE = "Steam App Verlock";
 
+const NOTE_STYLE: CSSProperties = {
+  color: "#8b929a",
+  fontSize: "12px",
+  lineHeight: "18px",
+  margin: "0 0 6px",
+};
+
 const BODY_STYLE: CSSProperties = {
   whiteSpace: "pre-wrap",
   wordBreak: "break-word",
@@ -96,6 +103,7 @@ function hide_cancel(parent: EventTarget | undefined): void {
 function DialogView({
   title,
   message,
+  note,
   copy_label,
   copied,
   on_copy,
@@ -103,6 +111,7 @@ function DialogView({
 }: {
   title: string;
   message: string;
+  note?: string;
   copy_label: string;
   copied: boolean;
   on_copy: () => void;
@@ -115,6 +124,7 @@ function DialogView({
         strTitle={title}
         strDescription={
           <div data-verlock-dialog="">
+            {note !== undefined ? <div style={NOTE_STYLE}>{note}</div> : null}
             <div style={BODY_STYLE}>{message}</div>
           </div>
         }
@@ -151,6 +161,7 @@ function DialogView({
         <div style={{ fontWeight: 700 }}>{title}</div>
       )}
       <div style={{ margin: "12px 0" }}>
+        {note !== undefined ? <div style={NOTE_STYLE}>{note}</div> : null}
         <div style={BODY_STYLE}>{message}</div>
       </div>
       <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
@@ -164,12 +175,14 @@ function DialogView({
 function DialogHost({
   title,
   message,
+  note,
   copy_label,
   parent,
   on_close,
 }: {
   title: string;
   message: string;
+  note?: string;
   copy_label: string;
   parent: EventTarget | undefined;
   on_close: () => void;
@@ -206,6 +219,7 @@ function DialogHost({
     <DialogView
       title={title}
       message={message}
+      note={note}
       copy_label={copy_label}
       copied={copied}
       on_copy={copy}
@@ -226,6 +240,7 @@ function open_dialog(
   message: string,
   parent: EventTarget | undefined,
   copy_label: string,
+  note?: string,
 ): void {
   if (typeof millennium.showModal !== "function") {
     throw new Error("the Millennium showModal export is unavailable");
@@ -245,6 +260,7 @@ function open_dialog(
     <DialogHost
       title={title}
       message={message}
+      note={note}
       copy_label={copy_label}
       parent={modal_parent}
       on_close={() => {
@@ -283,9 +299,14 @@ export function show_failure_dialog(title: string, message: string, parent?: Eve
   }
 }
 
-export function show_text_dialog(title: string, message: string, parent?: EventTarget): void {
+export function show_text_dialog(
+  title: string,
+  message: string,
+  parent?: EventTarget,
+  note?: string,
+): void {
   try {
-    open_dialog(title, message, parent, "Copy");
+    open_dialog(title, message, parent, "Copy", note);
     return;
   } catch (error) {
     log_error(`could not show the text dialog: ${format_error(error)}`);

@@ -31,7 +31,6 @@ interface FrontendToBackend {
   restore_all(): Promise<RestoreResult>;
   get_data_root(): Promise<DataRoots>;
   get_paths(appid: AppId): Promise<PathsResult>;
-  open_path(appid: AppId, target: "appmanifest" | "lock"): Promise<Ack>;
   read_file(appid: AppId, target: "appmanifest" | "lock"): Promise<FileContentResult>;
   set_data_root(path: string): Promise<MigrateResult>;
   reapply_app(appid: AppId): Promise<Ack>;
@@ -51,7 +50,6 @@ const FRONTEND_TO_BACKEND_METHODS = [
   "restore_all",
   "get_data_root",
   "get_paths",
-  "open_path",
   "read_file",
   "set_data_root",
   "reapply_app",
@@ -85,9 +83,9 @@ beforeEach(() => {
   installSteamClient({ Console: {}, Apps: {}, System: {} });
 });
 
-test("the frontend-to-backend bridge exposes the thirteen documented methods", () => {
-  expect(FRONTEND_TO_BACKEND_METHODS).toHaveLength(13);
-  expect(new Set(FRONTEND_TO_BACKEND_METHODS).size).toBe(13);
+test("the frontend-to-backend bridge exposes the twelve documented methods", () => {
+  expect(FRONTEND_TO_BACKEND_METHODS).toHaveLength(12);
+  expect(new Set(FRONTEND_TO_BACKEND_METHODS).size).toBe(12);
   for (const method of FRONTEND_TO_BACKEND_METHODS) {
     expect(typeof wire[method]).toBe("function");
   }
@@ -176,14 +174,6 @@ test("lock_app includes the auto update behavior when it is provided", async () 
     dumps: { "730": "dump text" },
     auto_update_behavior: 1,
   });
-});
-
-test("open_path sends one JSON string argument with the appid and target", async () => {
-  await wire.open_path("730", "lock");
-  const calls = recorder.find("open_path");
-  expect(calls).toHaveLength(1);
-  expect(typeof calls[0]?.payload).toBe("string");
-  expect(JSON.parse(calls[0]?.payload as string)).toEqual({ appid: "730", target: "lock" });
 });
 
 test("read_file sends one JSON string argument with the appid and target", async () => {

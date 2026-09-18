@@ -473,15 +473,6 @@ function real_fs.new()
         return "/backend"
     end
 
-    function utils.exec(command)
-        store.exec_calls = store.exec_calls or {}
-        table.insert(store.exec_calls, command)
-        if store.exec_status ~= nil then
-            return "", store.exec_status
-        end
-        return "", 0
-    end
-
     function utils.uuid()
         return "00000000-0000-4000-8000-000000000000"
     end
@@ -537,8 +528,6 @@ function real_fs.new()
 
     function store.reset()
         store.calls = {}
-        store.exec_calls = {}
-        store.exec_status = nil
         store.failures = {}
         store.hook = nil
     end

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { DialogHeader, Millennium } from "millennium";
-import type { Ack, AppId, FileContentResult, LockedAppRecord, PathsResult } from "./index";
+import type { AppId, FileContentResult, LockedAppRecord, PathsResult } from "./index";
 import { lock_app, refresh_app, unlock_app } from "./actions";
 import { as_record_list, is_locked, refresh_locked_ids, subscribe_locked } from "./locked";
 import * as bridge from "./bridge";
@@ -19,6 +19,8 @@ const BEHAVIOR_LABELS: Record<number, string> = {
   1: "Launch",
   2: "High priority",
 };
+
+const LOCK_FORMAT_NOTE = "For readability, the original text has been pretty-printed.";
 
 const roots: Root[] = [];
 
@@ -41,6 +43,19 @@ export function format_time(value: number | undefined): string | null {
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+export function format_lock_text(content: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return content;
+  }
+  if (parsed === null || typeof parsed !== "object") {
+    return content;
+  }
+  return JSON.stringify(parsed, null, 2);
 }
 
 export function behavior_label(value: number | undefined): string {
@@ -303,7 +318,10 @@ export function VerlockTabContent({
         | FileContentResult
         | undefined;
       if (fetched?.ok === true && typeof fetched.content === "string") {
-        show_text_dialog(label, fetched.content, parent);
+        const message = target === "lock" ? format_lock_text(fetched.content) : fetched.content;
+        const note =
+          target === "lock" && message !== fetched.content ? LOCK_FORMAT_NOTE : undefined;
+        show_text_dialog(label, message, parent, note);
         return;
       }
       const message = fetched?.error ?? "the file could not be read";
@@ -314,20 +332,6 @@ export function VerlockTabContent({
       log_error(`could not read the ${target} for app ${appid}: ${message}`);
       show_failure_dialog(TAB_LABEL, message, parent);
     }
-  };
-
-  const open = (target: "appmanifest" | "lock"): void => {
-    void (async () => {
-      try {
-        const result = parse_json(await bridge.open_path(appid, target)) as Ack | undefined;
-        if (result?.ok === true) {
-          return;
-        }
-      } catch {
-        // A rejected or invalid response falls back to the content dialog.
-      }
-      await show_content(target);
-    })();
   };
 
   const locked_time = locked && record ? format_time(record.locked_at) : null;
@@ -419,7 +423,7 @@ export function VerlockTabContent({
                 <ActionButton
                   button_class={button_class}
                   disabled={false}
-                  onClick={() => open("lock")}
+                  onClick={() => void show_content("lock")}
                 >
                   Lock File
                 </ActionButton>
@@ -427,7 +431,7 @@ export function VerlockTabContent({
               <ActionButton
                 button_class={button_class}
                 disabled={manifest_path === undefined}
-                onClick={() => open("appmanifest")}
+                onClick={() => void show_content("appmanifest")}
               >
                 Appmanifest
               </ActionButton>

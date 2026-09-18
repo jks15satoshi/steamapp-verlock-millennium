@@ -11,7 +11,6 @@ globals = {
   "restore_all",
   "get_data_root",
   "get_paths",
-  "open_path",
   "read_file",
   "set_data_root",
   "reapply_app",
