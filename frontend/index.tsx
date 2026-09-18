@@ -20,6 +20,10 @@ export type UnlockResult = Ack & {
 
 export type CaptureResult = { ok: true; appid: AppId; dump: string } | { ok: false; error: string };
 
+export type CaptureSet = { ok: true; dumps: Record<AppId, string> } | { ok: false; error: string };
+
+export type RequiredAppsResult = Ack & { apps?: AppId[] };
+
 export type BuildInfo = { buildid: string; depots: Record<string, string> };
 
 export type LockedAppRecord = {

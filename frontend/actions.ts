@@ -1,6 +1,6 @@
 import { EAppAutoUpdateBehavior } from "millennium";
 import type { Ack, AppId } from "./index";
-import { capture_build_info } from "./console";
+import { capture_build_info_set } from "./console";
 import {
   apply_auto_update_behavior,
   read_auto_update_behavior,
@@ -27,7 +27,7 @@ function is_ack(value: unknown): value is Ack {
 }
 
 export async function lock_app(appid: AppId, parent?: EventTarget): Promise<void> {
-  const captured = await capture_build_info(appid);
+  const captured = await capture_build_info_set(appid);
   if (!captured.ok) {
     show_failure_dialog(`Lock failed for app ${appid}`, captured.error, parent);
     return;
@@ -45,7 +45,7 @@ export async function lock_app(appid: AppId, parent?: EventTarget): Promise<void
 
   let locked: unknown;
   try {
-    locked = parse_json(await bridge.lock_app(appid, captured.dump, auto_update_behavior));
+    locked = parse_json(await bridge.lock_app(appid, captured.dumps, auto_update_behavior));
   } catch (error) {
     report_failure(
       `Lock failed for app ${appid}`,
@@ -86,7 +86,7 @@ export async function lock_app(appid: AppId, parent?: EventTarget): Promise<void
 }
 
 export async function refresh_app(appid: AppId, parent?: EventTarget): Promise<void> {
-  const captured = await capture_build_info(appid);
+  const captured = await capture_build_info_set(appid);
   if (!captured.ok) {
     show_failure_dialog(`Refresh failed for app ${appid}`, captured.error, parent);
     return;
@@ -94,7 +94,7 @@ export async function refresh_app(appid: AppId, parent?: EventTarget): Promise<v
 
   let refreshed: unknown;
   try {
-    refreshed = parse_json(await bridge.refresh_app(appid, captured.dump));
+    refreshed = parse_json(await bridge.refresh_app(appid, captured.dumps));
   } catch (error) {
     report_failure(
       `Refresh failed for app ${appid}`,
@@ -117,7 +117,9 @@ export async function refresh_app(appid: AppId, parent?: EventTarget): Promise<v
       refreshed.error ?? "the refresh was refused",
       parent,
     );
+    return;
   }
+  mark_locked(appid);
 }
 
 export async function unlock_app(appid: AppId, parent?: EventTarget): Promise<void> {

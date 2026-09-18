@@ -1,7 +1,7 @@
 import { Button, PanelSection, PanelSectionRow, Spinner, TextField } from "millennium";
 import { useCallback, useEffect, useState } from "react";
 import type { Ack, AppId, DataRoots, LockedAppRecord, MigrateResult } from "./index";
-import { capture_build_info } from "./console";
+import { capture_build_info_set } from "./console";
 import { reapply_all, unwatch_all_then_restore, unwatch_then_unlock } from "./watch";
 import { as_record_list, sync_locked_ids } from "./locked";
 import * as bridge from "./bridge";
@@ -96,14 +96,14 @@ export default function SettingsPanel() {
   }
 
   async function refresh_one(appid: AppId): Promise<void> {
-    const captured = await capture_build_info(appid);
+    const captured = await capture_build_info_set(appid);
     if (!captured.ok) {
       set_status(captured.error);
       show_failure_dialog(`Refresh failed for app ${appid}`, captured.error);
       return;
     }
 
-    const refreshed = parse_json(await bridge.refresh_app(appid, captured.dump));
+    const refreshed = parse_json(await bridge.refresh_app(appid, captured.dumps));
     if (is_ack(refreshed) && !refreshed.ok) {
       const message = refreshed.error ?? "Refresh failed";
       set_status(message);

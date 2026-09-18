@@ -1,8 +1,9 @@
-import type { AppId, CaptureResult } from "./index";
+import type { AppId, CaptureResult, CaptureSet, RequiredAppsResult } from "./index";
 import * as bridge from "./bridge";
 import { log_error, log_info, log_warn } from "./log";
 
 const CAPTURE_TIME_LIMIT_MS = 2000;
+const CAPTURE_SET_TIME_LIMIT_MS = 60000;
 const CAPTURE_SAMPLE_INTERVAL_MS = 100;
 const NUMERIC_APPID_PATTERN = /^[0-9]+$/;
 
@@ -10,6 +11,17 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function parse_json(raw: unknown): unknown {
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
+  }
+  return raw;
 }
 
 function build_app_info_print_command(appid: AppId): string | null {
@@ -71,13 +83,50 @@ export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
   }
 }
 
+export async function capture_build_info_set(appid: AppId): Promise<CaptureSet> {
+  const base = await capture_build_info(appid);
+  if (!base.ok) {
+    return { ok: false, error: base.error };
+  }
+
+  const dumps: Record<AppId, string> = { [appid]: base.dump };
+  let required: AppId[];
+  try {
+    const result = parse_json(await bridge.get_required_apps(appid, base.dump)) as
+      | RequiredAppsResult
+      | undefined;
+    if (result?.ok !== true || !Array.isArray(result.apps)) {
+      return {
+        ok: false,
+        error: result?.error ?? "the backend returned an invalid required-apps response",
+      };
+    }
+    required = result.apps.map((value) => String(value));
+  } catch (error) {
+    return { ok: false, error: `could not determine the required apps: ${String(error)}` };
+  }
+
+  const started_at = Date.now();
+  for (const dlc_appid of required) {
+    if (Date.now() - started_at > CAPTURE_SET_TIME_LIMIT_MS) {
+      return { ok: false, error: "the build info capture exceeded its time budget" };
+    }
+    const captured = await capture_build_info(dlc_appid);
+    if (!captured.ok) {
+      return { ok: false, error: captured.error };
+    }
+    dumps[dlc_appid] = captured.dump;
+  }
+  return { ok: true, dumps };
+}
+
 export async function capture_then_refresh(appid: AppId): Promise<void> {
-  const captured = await capture_build_info(appid);
+  const captured = await capture_build_info_set(appid);
   if (!captured.ok) {
     return;
   }
   try {
-    await bridge.refresh_app(appid, captured.dump);
+    await bridge.refresh_app(appid, captured.dumps);
   } catch {
     return;
   }

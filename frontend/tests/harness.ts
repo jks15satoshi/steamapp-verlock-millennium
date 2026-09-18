@@ -67,6 +67,9 @@ export const backend = new Proxy(
         if (method === "list_locked") {
           return Promise.resolve([] as unknown[]);
         }
+        if (method === "get_required_apps") {
+          return Promise.resolve({ ok: true, apps: [] as string[] });
+        }
         return Promise.resolve({ ok: true });
       };
     },

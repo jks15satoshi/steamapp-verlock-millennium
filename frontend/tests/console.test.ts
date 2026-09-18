@@ -1,11 +1,18 @@
 import { afterEach, beforeEach, expect, jest, mock, test } from "bun:test";
 import multiDepotDump from "./fixtures/multi-depot.txt";
-import { bridge, installSteamClient, settle } from "./harness";
+import {
+  bridge,
+  installSteamClient,
+  resetBackendResponses,
+  setBackendResponse,
+  settle,
+} from "./harness";
 import { millennium_mock } from "./millennium_mock";
 
 void mock.module("millennium", () => millennium_mock());
 
-const { capture_build_info, capture_then_refresh } = await import("../console");
+const { capture_build_info, capture_build_info_set, capture_then_refresh } =
+  await import("../console");
 
 const APPID = "730";
 
@@ -61,6 +68,7 @@ function setup(dumps: string[]): void {
 beforeEach(() => {
   jest.useFakeTimers();
   jest.setSystemTime(0);
+  resetBackendResponses();
 });
 
 afterEach(() => {
@@ -121,7 +129,7 @@ test("capture_build_info relays an error when the capture times out", async () =
   });
 });
 
-test("capture_then_refresh refreshes the app with the captured dump", async () => {
+test("capture_then_refresh refreshes the app with the captured dumps", async () => {
   setup([multiDepotDump]);
   bridge.reset();
   await settle(capture_then_refresh(APPID), 4000, 20);
@@ -129,7 +137,7 @@ test("capture_then_refresh refreshes the app with the captured dump", async () =
   expect(refreshes).toHaveLength(1);
   expect(JSON.parse(refreshes[0]?.payload as string)).toEqual({
     appid: APPID,
-    dump: multiDepotDump,
+    dumps: { [APPID]: multiDepotDump },
   });
 });
 
@@ -137,5 +145,33 @@ test("capture_then_refresh does not refresh when the capture fails", async () =>
   setup([]);
   bridge.reset();
   await settle(capture_then_refresh(APPID), 4000, 20);
+  expect(bridge.find("refresh_app")).toHaveLength(0);
+});
+
+test("capture_build_info_set captures the required DLC apps the backend names", async () => {
+  const dlc = "553852";
+  const dlcDump = `"${dlc}"\n{\n"depots"\n{\n}\n}`;
+  setup([multiDepotDump, dlcDump]);
+  setBackendResponse("get_required_apps", { ok: true, apps: [dlc] });
+  bridge.reset();
+  const result = await settle(capture_build_info_set(APPID), 4000, 20);
+  expect(result.ok).toBe(true);
+  if (result.ok) {
+    expect(result.dumps[APPID]).toBe(multiDepotDump);
+    expect(result.dumps[dlc]).toBe(dlcDump);
+  }
+  expect(commands).toEqual([`app_info_print ${APPID}`, `app_info_print ${dlc}`]);
+  expect(JSON.parse(bridge.find("get_required_apps")[0]?.payload as string)).toEqual({
+    appid: APPID,
+    dump: multiDepotDump,
+  });
+});
+
+test("capture_build_info_set fails when a required app cannot be captured", async () => {
+  setup([multiDepotDump]);
+  setBackendResponse("get_required_apps", { ok: true, apps: ["553852"] });
+  bridge.reset();
+  const result = await settle(capture_build_info_set(APPID), 4000, 20);
+  expect(result.ok).toBe(false);
   expect(bridge.find("refresh_app")).toHaveLength(0);
 });

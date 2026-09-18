@@ -1,7 +1,7 @@
 import type { ELaunchSource, Unregisterable } from "millennium";
 import type { Ack, AppId, RestoreResult, UnlockResult } from "./index";
 import * as bridge from "./bridge";
-import { capture_build_info } from "./console";
+import { capture_build_info_set } from "./console";
 import { as_record_list } from "./locked";
 import { log_error, log_warn } from "./log";
 import { report_warning } from "./notify";
@@ -66,13 +66,13 @@ async function reapply(appid: AppId): Promise<void> {
 }
 
 async function refresh(appid: AppId): Promise<void> {
-  const captured = await capture_build_info(appid);
+  const captured = await capture_build_info_set(appid);
   if (!captured.ok) {
     await reapply(appid);
     return;
   }
   try {
-    const result = parse_json(await bridge.refresh_app(appid, captured.dump));
+    const result = parse_json(await bridge.refresh_app(appid, captured.dumps));
     if (is_ack(result) && !result.ok && result.code === "not_installed") {
       log_warn(`stopped watching app ${appid}: it is no longer installed`);
       unwatch_app(appid);
