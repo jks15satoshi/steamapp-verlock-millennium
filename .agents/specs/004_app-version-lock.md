@@ -23,7 +23,19 @@ Millennium injects React UI into the desktop Steam client, so the feature offers
 
 Steam records each installed app's local build in `appmanifest_<appid>.acf`: `StateFlags`, `buildid`, and the manifest ID of every depot under `InstalledDepots`. On an update check, the client compares those values against the latest app info in PICS, the product-info store the client refreshes on demand. When the latest `buildid` or a depot manifest differs from the local value, Steam queues an update; the built-in "only update this app when I launch it" setting defers that queue but still applies it at launch.
 
-The feature bypasses the comparison with two mechanisms. It rewrites the local `buildid` and depot manifests with the latest PICS values, so Steam treats the frozen files as current. It sets `StateFlags` to `4` (`FullyInstalled`) and `TargetBuildID` to `0`, so no update stays pending, and it reapplies those values whenever Steam rewrites the appmanifest (see [Watch and Reapply](#watch-and-reapply)). The feature reads the client's cached PICS values through the client console; [Build Info Capture](#build-info-capture) describes that capture.
+The feature bypasses the comparison with one named invariant, the **update-state invariant**: the appmanifest must hold the client's current build state and no pending update. Lock and Refresh write the invariant, and [Watch and Reapply](#watch-and-reapply) reapplies it whenever Steam rewrites the appmanifest. The invariant fixes these fields:
+
+| Field | Value |
+|---|---|
+| `buildid` | the client's PICS `branches.<branch>.buildid` |
+| `InstalledDepots.<depot>.manifest` | the owning app's PICS `gid` for that depot |
+| `StateFlags` | `4` (`FullyInstalled`) |
+| `TargetBuildID` | `0` or the installed `buildid` |
+| `BytesDownloaded` / `BytesStaged` | equal to `BytesToDownload` / `BytesToStage` |
+| `DownloadType` | `3` |
+| `UpdateResult`, `StagingSize`, `ScheduledAutoUpdate` | `0` |
+
+A depot the appmanifest does not list is never added, and a field the invariant does not name is never rewritten. The feature reads the client's cached PICS values through the client console; [Build Info Capture](#build-info-capture) describes that capture.
 
 ### Scope
 
@@ -43,9 +55,13 @@ The feature never issues `app_info_update`. `app_info_print` prints the client's
 
 `frontend/console.ts` samples `app_info_print` until the captured text carries the app block — the quoted numeric `appid` key and the `depots` table — and returns the raw dump. A sample that carries only the command echo, or any text without the `depots` table, is neither content nor a candidate; when no sample carries the app block before the time limit, the capture fails. The limit is undecided: it is a constant in `frontend/console.ts`, and the current working value is 2 seconds.
 
-`SteamClient.Console` is the Steam client's console as exposed to the frontend. `frontend/console.ts` calls `SteamClient.Console.RegisterForSpewOutput(callback)` to read the console output, then `SteamClient.Console.ExecCommand(<command>)` to run the command; the returned handle's `unregister()` stops the callback. Millennium's SDK declares both methods ([Console.ts](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/typescript/sdk/src/sharedjscontext/globals/steam-client/Console.ts)). The sampler returns the raw dump to its caller, and the frontend passes it in the `lock_app` or `refresh_app` payload through Millennium's `backend` FFI bridge, which carries the payload as a single JSON string ([Millennium TS SDK](https://docs.steambrew.app/plugins/ts/Millennium)).
+`SteamClient.Console` is the Steam client's console as exposed to the frontend. `frontend/console.ts` calls `SteamClient.Console.RegisterForSpewOutput(callback)` to read the console output, then `SteamClient.Console.ExecCommand(<command>)` to run the command; the returned handle's `unregister()` stops the callback. Millennium's SDK declares both methods ([Console.ts](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/typescript/sdk/src/sharedjscontext/globals/steam-client/Console.ts)). Captures run one at a time, because `RegisterForSpewOutput` exposes one shared spew stream.
 
-A capture is first-class data, not a fallback: when a capture reports `ok: false`, the frontend aborts without calling `lock_app` or `refresh_app`, so a dump that carries no app info never reaches the appmanifest.
+The base app's `app_info_print` does not always list the installed DLC depots: `Sid Meier's Civilization VI` lists them, while `The Sims 4` lists only its own depots, so a spoof built from the base dump alone leaves the `The Sims 4` DLC depots stale. `frontend/console.ts` closes that gap with `capture_build_info_set`, which calls the backend's `get_required_apps` bridge method with the base dump and receives the distinct `dlcappid` values whose depot is absent from the base `BuildInfo`. The frontend captures each returned app in turn. The base and per-app dumps travel in the `lock_app` or `refresh_app` payload's `dumps` map, keyed by app id, through Millennium's `backend` FFI bridge, which carries the payload as a single JSON string ([Millennium TS SDK](https://docs.steambrew.app/plugins/ts/Millennium)); the backend merges the depot maps and takes `buildid` from the base dump.
+
+A set whose captures together exceed the set time limit fails. The limit is undecided: it is a constant in `frontend/console.ts`, and the current working value is 60 seconds.
+
+A capture is first-class data, not a fallback: when any capture in the set reports `ok: false`, the frontend aborts without calling `lock_app` or `refresh_app`, so a dump that carries no app info never reaches the appmanifest.
 
 ### Background Refresh
 
@@ -57,9 +73,9 @@ When the Steam UI finishes loading, the backend's `on_frontend_loaded` calls `re
 
 ### Lock Operation
 
-The backend locates the app's `appmanifest_<appid>.acf` (see [Data Discovery](#data-discovery)) and reads its `StateFlags`. It refuses to lock an app whose `StateFlags` does not include `FullyInstalled` (`4`) or does include a download or pending-update bit, so an incomplete or mid-download app is never locked. The exact set of download and pending-update bits is undecided: it is a constant in `backend/lock.lua`, and the current working value is `{2, 8, 1024, 16384, 32768}`.
+The backend locates the app's `appmanifest_<appid>.acf` (see [Data Discovery](#data-discovery)) and reads its `StateFlags`. It locks the app only when `StateFlags` is exactly `4` (`FullyInstalled`) or `6` (`FullyInstalled | UpdateRequired`), so a mid-download, running, or otherwise incomplete app is never locked. The accepted values are a whitelist in `backend/lock.lua`; `20` (`UpdateOptional`) and `68` (`SharedOnly`) are not yet in it.
 
-The backend records the file's verbatim text as the `original` field of the lock record (the persisted JSON file described in [Lock Data Structure](#lock-data-structure)). It sets `StateFlags` to `4` and `TargetBuildID` to `0`, writes the captured latest `buildid` and each captured `InstalledDepots` manifest into the appmanifest, and stores the same values in the record's `locked_build` field.
+The backend records the file's verbatim text as the `original` field of the lock record (the persisted JSON file described in [Lock Data Structure](#lock-data-structure)). It writes the update-state invariant into the appmanifest, using the merged depot manifests the base and DLC captures supply, and stores the same `buildid` and the depot manifests restricted to the appmanifest's `InstalledDepots` in the record's `locked_build` field. A capture can carry a depot the appmanifest does not install, because the base PICS lists other platforms and a DLC app's PICS lists its other language depots; the record keeps only the installed depots.
 
 The frontend reads the app's current auto-update behavior from `AppDetails.eAutoUpdateValue` (`EAppAutoUpdateBehavior`), through `window.appDetailsStore.GetAppDetails(...)` with `window.appDetailsStore.GetAppData(...).details` and then `window.appStore.GetAppOverviewByAppID(...)` as fallbacks, sends it in the `lock_app` payload, and, after a successful lock, sets the behavior to `Launch` through `SteamClient.Apps.SetAppAutoUpdateBehavior(appid, Launch)`. It then starts watching the app (see [Watch and Reapply](#watch-and-reapply)).
 
@@ -67,7 +83,7 @@ The behavior change matters because Steam's `Always` value schedules background 
 
 ### Refresh Operation
 
-The feature re-captures the latest PICS state for an already locked app and rewrites the appmanifest's `buildid`, depot manifests, `StateFlags` (`4`), and `TargetBuildID` (`0`) — the same intended values the reapply path enforces. It updates the record's `locked_build` and `refreshed_at` and keeps watching the app. The backend parses the captured dump against the app's branch through `buildinfo.parse`; [Function List](#function-list) fixes the branch rule, and Lock and Refresh share it.
+The feature re-captures the current PICS state for an already locked app, including the owning apps of any installed depot the base PICS omits, and rewrites the appmanifest to the update-state invariant — the same values the reapply path enforces. It updates the record's `locked_build` and `refreshed_at`, restricting `locked_build`'s depots to the installed depots, and keeps watching the app. The backend parses each captured dump against its app's branch through `buildinfo.parse`, merges them through `buildinfo.merge`, and takes `buildid` from the base app's dump; [Function List](#function-list) fixes the branch rule, and Lock and Refresh share it.
 
 When the appmanifest write fails, the feature restores the record's `locked_build`, `refreshed_at`, and `manifest_path` to their previous values and reports the failure, so the record keeps matching the appmanifest.
 
@@ -87,7 +103,7 @@ The frontend stops watching every app before it calls `restore_all`, and re-watc
 
 ### Watch and Reapply
 
-The lock is enforced by reapplying the spoof — the latest PICS `buildid`, depot manifests, `StateFlags` `4`, and `TargetBuildID` `0` written into the appmanifest — not by file permissions. The frontend watches each locked app and asks the backend to reapply whenever Steam rewrites its appmanifest.
+The lock is enforced by reapplying the spoof — the update-state invariant written into the appmanifest — not by file permissions. The frontend watches each locked app and asks the backend to reapply whenever Steam rewrites its appmanifest.
 
 The frontend rebuilds the watch set at startup and on every reapply or refresh pass: `frontend/index.tsx` calls `sync_watches` when the plugin loads, and `reapply_all` and `refresh_all` call `sync_watches` before they act. `sync_watches` reads the persisted lock records through `list_locked`, calls `watch_app` for each record's appid, and ensures the global handlers and the backstop timer — a fixed-interval refresh timer (see below) — run; it retries a failed or non-array `list_locked` response a bounded number of times. The retry count and interval are undecided: they are constants in `frontend/watch.ts`, and the current working values are 5 attempts and 1 second.
 
@@ -96,7 +112,7 @@ The frontend rebuilds the watch set at startup and on every reapply or refresh p
 - `SteamClient.System.RegisterForOnResumeFromSuspend`, opening the settings panel, and opening the library context menu each reapply opportunistically.
 - A backstop timer captures and refreshes every watched app on a fixed interval, so a lock the client later moves ahead is rolled forward without a user action; a capture that fails falls back to reapplying the stored spoof. The interval is undecided: it is a constant in `frontend/watch.ts`, and the current working value is 1 hour. The interval must be long enough to be negligible and short enough to bound how long a lock lags the client's cached build.
 
-The backend's `reapply_app` reads the appmanifest and, when its `buildid`, depot manifests, `StateFlags`, or `TargetBuildID` differ from the intended values, rewrites the spoof through the appmanifest's temporary-file-and-rename path. A depot present in the appmanifest but absent from the record does not by itself differ, because the spoof never removes a depot; only a recorded depot whose manifest is missing or mismatched forces a rewrite. Reapplies for one app are serialized. Before it writes, `reapply_app` re-reads the lock record and aborts when the record is gone, so it never rewrites an appmanifest for a record `Unlock` or `Restore All` has already removed. When the appmanifest is gone because the app was uninstalled, `reapply_app` returns `code = "not_installed"`; the frontend stops watching the app only on that signal and leaves the record in place. When the app was moved, the backend re-runs discovery and writes the new path back into the record. On `not_installed`, the frontend stops watching the app but the backend keeps the record by design, so the library context menu still marks the app as locked until the user removes the record.
+The backend's `reapply_app` reads the appmanifest and, when any field of the update-state invariant differs from the intended value, rewrites the spoof through the appmanifest's temporary-file-and-rename path. A recorded depot the appmanifest does not install is ignored, because the record holds only the installed depots; an installed depot the record does not list is ignored, because there is no captured manifest to write; a recorded installed depot whose manifest is missing or mismatched forces a rewrite. On its first pass over a legacy record, `reapply_app` drops the recorded depots the appmanifest does not install and persists the trimmed record. Reapplies for one app are serialized. Before it writes, `reapply_app` re-reads the lock record and aborts when the record is gone, so it never rewrites an appmanifest for a record `Unlock` or `Restore All` has already removed. When the appmanifest is gone because the app was uninstalled, `reapply_app` returns `code = "not_installed"`; the frontend stops watching the app only on that signal and leaves the record in place. When the app was moved, the backend re-runs discovery and writes the new path back into the record. On `not_installed`, the frontend stops watching the app but the backend keeps the record by design, so the library context menu still marks the app as locked until the user removes the record.
 
 ### Data Discovery
 
@@ -206,7 +222,7 @@ A lock record is one JSON file, `<data_root>/locks/<appid>.lock`:
 | `locked_at` | `number` | Lock time as a Unix timestamp in seconds, an integer. |
 | `refreshed_at` | `number`, optional | Time of the last refresh, as a Unix timestamp in seconds, an integer. |
 | `auto_update_behavior` | `number`, optional | The app's `EAppAutoUpdateBehavior` value at lock time, used to restore the setting on `Unlock` and `Restore All`. When present, it must be a number, or the backend treats the record as invalid on load. A record without the field skips the restore. |
-| `locked_build` | `BuildInfo` (see [Shared Types](#shared-types)) | The `buildid` and depot manifests written into the appmanifest. |
+| `locked_build` | `BuildInfo` (see [Shared Types](#shared-types)) | The `buildid` and the installed depots' manifests written into the appmanifest; a captured depot the appmanifest does not install is absent. |
 | `original` | `string` | The pre-lock appmanifest text, stored verbatim. It must be non-empty, or the backend treats the record as invalid on load. |
 
 ## Implementation Plan
@@ -247,6 +263,8 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `RefreshResult = Ack` — the refresh result.
 - `UnlockResult = Ack & { auto_update_behavior?: number; auto_update_restored?: boolean }` — the unlock result; success carries the stored auto-update behavior when the record has one, and the frontend sets `auto_update_restored` to `false` when restoring that behavior failed (it is `true` when the behavior was written or the record carried no behavior).
 - `CaptureResult = { ok: true; appid: AppId; dump: string } | { ok: false; error: string }` — success carries the captured dump; failure carries an error.
+- `CaptureSet = { ok: true; dumps: Record<AppId, string> } | { ok: false; error: string }` — success carries the base dump and each required DLC app's dump, keyed by app id; failure carries an error.
+- `RequiredAppsResult = Ack & { apps?: AppId[] }` — the `get_required_apps` result; success carries the distinct `dlcappid` values whose installed depot the base `BuildInfo` omits.
 - `BuildInfo = { buildid: string; depots: Record<string, string> }` — a captured or spoofed build state.
 - `LockedAppRecord = { version: number; appid: AppId; name: string; manifest_path: string; locked_at: number; refreshed_at?: number; auto_update_behavior?: number; locked_build: BuildInfo; original: string }` — the persisted locked-app record.
 - `DataRoots = { data_root: string; is_default: boolean }` — the resolved data root directory; `is_default` reports whether it resolved from the OS-conventional path (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
@@ -264,6 +282,7 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `on_unload() -> void` — release resources when the plugin unloads.
 - `dispatch(name: string, payload: table) -> table` — internal/test interface; route a bridge method name to its handler and return the handler's result as-is; a handler that raises an error returns an `Ack` error envelope.
 - `handlers` — internal/test interface; the table that maps each bridge method name to its handler.
+- `get_required_apps(payload: table) -> RequiredAppsResult` — parse `payload.dump` against the app's branch, read the appmanifest's `InstalledDepots`, and return the distinct `dlcappid` values whose depot is absent from the parsed `BuildInfo`; use discovery for an app with no lock record.
 - `set_data_root(payload: table) -> MigrateResult` — migrate the data root directory to `payload.path`; an empty path resets to the OS-conventional default (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
 - `clear_data_root_config() -> void` — internal; clear the `data_root` config key through `config.delete`, or through `config.set("data_root", nil)` when `config.delete` is unavailable.
 - `open_command(path: string, windows: boolean) -> command: string?, err: string?` — internal/test interface; build the platform opener command for a path, or return an error when the path carries a character the platform opener cannot carry.
@@ -278,6 +297,7 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `clean(raw: string) -> text: string` — return the numeric-keyed app block from a captured dump, stripping the command echo, any line prefix, missing newlines, and trailing console noise; return an empty string when no block is present.
 - `parse(text: string, branch?: string) -> info: BuildInfo?, err: string?` — read the `buildid` and the depot manifests from the cleaned dump against `branch`; the branch comes from the appmanifest's `BetaKey` and defaults to `public` when `BetaKey` is absent or empty, and both Lock and Refresh share this rule.
 - `validate(info: BuildInfo) -> ok: boolean, err: string?` — reject a dump that fails strict validation.
+- `merge(infos: BuildInfo[]) -> info: BuildInfo?, err: string?` — take `buildid` from the first entry, which is the base app's `BuildInfo`, and return the union of every entry's `depots`, where the base's value wins a depot both it and a later entry carry.
 
 `backend/acf.lua`
 
@@ -287,10 +307,11 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 
 `backend/lock.lua`
 
-- `lock(appid: AppId, info: BuildInfo, auto_update_behavior?: number) -> LockResult` — record the current appmanifest's verbatim text in the record's `original` field, store `auto_update_behavior`, write `info` into the appmanifest, and store the same `buildid` and depot manifests in the record's `locked_build` field; the frontend starts watching the app after a successful lock.
-- `refresh(appid: AppId, info: BuildInfo) -> RefreshResult` — write `info` into the appmanifest and update `locked_build` and `refreshed_at`.
+- `lock(appid: AppId, info: BuildInfo, auto_update_behavior?: number) -> LockResult` — record the current appmanifest's verbatim text in the record's `original` field, store `auto_update_behavior`, write the update-state invariant into the appmanifest, and store `info`'s `buildid` and its installed depot manifests in the record's `locked_build` field; the frontend starts watching the app after a successful lock.
+- `refresh(appid: AppId, info: BuildInfo) -> RefreshResult` — write the update-state invariant into the appmanifest and update `locked_build` and `refreshed_at`, restricting `locked_build`'s depots to the installed depots.
 - `unlock(appid: AppId) -> UnlockResult` — write the record's `original` back to the appmanifest and delete the record; the result carries the record's `auto_update_behavior` when present. The frontend owns the watch lifecycle.
-- `reapply(appid: AppId) -> Ack` — rewrite the spoof when the appmanifest no longer matches the record.
+- `reapply(appid: AppId) -> Ack` — rewrite the spoof when the appmanifest leaves the update-state invariant.
+- `required_apps(appid: AppId, info: BuildInfo) -> AppId[]?, err: string?` — read the appmanifest — through `state.read` for a locked app, through discovery otherwise — and return the sorted distinct `dlcappid` values whose installed depot id is absent from `info.depots`; return an empty list when every installed depot is covered.
 - `restore_all() -> RestoreResult` — restore every recorded app and delete the restored records; the result carries the restored records' `auto_update_behavior` values.
 
 `backend/state.lua`
@@ -334,7 +355,8 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 `frontend/console.ts`
 
 - `capture_build_info(appid: AppId): Promise<CaptureResult>` — run `app_info_print` and sample the spew until the app block appears, then return the raw dump; a sample without the `depots` table is not a candidate, and a capture that never sees the app block fails.
-- `capture_then_refresh(appid: AppId): Promise<void>` — call `capture_build_info` and, on success, pass the dump to `refresh_app`; the background-refresh entry point.
+- `capture_build_info_set(appid: AppId): Promise<CaptureSet>` — capture the base app, call the backend's `get_required_apps`, capture each returned app in turn, and return the dumps keyed by app id; a failed capture fails the set, and a set that exceeds the set time limit fails.
+- `capture_then_refresh(appid: AppId): Promise<void>` — call `capture_build_info_set` and, on success, pass the dumps to `refresh_app`; the background-refresh entry point.
 
 `frontend/notify.tsx`
 
@@ -349,7 +371,7 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `unwatch_app(appid: AppId): void` — stop watching one app.
 - `sync_watches(): Promise<void>` — read every persisted lock record, start watching each app, and ensure the global handlers and backstop timer run; retry a failed or non-array `list_locked` read a bounded number of times, with the retry count and interval undecided (their home is constants in `frontend/watch.ts`; the current working values are 5 attempts and 1 second).
 - `reapply_all(): Promise<void>` — reapply every watched app's spoof and ensure the global handlers and backstop timer are running.
-- `refresh_all(): Promise<void>` — capture the client's current app info for every watched app, pass each dump to `refresh_app`, and ensure the global handlers and backstop timer are running; a capture that fails falls back to `reapply`. The backstop timer calls it.
+- `refresh_all(): Promise<void>` — capture the base app and its required DLC apps for every watched app, pass each set of dumps to `refresh_app`, and ensure the global handlers and backstop timer are running; a capture that fails falls back to `reapply`. The backstop timer calls it.
 - `unwatch_all(): void` — stop watching every app, unregister the handlers that expose `unregister`, neutralize the overview callback by clearing the watch set, and stop the backstop timer.
 - `read_auto_update_behavior(appid: AppId): number | undefined` — read the app's current `EAppAutoUpdateBehavior` from the app details store (`window.appDetailsStore.GetAppDetails`), with `GetAppData(...).details` and the app overview store as fallbacks.
 - `apply_auto_update_behavior(appid: AppId, behavior: number): boolean` — write one auto-update behavior through `SetAppAutoUpdateBehavior` and report whether the write succeeded.
@@ -358,8 +380,8 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 
 `frontend/actions.ts`
 
-- `lock_app(appid: AppId, parent?: EventTarget): Promise<void>` — capture the build info, read the current auto-update behavior, call the backend's `lock_app` with the dump, set the behavior to `Launch`, and start watching the app; it rolls the lock back when the behavior write fails, and `parent` is the modal window for its failure dialog.
-- `refresh_app(appid: AppId, parent?: EventTarget): Promise<void>` — capture the build info and call the backend's `refresh_app` with the dump.
+- `lock_app(appid: AppId, parent?: EventTarget): Promise<void>` — capture the build info set, read the current auto-update behavior, call the backend's `lock_app` with the dumps, set the behavior to `Launch`, and start watching the app; it rolls the lock back when the behavior write fails, and `parent` is the modal window for its failure dialog.
+- `refresh_app(appid: AppId, parent?: EventTarget): Promise<void>` — capture the build info set, call the backend's `refresh_app` with the dumps, and mark the app locked again on success so a subscribing UI reloads its record.
 - `unlock_app(appid: AppId, parent?: EventTarget): Promise<void>` — stop watching the app, call `unlock_app`, and clear the local locked mark on success.
 
 `frontend/properties.tsx`
@@ -374,8 +396,9 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 
 frontend to backend (`backend` FFI bridge)
 
-- `lock_app(payload: { appid: AppId; dump: string; auto_update_behavior?: number }): Promise<LockResult>` — lock the app and store the app's current auto-update behavior; the backend builds the `BuildInfo` through `buildinfo.clean`, `buildinfo.parse`, and `buildinfo.validate` on the payload's `dump`, and then calls `lock.lua`'s `lock`.
-- `refresh_app(payload: { appid: AppId; dump: string }): Promise<RefreshResult>` — refresh a locked app; the backend builds the `BuildInfo` through `buildinfo.clean`, `buildinfo.parse`, and `buildinfo.validate` on the payload's `dump`, and then calls `lock.lua`'s `refresh`.
+- `get_required_apps(payload: { appid: AppId; dump: string }): Promise<RequiredAppsResult>` — parse the base dump and return the distinct `dlcappid` values whose installed depot the base `BuildInfo` omits; the frontend then captures each returned app.
+- `lock_app(payload: { appid: AppId; dumps: Record<AppId, string>; auto_update_behavior?: number }): Promise<LockResult>` — lock the app and store the app's current auto-update behavior; the backend builds each `BuildInfo` through `buildinfo.clean`, `buildinfo.parse`, and `buildinfo.validate`, merges them through `buildinfo.merge`, and then calls `lock.lua`'s `lock`.
+- `refresh_app(payload: { appid: AppId; dumps: Record<AppId, string> }): Promise<RefreshResult>` — refresh a locked app; the backend merges the payload's dumps the same way and then calls `lock.lua`'s `refresh`.
 - `unlock_app(payload: { appid: AppId }): Promise<UnlockResult>` — unlock the app; the result carries the stored `auto_update_behavior` when present.
 - `list_locked(): Promise<LockedAppRecord[] | Ack>` — return the locked-app records for the UI directly; a migration in progress makes it return an error envelope instead of records.
 - `restore_all(): Promise<RestoreResult>` — restore every locked app and delete the restored records.
@@ -395,6 +418,9 @@ backend to frontend (`millennium.call_frontend_method`)
 - `SteamClient.Console` is an undocumented client API, and a Steam client update can change or remove it — prevention: console access is confined to `frontend/console.ts`, and a missing console method returns a runtime `CaptureResult` error before any lock record is written.
 - The client's cached PICS can lag the server, so the lock mirrors a build the client has not yet replaced — prevention: the lock's effect is defined against the client's own cache, the same source the client compares against, and the backstop refresh plus the client's own PICS refresh bound the lag.
 - The client's PICS cache can lack the app block, so the capture never sees it — prevention: the capture fails with an error and the frontend aborts without locking, and a later Refresh retries.
+- The base app's PICS can omit an installed DLC depot, so a spoof built from the base dump alone leaves that depot at its stale manifest and Steam queues a manifest download — prevention: `get_required_apps` names the owning apps, the frontend captures each one, and the backend merges the depot maps before it writes.
+- A capture set grows with the installed DLC count and can exceed the time budget — prevention: the set time limit aborts the capture, and the frontend aborts without calling `lock_app` or `refresh_app`.
+- The spoof can inject a PICS-only depot into `InstalledDepots`, so Steam treats an uninstalled depot as installed — prevention: `apply_spoof` only overwrites a depot the appmanifest already lists, and the record keeps only the installed depots.
 - The requested branch can differ from the branch the captured dump carries, so the parser reads the wrong `buildid` or depot manifests — prevention: the branch comes from the appmanifest's `BetaKey` and defaults to `public`, and the parser falls back to `public` branch data when the requested branch is absent.
 - A launch or update action can begin between Steam's rewrite of the appmanifest and the reapply, so an update can still start — prevention: the action interception cancels, reapplies, and re-issues the action, and the backstop interval bounds how long a lost spoof survives.
 - An in-flight reapply can race `Unlock` or `Restore All` and rewrite an appmanifest for a record that was just removed — prevention: reapply re-reads the record before it writes and aborts when the record is gone, and per-app write operations are serialized.
@@ -432,4 +458,5 @@ backend to frontend (`millennium.call_frontend_method`)
 - **A persisted build-info cache** — storing the latest captured dump under a cache root directory with a freshness rule. Rejected: the cache adds a root-directory concept, a schema, and an existence/freshness/validity state for no user-visible benefit, and a stale entry can pin an old build; `app_info_print` reads the client's own cache cheaply, so the feature captures per operation and passes the dump in the operation payload instead.
 - **Forcing `app_info_update` before a capture** — rejected: `app_info_update` is asynchronous and lacks official documentation, and issuing it inside a capture window makes `app_info_print` print empty text until the refresh settles; the client's cached PICS is the same source the client compares against, so reading it without an update is sufficient and issues no server request.
 - **A targeted `app_info_request` before `app_info_print`** — rejected with the forced update: the request is asynchronous and undocumented, and the client's own PICS refresh already keeps the cache current enough for the spoof to match.
+- **Capturing every installed `dlcappid` instead of only the uncovered ones** — rejected: the base PICS already covers the installed DLC depots of some apps, so the simple form captures apps the spoof does not need; `get_required_apps` returns the uncovered `dlcappid` values, and the difference is capture count, not correctness.
 - **Freezing the appmanifest with a read-only permission instead of reapplying** — rejected: forcing read-only can break Steam's internal operations (on Windows a read-only file cannot be deleted or renamed, which can fail uninstall, moving the install folder, and verify/repair; this is not yet verified on a real machine), and edits to a Steam-owned file should stay within the necessary minimum; reapplying without touching file permissions keeps the appmanifest an ordinary, operable file in the Steam client's view and avoids the potential unreliability.
