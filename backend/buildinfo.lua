@@ -175,6 +175,32 @@ local function parse(text, branch)
     return { buildid = tostring(buildid), depots = manifests }
 end
 
+---@param infos BuildInfo[]
+---@return BuildInfo|nil, string|nil
+local function merge(infos)
+    if type(infos) ~= "table" or #infos == 0 then
+        return nil, "no build info to merge"
+    end
+    local base = infos[1]
+    if type(base) ~= "table" then
+        return nil, "build info must be a table"
+    end
+    if type(base.buildid) ~= "string" or base.buildid == "" then
+        return nil, "build info is missing a buildid"
+    end
+    local depots = {}
+    for _, info in ipairs(infos) do
+        if type(info) == "table" and type(info.depots) == "table" then
+            for depot_id, manifest_id in pairs(info.depots) do
+                if depots[depot_id] == nil then
+                    depots[depot_id] = tostring(manifest_id)
+                end
+            end
+        end
+    end
+    return { buildid = base.buildid, depots = depots }
+end
+
 ---@param info BuildInfo
 ---@return boolean, string|nil
 local function validate(info)
@@ -203,5 +229,6 @@ end
 return {
     clean = clean,
     parse = parse,
+    merge = merge,
     validate = validate,
 }

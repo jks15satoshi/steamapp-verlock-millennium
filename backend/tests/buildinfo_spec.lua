@@ -131,4 +131,27 @@ describe("buildinfo", function()
         local ok = buildinfo.validate({})
         assert.is_true(support.is_failure(ok))
     end)
+
+    it("merges the base buildid with the union of depot maps", function()
+        local merged, err = buildinfo.merge({
+            { buildid = "12345678", depots = { ["441"] = "1" } },
+            { buildid = "99999999", depots = { ["442"] = "2", ["441"] = "override" } },
+        })
+        assert.is_nil(err)
+        assert.equals("12345678", merged.buildid)
+        assert.equals("1", merged.depots["441"])
+        assert.equals("2", merged.depots["442"])
+    end)
+
+    it("rejects an empty merge", function()
+        local merged, err = buildinfo.merge({})
+        assert.is_nil(merged)
+        assert.is_string(err)
+    end)
+
+    it("rejects a merge whose base has no buildid", function()
+        local merged, err = buildinfo.merge({ { depots = { ["441"] = "1" } } })
+        assert.is_nil(merged)
+        assert.is_string(err)
+    end)
 end)

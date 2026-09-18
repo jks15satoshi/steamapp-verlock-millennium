@@ -10,6 +10,7 @@ describe("main", function()
     local BRIDGE_METHODS = {
         "lock_app",
         "refresh_app",
+        "get_required_apps",
         "unlock_app",
         "list_locked",
         "restore_all",
@@ -85,7 +86,7 @@ describe("main", function()
         store.seed(MANIFEST, support.read_fixture("appmanifest_440.acf"))
         return invoke("lock_app", {
             appid = "440",
-            dump = support.read_fixture("app_info_print_440.txt"),
+            dumps = { ["440"] = support.read_fixture("app_info_print_440.txt") },
         })
     end
 
@@ -151,7 +152,10 @@ describe("main", function()
 
     it("fails lock_app for an echo-only dump", function()
         store.seed(MANIFEST, support.read_fixture("appmanifest_440.acf"))
-        local ack = invoke("lock_app", { appid = "440", dump = "app_info_print 440\n" })
+        local ack = invoke("lock_app", {
+            appid = "440",
+            dumps = { ["440"] = "app_info_print 440\n" },
+        })
         assert.is_table(ack)
         assert.is_false(ack.ok)
         assert.is_string(ack.error)
@@ -177,7 +181,7 @@ describe("main", function()
         assert.is_true(seed_locked_440().ok)
         local ack = invoke("refresh_app", {
             appid = "440",
-            dump = support.read_fixture("app_info_print_440.txt"),
+            dumps = { ["440"] = support.read_fixture("app_info_print_440.txt") },
         })
         assert.is_table(ack)
         assert.is_true(ack.ok)
@@ -417,7 +421,7 @@ describe("main", function()
         store.seed("/steam/steamapps/appmanifest_730.acf", support.read_fixture("appmanifest_730_beta.acf"))
         local ack = invoke("lock_app", {
             appid = "730",
-            dump = support.read_fixture("app_info_print_beta.txt"),
+            dumps = { ["730"] = support.read_fixture("app_info_print_beta.txt") },
         })
         assert.is_true(ack.ok)
         assert.equals("30000001", ack.record.locked_build.buildid)
@@ -427,10 +431,49 @@ describe("main", function()
         store.seed("/steam/steamapps/appmanifest_730.acf", support.read_fixture("appmanifest_730.acf"))
         local ack = invoke("lock_app", {
             appid = "730",
-            dump = support.read_fixture("app_info_print_beta.txt"),
+            dumps = { ["730"] = support.read_fixture("app_info_print_beta.txt") },
         })
         assert.is_true(ack.ok)
         assert.equals("30000000", ack.record.locked_build.buildid)
+    end)
+
+    it("returns the DLC apps the base PICS does not cover", function()
+        local manifest = table.concat({
+            '"AppState"',
+            "{",
+            '\t"appid"\t\t"440"',
+            '\t"StateFlags"\t\t"4"',
+            '\t"buildid"\t\t"12345678"',
+            '\t"InstalledDepots"',
+            "\t{",
+            '\t\t"441"',
+            "\t\t{",
+            '\t\t\t"manifest"\t\t"7588696787324571854"',
+            "\t\t}",
+            '\t\t"443"',
+            "\t\t{",
+            '\t\t\t"manifest"\t\t"1000000000000000002"',
+            '\t\t\t"dlcappid"\t\t"570"',
+            "\t\t}",
+            "\t}",
+            "}",
+        }, "\n")
+        store.seed(MANIFEST, manifest)
+        local ack = invoke("get_required_apps", {
+            appid = "440",
+            dump = support.read_fixture("app_info_print_440.txt"),
+        })
+        assert.is_table(ack)
+        assert.is_true(ack.ok)
+        assert.same({ "570" }, ack.apps)
+    end)
+
+    it("fails get_required_apps for a missing dump", function()
+        store.seed(MANIFEST, support.read_fixture("appmanifest_440.acf"))
+        local ack = invoke("get_required_apps", { appid = "440" })
+        assert.is_table(ack)
+        assert.is_false(ack.ok)
+        assert.equals("a build info dump is required", ack.error)
     end)
 
     it("requests build info for every record on frontend load", function()
@@ -438,7 +481,7 @@ describe("main", function()
         store.seed("/steam/steamapps/appmanifest_570.acf", support.read_fixture("appmanifest_570.acf"))
         assert.is_true(invoke("lock_app", {
             appid = "570",
-            dump = support.read_fixture("app_info_print_multi_depot.txt"),
+            dumps = { ["570"] = support.read_fixture("app_info_print_multi_depot.txt") },
         }).ok)
 
         main.on_frontend_loaded()

@@ -217,6 +217,108 @@ describe("lock", function()
         assert.is_not_nil(written:find('"dlcappid"%s+"442"'))
     end)
 
+    it("normalizes the update-state fields when locking", function()
+        local fields = table.concat({
+            '"UpdateResult"\t\t"6"',
+            '"StagingSize"\t\t"7"',
+            '"ScheduledAutoUpdate"\t\t"123"',
+            '"DownloadType"\t\t"4"',
+            '"BytesToDownload"\t\t"464"',
+            '"BytesDownloaded"\t\t"0"',
+            '"BytesToStage"\t\t"100"',
+            '"BytesStaged"\t\t"0"',
+        }, "\n\t")
+        local pending = ORIGINAL:gsub('"StateFlags"\t\t"4"', '"StateFlags"\t\t"6"')
+            :gsub('("buildid"%s+"10000000")', "%1\n\t" .. fields)
+        store.seed(MANIFEST, pending)
+        local result = lock.lock("440", INFO)
+        assert.is_true(result.ok)
+        local written = store.read(MANIFEST)
+        assert.is_not_nil(written:find('"StateFlags"%s+"4"'))
+        assert.is_not_nil(written:find('"UpdateResult"%s+"0"'))
+        assert.is_not_nil(written:find('"StagingSize"%s+"0"'))
+        assert.is_not_nil(written:find('"ScheduledAutoUpdate"%s+"0"'))
+        assert.is_not_nil(written:find('"DownloadType"%s+"3"'))
+        assert.is_not_nil(written:find('"BytesToDownload"%s+"464"'))
+        assert.is_not_nil(written:find('"BytesDownloaded"%s+"464"'))
+        assert.is_not_nil(written:find('"BytesToStage"%s+"100"'))
+        assert.is_not_nil(written:find('"BytesStaged"%s+"100"'))
+    end)
+
+    it("does not inject a PICS-only depot and keeps only the installed depots", function()
+        local extra = {
+            buildid = "12345678",
+            depots = { ["441"] = "7588696787324571854", ["999"] = "1111111111111111111" },
+        }
+        assert.is_true(lock.lock("440", extra).ok)
+        local written = store.read(MANIFEST)
+        assert.is_nil(written:find('"999"'))
+        local record = state.read("440")
+        assert.equals("7588696787324571854", record.locked_build.depots["441"])
+        assert.is_nil(record.locked_build.depots["999"])
+    end)
+
+    it("ignores a legacy recorded depot the appmanifest does not install", function()
+        assert.is_true(lock.lock("440", INFO).ok)
+        local record = state.read("440")
+        record.locked_build.depots["999"] = "1111111111111111111"
+        assert.is_true(state.write(record))
+        assert.is_true(lock.reapply("440").ok)
+        assert.is_false(logged("info", "reapplied app 440"))
+        assert.is_nil(state.read("440").locked_build.depots["999"])
+    end)
+
+    it("keeps only the installed depots after a refresh", function()
+        assert.is_true(lock.lock("440", INFO).ok)
+        local refreshed = { buildid = "22345678", depots = { ["441"] = "9", ["999"] = "1" } }
+        assert.is_true(lock.refresh("440", refreshed).ok)
+        local record = state.read("440")
+        assert.equals("9", record.locked_build.depots["441"])
+        assert.is_nil(record.locked_build.depots["999"])
+    end)
+
+    it("repairs a foreign TargetBuildID", function()
+        assert.is_true(lock.lock("440", INFO).ok)
+        local clean = store.read(MANIFEST)
+        store.seed(MANIFEST, (clean:gsub('"TargetBuildID"%s+"0"', '"TargetBuildID"\t\t"999"')))
+        assert.is_true(lock.reapply("440").ok)
+        assert.is_not_nil(store.read(MANIFEST):find('"TargetBuildID"%s+"0"'))
+    end)
+
+    it("treats a TargetBuildID equal to the buildid as clean", function()
+        assert.is_true(lock.lock("440", INFO).ok)
+        local clean = store.read(MANIFEST)
+        store.seed(MANIFEST, (clean:gsub('"TargetBuildID"%s+"0"', '"TargetBuildID"\t\t"12345678"')))
+        local writes_before = store.calls.write or 0
+        assert.is_true(lock.reapply("440").ok)
+        assert.equals(writes_before, store.calls.write or 0)
+    end)
+
+    it("repairs a pending byte counter", function()
+        assert.is_true(lock.lock("440", INFO).ok)
+        local clean = store.read(MANIFEST)
+        local pending =
+            clean:gsub('("buildid"%s+"12345678")', '%1\n\t"BytesToDownload"\t\t"464"\n\t"BytesDownloaded"\t\t"0"')
+        store.seed(MANIFEST, pending)
+        assert.is_true(lock.reapply("440").ok)
+        assert.is_not_nil(store.read(MANIFEST):find('"BytesDownloaded"%s+"464"'))
+    end)
+
+    it("lists the DLC apps whose installed depots the base info lacks", function()
+        store.seed(MANIFEST, EXTRA_DEPOT)
+        local apps, err = lock.required_apps("440", INFO)
+        assert.is_nil(err)
+        assert.same({ "442" }, apps)
+    end)
+
+    it("returns no required apps when the info covers every installed depot", function()
+        store.seed(MANIFEST, EXTRA_DEPOT)
+        local info = { buildid = "12345678", depots = { ["441"] = "1", ["442"] = "2" } }
+        local apps, err = lock.required_apps("440", info)
+        assert.is_nil(err)
+        assert.same({}, apps)
+    end)
+
     it("keeps a repair for one app idempotent", function()
         assert.is_true(lock.lock("440", INFO).ok)
         store.seed(MANIFEST, STEAM_REWRITTEN)
@@ -572,11 +674,25 @@ describe("lock", function()
         assert.is_nil(state.read("440"))
     end)
 
-    it("refuses to lock an app with a pending update", function()
+    it("locks an app with a pending update", function()
         store.seed(MANIFEST, (ORIGINAL:gsub('"StateFlags"\t\t"4"', '"StateFlags"\t\t"6"')))
         local result = lock.lock("440", INFO)
-        assert.is_false(result.ok)
-        assert.is_nil(state.read("440"))
+        assert.is_true(result.ok)
+        assert.is_not_nil(state.read("440"))
+    end)
+
+    it("accepts only the state flag whitelist", function()
+        for _, flags in ipairs({ "0", "1", "2", "5", "8", "16", "20", "64", "68", "1024", "8196" }) do
+            store.seed(MANIFEST, (ORIGINAL:gsub('"StateFlags"\t\t"4"', '"StateFlags"\t\t"' .. flags .. '"')))
+            local result = lock.lock("440", INFO)
+            assert.is_false(result.ok, "expected StateFlags " .. flags .. " to be refused")
+        end
+        for _, flags in ipairs({ "4", "6" }) do
+            store.seed(MANIFEST, (ORIGINAL:gsub('"StateFlags"\t\t"4"', '"StateFlags"\t\t"' .. flags .. '"')))
+            local result = lock.lock("440", INFO)
+            assert.is_true(result.ok, "expected StateFlags " .. flags .. " to be accepted")
+            store.delete(state.path("440"))
+        end
     end)
 
     it("keeps the record when unlock discovery cannot run", function()

@@ -106,6 +106,55 @@ end
 
 local handlers = {}
 
+---@param key string
+---@param dump any
+---@param branch string
+---@return BuildInfo|nil, string|nil
+local function parse_dump(key, dump, branch)
+    if type(dump) ~= "string" or dump == "" then
+        return nil, "a build info dump is required for app " .. tostring(key)
+    end
+    local info, parse_err = buildinfo.parse(buildinfo.clean(dump), branch)
+    if info == nil then
+        return nil, parse_err
+    end
+    local valid, valid_err = buildinfo.validate(info)
+    if not valid then
+        return nil, valid_err
+    end
+    return info
+end
+
+---@param appid string
+---@param payload table
+---@return BuildInfo|nil, string|nil
+local function collect_build_info(appid, payload)
+    local dumps = payload.dumps
+    if type(dumps) ~= "table" then
+        return nil, "a build info dump is required"
+    end
+    local base, base_err = parse_dump(appid, dumps[appid], resolve_branch(appid))
+    if base == nil then
+        return nil, base_err
+    end
+    local infos = { base }
+    local keys = {}
+    for key, dump in pairs(dumps) do
+        if key ~= appid and type(dump) == "string" and dump ~= "" then
+            table.insert(keys, key)
+        end
+    end
+    table.sort(keys)
+    for _, key in ipairs(keys) do
+        local info, info_err = parse_dump(key, dumps[key], "public")
+        if info == nil then
+            return nil, info_err
+        end
+        table.insert(infos, info)
+    end
+    return buildinfo.merge(infos)
+end
+
 handlers.lock_app = function(payload)
     local appid = payload.appid
     if not is_numeric_appid(appid) then
@@ -115,18 +164,10 @@ handlers.lock_app = function(payload)
     if auto_update_behavior ~= nil and type(auto_update_behavior) ~= "number" then
         return { ok = false, error = "the auto update behavior must be a number" }
     end
-    if type(payload.dump) ~= "string" or payload.dump == "" then
-        return { ok = false, error = "a build info dump is required" }
-    end
-    local info, parse_err = buildinfo.parse(buildinfo.clean(payload.dump), resolve_branch(appid))
+    local info, info_err = collect_build_info(appid, payload)
     if info == nil then
-        log.error("lock failed for app " .. appid .. ": " .. tostring(parse_err))
-        return { ok = false, error = parse_err }
-    end
-    local valid, valid_err = buildinfo.validate(info)
-    if not valid then
-        log.error("lock failed for app " .. appid .. ": " .. tostring(valid_err))
-        return { ok = false, error = valid_err }
+        log.error("lock failed for app " .. appid .. ": " .. tostring(info_err))
+        return { ok = false, error = info_err }
     end
     return lock.lock(appid, info, auto_update_behavior)
 end
@@ -136,20 +177,38 @@ handlers.refresh_app = function(payload)
     if not is_numeric_appid(appid) then
         return { ok = false, error = "a numeric appid is required" }
     end
+    local info, info_err = collect_build_info(appid, payload)
+    if info == nil then
+        log.error("refresh failed for app " .. appid .. ": " .. tostring(info_err))
+        return { ok = false, error = info_err }
+    end
+    return lock.refresh(appid, info)
+end
+
+handlers.get_required_apps = function(payload)
+    local appid = payload.appid
+    if not is_numeric_appid(appid) then
+        return { ok = false, error = "a numeric appid is required" }
+    end
     if type(payload.dump) ~= "string" or payload.dump == "" then
         return { ok = false, error = "a build info dump is required" }
     end
     local info, parse_err = buildinfo.parse(buildinfo.clean(payload.dump), resolve_branch(appid))
     if info == nil then
-        log.error("refresh failed for app " .. appid .. ": " .. tostring(parse_err))
+        log.error("get_required_apps failed for app " .. appid .. ": " .. tostring(parse_err))
         return { ok = false, error = parse_err }
     end
     local valid, valid_err = buildinfo.validate(info)
     if not valid then
-        log.error("refresh failed for app " .. appid .. ": " .. tostring(valid_err))
+        log.error("get_required_apps failed for app " .. appid .. ": " .. tostring(valid_err))
         return { ok = false, error = valid_err }
     end
-    return lock.refresh(appid, info)
+    local apps, apps_err = lock.required_apps(appid, info)
+    if apps == nil then
+        log.error("get_required_apps failed for app " .. appid .. ": " .. tostring(apps_err))
+        return { ok = false, error = apps_err }
+    end
+    return { ok = true, apps = apps }
 end
 
 handlers.unlock_app = function(payload)
@@ -382,6 +441,13 @@ end
 ---@return string
 function refresh_app(payload)
     return respond("refresh_app", payload)
+end
+
+---@ffi
+---@param payload string
+---@return string
+function get_required_apps(payload)
+    return respond("get_required_apps", payload)
 end
 
 ---@ffi

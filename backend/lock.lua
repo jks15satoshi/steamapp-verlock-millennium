@@ -37,18 +37,8 @@ local log = require("log")
 ---@field auto_update table|nil
 ---@field auto_update_failed string[]|nil
 
-local FULLY_INSTALLED = 4
-local BLOCKING_FLAGS = { 2, 8, 1024, 16384, 32768 }
-
 local active = {}
 local restoring = false
-
----@param value integer
----@param bit integer
----@return boolean
-local function has_flag(value, bit)
-    return math.floor(value / bit) % 2 == 1
-end
 
 ---@param flags any
 ---@return boolean
@@ -57,21 +47,53 @@ local function lockable(flags)
     if value == nil then
         return false
     end
-    if not has_flag(value, FULLY_INSTALLED) then
-        return false
-    end
-    for _, bit in ipairs(BLOCKING_FLAGS) do
-        if has_flag(value, bit) then
-            return false
-        end
-    end
-    return true
+    return value == 4 or value == 6
 end
 
 ---@param state_table table
 ---@return table
 local function body_of(state_table)
     return state_table.AppState or state_table
+end
+
+-- The record describes the installed depots only. The captured `BuildInfo` can
+-- carry depots the appmanifest does not list — the base PICS lists other
+-- platforms, and a DLC app's PICS lists its other language depots — so the
+-- record keeps the intersection with `InstalledDepots`.
+---@param state_table table
+---@param info BuildInfo
+---@return table<string, string>
+local function installed_depots(state_table, info)
+    local body = body_of(state_table)
+    local depots = body.InstalledDepots
+    local result = {}
+    if type(depots) ~= "table" then
+        return result
+    end
+    for depot_id in pairs(depots) do
+        local manifest_id = (info.depots or {})[depot_id]
+        if manifest_id ~= nil then
+            result[depot_id] = tostring(manifest_id)
+        end
+    end
+    return result
+end
+
+---@param left table|nil
+---@param right table|nil
+---@return boolean
+local function same_depots(left, right)
+    for key, value in pairs(left or {}) do
+        if (right or {})[key] ~= value then
+            return false
+        end
+    end
+    for key in pairs(right or {}) do
+        if (left or {})[key] == nil then
+            return false
+        end
+    end
+    return true
 end
 
 ---@param state_table table
@@ -82,26 +104,33 @@ local function apply_spoof(state_table, info)
     body.StateFlags = "4"
     body.TargetBuildID = "0"
     body.buildid = tostring(info.buildid)
+    body.UpdateResult = "0"
+    body.StagingSize = "0"
+    body.ScheduledAutoUpdate = "0"
+    body.DownloadType = "3"
+    if body.BytesToDownload ~= nil then
+        body.BytesDownloaded = tostring(body.BytesToDownload)
+    end
+    if body.BytesToStage ~= nil then
+        body.BytesStaged = tostring(body.BytesToStage)
+    end
     local depots = body.InstalledDepots
     if type(depots) ~= "table" then
-        depots = {}
-        body.InstalledDepots = depots
+        return
     end
     for depot_id, manifest_id in pairs(info.depots or {}) do
         local entry = depots[depot_id]
-        if type(entry) ~= "table" then
-            entry = {}
-            depots[depot_id] = entry
+        if type(entry) == "table" then
+            entry.manifest = tostring(manifest_id)
         end
-        entry.manifest = tostring(manifest_id)
     end
 end
 
--- A depot the record does not list is ignored, because apply_spoof only
--- overwrites and never trims: requiring the appmanifest to drop such a depot
--- would leave the file permanently unmatched and rewrite the spoof on every
--- trigger. A recorded depot that is missing or carries a different manifest
--- still forces the rewrite.
+-- A recorded depot the appmanifest does not install is ignored, because the
+-- record holds only the installed depots and apply_spoof only overwrites them:
+-- a PICS-only depot must not be injected into InstalledDepots. A recorded depot
+-- that is installed but missing or carrying a different manifest still forces
+-- the rewrite.
 ---@param state_table table
 ---@param info BuildInfo
 ---@return boolean
@@ -113,7 +142,26 @@ local function matches_spoof(state_table, info)
     if tostring(body.StateFlags) ~= "4" then
         return false
     end
-    if tostring(body.TargetBuildID) ~= "0" then
+    local target = body.TargetBuildID
+    if target ~= nil and tostring(target) ~= "0" and tostring(target) ~= tostring(info.buildid) then
+        return false
+    end
+    if body.UpdateResult ~= nil and tostring(body.UpdateResult) ~= "0" then
+        return false
+    end
+    if body.StagingSize ~= nil and tostring(body.StagingSize) ~= "0" then
+        return false
+    end
+    if body.ScheduledAutoUpdate ~= nil and tostring(body.ScheduledAutoUpdate) ~= "0" then
+        return false
+    end
+    if body.DownloadType ~= nil and tostring(body.DownloadType) ~= "3" then
+        return false
+    end
+    if body.BytesToDownload ~= nil and tostring(body.BytesDownloaded) ~= tostring(body.BytesToDownload) then
+        return false
+    end
+    if body.BytesToStage ~= nil and tostring(body.BytesStaged) ~= tostring(body.BytesToStage) then
         return false
     end
     local depots = body.InstalledDepots
@@ -122,7 +170,7 @@ local function matches_spoof(state_table, info)
     end
     for depot_id, manifest_id in pairs(info.depots or {}) do
         local entry = depots[depot_id]
-        if type(entry) ~= "table" or tostring(entry.manifest) ~= tostring(manifest_id) then
+        if type(entry) == "table" and tostring(entry.manifest) ~= tostring(manifest_id) then
             return false
         end
     end
@@ -180,6 +228,47 @@ local function resolve_target(appid, record)
         return nil, nil, retry_err or resolve_err or "the Steam path is unavailable"
     end
     return nil, "not_installed", error_text
+end
+
+-- The DLC apps whose installed depots the base app's PICS does not cover, so
+-- their manifests must be read from the owning app's own app_info_print.
+---@param appid string
+---@param info BuildInfo
+---@return string[]|nil, string|nil
+local function required_apps(appid, info)
+    local record = state.read(appid)
+    local manifest
+    if record ~= nil then
+        manifest = resolve_target(appid, record)
+    else
+        manifest = paths.find_appmanifest(appid)
+    end
+    if manifest == nil then
+        return nil, "the appmanifest was not found"
+    end
+    local state_table = acf.read(manifest)
+    if state_table == nil then
+        return nil, "cannot parse the appmanifest"
+    end
+    local body = body_of(state_table)
+    local depots = body.InstalledDepots
+    if type(depots) ~= "table" then
+        return {}
+    end
+    local apps = {}
+    local seen = {}
+    for depot_id, entry in pairs(depots) do
+        if type(entry) == "table" and type(entry.dlcappid) == "string" then
+            if info.depots == nil or info.depots[depot_id] == nil then
+                if not seen[entry.dlcappid] then
+                    seen[entry.dlcappid] = true
+                    table.insert(apps, entry.dlcappid)
+                end
+            end
+        end
+    end
+    table.sort(apps)
+    return apps
 end
 
 ---@param appid string
@@ -241,7 +330,7 @@ local function do_lock(appid, info, auto_update_behavior)
         name = tostring(body.name or ("App " .. tostring(appid))),
         manifest_path = manifest,
         locked_at = os.time(),
-        locked_build = { buildid = tostring(info.buildid), depots = info.depots },
+        locked_build = { buildid = tostring(info.buildid), depots = installed_depots(state_table, info) },
         original = original,
     }
     if type(auto_update_behavior) == "number" then
@@ -308,7 +397,7 @@ local function do_refresh(appid, info)
         refreshed_at = record.refreshed_at,
         manifest_path = record.manifest_path,
     }
-    record.locked_build = { buildid = tostring(info.buildid), depots = info.depots }
+    record.locked_build = { buildid = tostring(info.buildid), depots = installed_depots(state_table, info) }
     record.refreshed_at = os.time()
     record.manifest_path = manifest
     local saved, save_err = state.write(record)
@@ -417,6 +506,11 @@ local function do_reapply(appid)
         log.error("reapply failed for app " .. appid .. ": cannot parse the appmanifest")
         return { ok = false, error = "cannot parse the appmanifest" }
     end
+    local normalized = installed_depots(state_table, record.locked_build)
+    if not same_depots(record.locked_build.depots, normalized) then
+        record.locked_build = { buildid = record.locked_build.buildid, depots = normalized }
+        state.write(record)
+    end
     if matches_spoof(state_table, record.locked_build) then
         return { ok = true }
     end
@@ -514,4 +608,5 @@ return {
     unlock = unlock,
     reapply = reapply,
     restore_all = restore_all,
+    required_apps = required_apps,
 }

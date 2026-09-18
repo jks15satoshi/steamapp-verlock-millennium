@@ -5,6 +5,7 @@ globals = {
   "logger",
   "lock_app",
   "refresh_app",
+  "get_required_apps",
   "unlock_app",
   "list_locked",
   "restore_all",
