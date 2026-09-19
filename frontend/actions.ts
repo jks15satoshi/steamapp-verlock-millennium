@@ -1,7 +1,8 @@
 import { EAppAutoUpdateBehavior } from "millennium";
-import type { Ack, AppId } from "./index";
+import type { Ack, AppId, UnlockResult } from "./index";
 import { capture_build_info_set } from "./console";
 import {
+  app_name,
   apply_auto_update_behavior,
   read_auto_update_behavior,
   unwatch_then_unlock,
@@ -9,7 +10,7 @@ import {
 } from "./watch";
 import { mark_locked, mark_unlocked } from "./locked";
 import * as bridge from "./bridge";
-import { format_error, report_failure, show_failure_dialog } from "./notify";
+import { format_error, report_failure, report_success, show_failure_dialog } from "./notify";
 
 function parse_json(raw: unknown): unknown {
   if (typeof raw === "string") {
@@ -72,7 +73,7 @@ export async function lock_app(appid: AppId, parent?: EventTarget): Promise<void
   }
 
   if (!apply_auto_update_behavior(appid, EAppAutoUpdateBehavior.Launch)) {
-    await unlock_app(appid, parent);
+    await perform_unlock(appid);
     report_failure(
       `Lock failed for app ${appid}`,
       `rolled back the lock for ${appid} after the auto-update write failed`,
@@ -83,6 +84,7 @@ export async function lock_app(appid: AppId, parent?: EventTarget): Promise<void
 
   watch_app(appid);
   mark_locked(appid);
+  report_success(`Locked ${app_name(appid)}`);
 }
 
 export async function refresh_app(appid: AppId, parent?: EventTarget): Promise<void> {
@@ -120,17 +122,28 @@ export async function refresh_app(appid: AppId, parent?: EventTarget): Promise<v
     return;
   }
   mark_locked(appid);
+  report_success(`Refreshed ${app_name(appid)}`);
 }
 
-export async function unlock_app(appid: AppId, parent?: EventTarget): Promise<void> {
+async function perform_unlock(appid: AppId): Promise<UnlockResult> {
   const result = await unwatch_then_unlock(appid);
   if (result.ok) {
     mark_unlocked(appid);
+  }
+  return result;
+}
+
+export async function unlock_app(appid: AppId, parent?: EventTarget): Promise<void> {
+  const result = await perform_unlock(appid);
+  if (!result.ok) {
+    show_failure_dialog(
+      `Unlock failed for app ${appid}`,
+      result.error ?? "the unlock was refused",
+      parent,
+    );
     return;
   }
-  show_failure_dialog(
-    `Unlock failed for app ${appid}`,
-    result.error ?? "the unlock was refused",
-    parent,
-  );
+  if (result.auto_update_restored !== false) {
+    report_success(`Unlocked ${app_name(appid)}`);
+  }
 }

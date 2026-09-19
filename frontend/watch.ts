@@ -318,6 +318,21 @@ export function apply_auto_update_behavior(appid: AppId, behavior: number): bool
   }
 }
 
+export function app_name(appid: AppId, fallback?: string): string {
+  try {
+    const name = window.appStore?.GetAppOverviewByAppID?.(Number(appid))?.display_name;
+    if (typeof name === "string" && name.trim() !== "") {
+      return name;
+    }
+  } catch {
+    // The app store is an undocumented client internal; fall through.
+  }
+  if (typeof fallback === "string" && fallback.trim() !== "") {
+    return fallback;
+  }
+  return `app ${appid}`;
+}
+
 function restore_behaviors(entries: { appid: AppId; behavior: number }[] | undefined): AppId[] {
   const failed: AppId[] = [];
   for (const entry of Array.isArray(entries) ? entries : []) {

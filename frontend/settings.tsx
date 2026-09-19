@@ -2,11 +2,11 @@ import { DialogCheckbox, Spinner, TextField } from "millennium";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Ack, AppId, DataRoots, LockedAppRecord, MigrateResult } from "./index";
 import { capture_build_info_set } from "./console";
-import { reapply_all, unwatch_all_then_restore, unwatch_then_unlock } from "./watch";
+import { app_name, reapply_all, unwatch_all_then_restore, unwatch_then_unlock } from "./watch";
 import { as_record_list, sync_locked_ids } from "./locked";
 import * as bridge from "./bridge";
 import { log_error, log_warn } from "./log";
-import { format_error, report_failure, show_failure_dialog } from "./notify";
+import { format_error, report_failure, report_success, show_failure_dialog } from "./notify";
 import { current_clock_format, format_client_time, subscribe_clock_format } from "./time";
 import type { ClockFormat } from "./time";
 import {
@@ -173,12 +173,12 @@ export default function SettingsPanel() {
     }
   }
 
-  async function refresh_one(appid: AppId): Promise<void> {
+  async function refresh_one(appid: AppId): Promise<boolean> {
     const captured = await capture_build_info_set(appid);
     if (!captured.ok) {
       set_status(captured.error);
       show_failure_dialog(`Refresh failed for app ${appid}`, captured.error);
-      return;
+      return false;
     }
 
     const refreshed = parse_json(await bridge.refresh_app(appid, captured.dumps));
@@ -186,25 +186,37 @@ export default function SettingsPanel() {
       const message = refreshed.error ?? "Refresh failed";
       set_status(message);
       show_failure_dialog(`Refresh failed for app ${appid}`, message);
+      return false;
     }
+    return true;
   }
 
-  async function unlock_one(appid: AppId): Promise<void> {
+  async function unlock_one(appid: AppId): Promise<boolean> {
     const result = await unwatch_then_unlock(appid);
     if (!result.ok) {
       const message = result.error ?? "Unlock failed";
       set_status(message);
       show_failure_dialog(`Unlock failed for app ${appid}`, message);
-    } else if (result.auto_update_restored === false) {
-      set_status(`Unlocked ${appid}, but the auto-update setting could not be restored`);
+      return false;
     }
+    if (result.auto_update_restored === false) {
+      set_status(`Unlocked ${appid}, but the auto-update setting could not be restored`);
+      return false;
+    }
+    return true;
   }
 
   function batch_refresh(): void {
     const targets = records.filter((record) => selected.has(record.appid));
     void run(async () => {
+      let count = 0;
       for (const record of targets) {
-        await refresh_one(record.appid);
+        if (await refresh_one(record.appid)) {
+          count += 1;
+        }
+      }
+      if (count > 0) {
+        report_success(`Refreshed ${count} app(s)`);
       }
       await reload();
     });
@@ -213,8 +225,14 @@ export default function SettingsPanel() {
   function batch_unlock(): void {
     const targets = records.filter((record) => selected.has(record.appid));
     void run(async () => {
+      let count = 0;
       for (const record of targets) {
-        await unlock_one(record.appid);
+        if (await unlock_one(record.appid)) {
+          count += 1;
+        }
+      }
+      if (count > 0) {
+        report_success(`Unlocked ${count} app(s)`);
       }
       await reload();
     });
@@ -357,7 +375,9 @@ export default function SettingsPanel() {
                           disabled={busy}
                           onClick={() =>
                             void run(async () => {
-                              await refresh_one(record.appid);
+                              if (await refresh_one(record.appid)) {
+                                report_success(`Refreshed ${app_name(record.appid, record.name)}`);
+                              }
                               await reload();
                             })
                           }
@@ -372,7 +392,9 @@ export default function SettingsPanel() {
                         disabled={busy}
                         onClick={() =>
                           void run(async () => {
-                            await unlock_one(record.appid);
+                            if (await unlock_one(record.appid)) {
+                              report_success(`Unlocked ${app_name(record.appid, record.name)}`);
+                            }
                             await reload();
                           })
                         }

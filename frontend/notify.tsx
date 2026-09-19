@@ -331,3 +331,11 @@ export function report_warning(message: string, title = TOAST_TITLE): void {
     // A failed toast never changes the operation's result.
   }
 }
+
+export function report_success(message: string, title = TOAST_TITLE): void {
+  try {
+    millennium.toaster.toast({ title, body: message });
+  } catch {
+    // A failed toast never changes the operation's result.
+  }
+}

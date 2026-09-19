@@ -28,6 +28,7 @@ void mock.module("react", () => ({
 }));
 
 const {
+  app_name,
   apply_auto_update_behavior,
   read_auto_update_behavior,
   reapply_all,
@@ -436,6 +437,25 @@ test("read_auto_update_behavior reads eAutoUpdateValue from the app details stor
 
   globals.window = undefined;
   expect(read_auto_update_behavior(APPID)).toBeUndefined();
+});
+
+test("app_name prefers the app store, then the fallback, then the app id", () => {
+  const globals = globalThis as Record<string, unknown>;
+  globals.window = {
+    appStore: { GetAppOverviewByAppID: () => ({ display_name: "Counter-Strike 2" }) },
+  };
+  expect(app_name(APPID)).toBe("Counter-Strike 2");
+  expect(app_name(APPID, "Fallback")).toBe("Counter-Strike 2");
+
+  globals.window = { appStore: { GetAppOverviewByAppID: () => ({}) } };
+  expect(app_name(APPID, "Fallback")).toBe("Fallback");
+  expect(app_name(APPID)).toBe(`app ${APPID}`);
+
+  globals.window = { appStore: { GetAppOverviewByAppID: () => ({ display_name: "   " }) } };
+  expect(app_name(APPID, "Fallback")).toBe("Fallback");
+
+  globals.window = undefined;
+  expect(app_name(APPID)).toBe(`app ${APPID}`);
 });
 
 test("apply_auto_update_behavior writes the behavior and reports failure", () => {

@@ -142,9 +142,9 @@ The panel supports multi-select and batch `Refresh` and `Unlock` over the select
 
 The app's Properties window carries a `Steam App Verlock` tab for the app the window shows. The tab shows the lock state, then the lock and refresh times: those times always render, an unlocked app shows a gray `N/A`, and a locked app with no refresh yet shows `Not yet` in the accent color. The times render through `frontend/time.ts` with the year always included (see [Game Page Badge](#game-page-badge)). Below a divider and a `Lock Snapshot` heading, the tab always shows the app id, the locked `buildid`, the depot manifests under a `Depots` list that is collapsed until clicked, and the auto-update behavior; the values a lock record supplies render as a gray `N/A` when there is no record, and these static values render without the accent color. The section carries an `Appmanifest` button that shows the appmanifest's text in a native modal, and, while a record exists, a `Lock File` button that shows the lock record the same way to its left. The `Lock File` button is absent when there is no record. The tab offers `Lock` when the app is not locked and `Refresh` and `Unlock` when it is. It reads the same `list_locked` records and calls the same shared actions as the context menu, and it no-ops when the window's DOM shape changes. It matches the client's native dialog styling through the method of [Spec 7](007_native-ui-style-alignment.md).
 
-A user-initiated operation that fails reports its failure instead of staying silent: `Lock`, `Refresh`, `Unlock`, the batch and `Restore All` actions, and the data-directory change each open the same native modal, which names the operation and shows the error text with a `Copy error` button; a second failure replaces the open dialog instead of stacking. A warning that degrades but lets the operation complete — a failed action cancel or a failed auto-update restore — shows a transient toast instead. Background work that has no user gesture, such as the reapply path and the startup sync, stays log-only.
+A user-initiated operation that fails reports its failure instead of staying silent: `Lock`, `Refresh`, `Unlock`, the batch and `Restore All` actions, and the data-directory change each open the same native modal, which names the operation and shows the error text with a `Copy error` button; a second failure replaces the open dialog instead of stacking. A warning that degrades but lets the operation complete — a failed action cancel or a failed auto-update restore — shows a transient toast instead. A successful user-initiated `Lock`, `Refresh`, or `Unlock` shows a transient toast that names the app, and the settings panel's batch `Refresh` and `Unlock` show one summary toast for the batch. An `Unlock` whose auto-update restore failed keeps only its warning toast, and `Restore All` keeps its inline status message without a success toast. Background work that has no user gesture, such as the reapply path and the startup sync, stays log-only.
 
-The failure dialog, the file content dialog, and the warning toast are built by `frontend/notify.tsx` from the `showModal`, `ConfirmModal`, and `toaster` exports of the Millennium SDK; `frontend/errors.ts` normalizes an error value for both the dialog and the log. The content dialog and the read-failure dialog receive the Properties popup window as the modal's `parent` (see [View File](#view-file)).
+The failure dialog, the file content dialog, the warning toast, and the success toast are built by `frontend/notify.tsx` from the `showModal`, `ConfirmModal`, and `toaster` exports of the Millennium SDK; `frontend/errors.ts` normalizes an error value for both the dialog and the log. The content dialog and the read-failure dialog receive the Properties popup window as the modal's `parent` (see [View File](#view-file)).
 
 ### Game Page Badge
 
@@ -259,7 +259,7 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 | `frontend/watch.ts` | App event watch and reapply triggers |
 | `frontend/actions.ts` | Shared `Lock`, `Refresh`, and `Unlock` flows used by the menu and the Properties tab |
 | `frontend/errors.ts` | Error-value normalization for the failure dialog and its log record |
-| `frontend/notify.tsx` | Failure dialog and warning toast |
+| `frontend/notify.tsx` | Failure dialog, warning toast, and success toast |
 | `frontend/menu.tsx` | Library context menu |
 | `frontend/settings.tsx` | Settings panel |
 | `frontend/properties.tsx` | App Properties window tab |
@@ -384,6 +384,7 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `show_text_dialog(title: string, message: string, parent?: EventTarget, note?: string): void` — open the file-content modal the same way; when `note` is present, render it as a small line above the text box, and `Copy` copies the text box alone.
 - `report_failure(title: string, message: string, parent?: EventTarget): void` — record the message at `error` and open the failure modal.
 - `report_warning(message: string, title?: string): void` — record the message at `warn` and show a toast.
+- `report_success(message: string, title?: string): void` — show a transient success toast without a log record; a failed toast never changes the operation's result.
 
 `frontend/watch.ts`
 
@@ -395,14 +396,15 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `unwatch_all(): void` — stop watching every app, unregister the handlers that expose `unregister`, neutralize the overview callback by clearing the watch set, and stop the backstop timer.
 - `read_auto_update_behavior(appid: AppId): number | undefined` — read the app's current `EAppAutoUpdateBehavior` from the app details store (`window.appDetailsStore.GetAppDetails`), with `GetAppData(...).details` and the app overview store as fallbacks.
 - `apply_auto_update_behavior(appid: AppId, behavior: number): boolean` — write one auto-update behavior through `SetAppAutoUpdateBehavior` and report whether the write succeeded.
+- `app_name(appid: AppId, fallback?: string): string` — return the app's `display_name` from the app store, otherwise a non-empty `fallback`, otherwise `app <appid>`; the settings panel passes the lock record's `name` as the fallback.
 - `unwatch_then_unlock(appid: AppId): Promise<UnlockResult>` — stop watching the app, call `unlock_app`, re-watch the app when the call fails, restore the returned `auto_update_behavior`, and set the result's `auto_update_restored` from the restore outcome.
 - `unwatch_all_then_restore(appids: AppId[]): Promise<RestoreResult>` — stop watching every app, call `restore_all`, re-watch the records the result lists under `failed` (or every given app when the call fails), restore the returned `auto_update` behaviors, and record the failed app ids in the result's `auto_update_failed`.
 
 `frontend/actions.ts`
 
-- `lock_app(appid: AppId, parent?: EventTarget): Promise<void>` — capture the build info set, read the current auto-update behavior, call the backend's `lock_app` with the dumps, set the behavior to `Launch`, and start watching the app; it rolls the lock back when the behavior write fails, and `parent` is the modal window for its failure dialog.
-- `refresh_app(appid: AppId, parent?: EventTarget): Promise<void>` — capture the build info set, call the backend's `refresh_app` with the dumps, and mark the app locked again on success so a subscribing UI reloads its record.
-- `unlock_app(appid: AppId, parent?: EventTarget): Promise<void>` — stop watching the app, call `unlock_app`, and clear the local locked mark on success.
+- `lock_app(appid: AppId, parent?: EventTarget): Promise<void>` — capture the build info set, read the current auto-update behavior, call the backend's `lock_app` with the dumps, set the behavior to `Launch`, start watching the app, and show a success toast; a failed behavior write rolls the lock back without a success toast, and `parent` is the modal window for its failure dialog.
+- `refresh_app(appid: AppId, parent?: EventTarget): Promise<void>` — capture the build info set, call the backend's `refresh_app` with the dumps, mark the app locked again on success so a subscribing UI reloads its record, and show a success toast.
+- `unlock_app(appid: AppId, parent?: EventTarget): Promise<void>` — stop watching the app, call `unlock_app`, clear the local locked mark on success, and show a success toast unless the auto-update restore failed and only the warning toast shows.
 
 `frontend/properties.tsx`
 
