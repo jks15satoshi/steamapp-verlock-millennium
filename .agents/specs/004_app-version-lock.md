@@ -7,7 +7,7 @@ type: feature
 
 ## Summary
 
-For an app whose content Steam alone updates, App Version Lock pins a Steam app to its installed build and prevents Steam from updating it. The feature rewrites the app's manifest metadata so Steam treats the pinned build as current, and it exposes `Lock`, `Unlock`, and `Refresh` actions through a library context menu and a settings panel, with `Restore All` in the panel.
+For an app whose content Steam alone updates, App Version Lock pins a Steam app to its installed build and prevents Steam from updating it. The feature rewrites the app's manifest metadata so Steam treats the pinned build as current, and it exposes `Lock`, `Unlock`, and `Refresh` actions through a library context menu and a settings panel, with `Restore All` in the panel. It also marks a locked app with a `Locked` badge on the app's library game page.
 
 ## Motivation
 
@@ -140,11 +140,21 @@ The panel decides installed state per record by reading `window.appStore.GetAppO
 
 The panel supports multi-select and batch `Refresh` and `Unlock` over the selected records.
 
-The app's Properties window carries a `Steam App Verlock` tab for the app the window shows. The tab shows the lock state, then the lock and refresh times: those times always render, an unlocked app shows a gray `N/A`, and a locked app with no refresh yet shows `Not yet` in the accent color. Below a divider and a `Lock Snapshot` heading, the tab always shows the app id, the locked `buildid`, the depot manifests under a `Depots` list that is collapsed until clicked, and the auto-update behavior; the values a lock record supplies render as a gray `N/A` when there is no record, and these static values render without the accent color. The section carries an `Appmanifest` button that shows the appmanifest's text in a native modal, and, while a record exists, a `Lock File` button that shows the lock record the same way to its left. The `Lock File` button is absent when there is no record. The tab offers `Lock` when the app is not locked and `Refresh` and `Unlock` when it is. It reads the same `list_locked` records and calls the same shared actions as the context menu, and it no-ops when the window's DOM shape changes. It matches the client's native dialog styling through the method of [Spec 7](007_native-ui-style-alignment.md).
+The app's Properties window carries a `Steam App Verlock` tab for the app the window shows. The tab shows the lock state, then the lock and refresh times: those times always render, an unlocked app shows a gray `N/A`, and a locked app with no refresh yet shows `Not yet` in the accent color. The times render through `frontend/time.ts` with the year always included (see [Game Page Badge](#game-page-badge)). Below a divider and a `Lock Snapshot` heading, the tab always shows the app id, the locked `buildid`, the depot manifests under a `Depots` list that is collapsed until clicked, and the auto-update behavior; the values a lock record supplies render as a gray `N/A` when there is no record, and these static values render without the accent color. The section carries an `Appmanifest` button that shows the appmanifest's text in a native modal, and, while a record exists, a `Lock File` button that shows the lock record the same way to its left. The `Lock File` button is absent when there is no record. The tab offers `Lock` when the app is not locked and `Refresh` and `Unlock` when it is. It reads the same `list_locked` records and calls the same shared actions as the context menu, and it no-ops when the window's DOM shape changes. It matches the client's native dialog styling through the method of [Spec 7](007_native-ui-style-alignment.md).
 
 A user-initiated operation that fails reports its failure instead of staying silent: `Lock`, `Refresh`, `Unlock`, the batch and `Restore All` actions, and the data-directory change each open the same native modal, which names the operation and shows the error text with a `Copy error` button; a second failure replaces the open dialog instead of stacking. A warning that degrades but lets the operation complete — a failed action cancel or a failed auto-update restore — shows a transient toast instead. Background work that has no user gesture, such as the reapply path and the startup sync, stays log-only.
 
 The failure dialog, the file content dialog, and the warning toast are built by `frontend/notify.tsx` from the `showModal`, `ConfirmModal`, and `toaster` exports of the Millennium SDK; `frontend/errors.ts` normalizes an error value for both the dialog and the log. The content dialog and the read-failure dialog receive the Properties popup window as the modal's `parent` (see [View File](#view-file)).
+
+### Game Page Badge
+
+The feature marks a locked app on its library game page with a `Locked` badge. The badge sits after the last cell of the page's play bar — the row that carries the native `LAST PLAYED` and `PLAY TIME` cells — and it shows a lock icon, the `Last refreshed` label, and the app's refresh time. The badge renders nothing while the page's app is not locked.
+
+`frontend/gamepage.tsx` owns the badge. It resolves the main window's document from `g_PopupManager`'s `SP Desktop_uid0` popup, with `Millennium.AddWindowCreateHook` and a one-second poll as fallbacks, and it watches that document's body with a `MutationObserver`. It reads the page's app id from the pathname's `/app/<appid>`, and, when the path carries no id, from the page's `library_hero` image, a `data-appid` element, a Steam link, or an app image URL. It marks a page as a game page when the path carries an app id or the document carries a `PLAY TIME` cell or a `library_hero` image.
+
+The badge locates the `PLAY TIME` cell through a recorded class selector, a text match, and a `Panel`-display selector as fallbacks, samples the cell's computed label, value, and icon styles, and merges them over recorded fallback constants. The insertion point is the last cell of the play bar, not the `PLAY TIME` cell, so a page that carries more cells, such as `CLOUD STATUS` and `ACHIEVEMENTS`, keeps the badge on the same row. The badge stays the last cell: when the page renders a later cell after the badge mounts, the watcher moves the badge back to the end of the play bar. The badge sets the play bar's inline `flex-wrap` to `nowrap` while it is mounted and restores the saved value when it unmounts.
+
+The badge reads the locked set and the record through `frontend/locked.ts` and the `list_locked` bridge method, and it subscribes to locked-set changes. It shows the `Last refreshed` label and renders the record's `refreshed_at`, falling back to `locked_at`, as the badge value through `format_client_time` of `frontend/time.ts`, and renders no value when neither is present. The date uses the client language's short month and numeric day, and it carries the year only when the date's year differs from the current year, because the badge passes `current_year_short`; the Properties tab and the settings panel request the default format, which always includes the year. The language comes from `SteamClient.Settings.GetCurrentLanguage`, mapped to a locale tag (`english` to `en`, `schinese` to `zh-CN`, otherwise `en`). The time follows the client's 24-hour clock setting: `frontend/time.ts` reads it once through the `get_clock_format` bridge method, whose backend handler reads `b24HourClock` from the per-user `sharedconfig.vdf`, because the running client exposes the setting through no API. The setting on forces 24-hour, and the setting off or absent follows the language's default; the `SteamClient.FriendSettings` and `SteamClient.Settings` change callbacks stay a best-effort live source. `frontend/time.ts` owns the clock format and the rendering, and the Properties tab and the settings panel share it for their own times. On an app change, a page change, or a disconnect, it unmounts the React root and removes the node. A game page whose DOM shape changed makes `install_gamepage_patch` mount no badge: it logs a warning once for the app and leaves the page unchanged.
 
 ### View File
 
@@ -180,6 +190,7 @@ The frontend records:
 - `could not cancel the action for app <appid>; reapplied and let it proceed` at `warn` when a game action cannot be cancelled;
 - `could not restore the auto-update setting for app <appid>` at `warn` when a behavior restore fails but the unlock or restore completes;
 - `could not read the <target> for app <appid>: <error>` at `error` when `read_file` cannot resolve or read the target file;
+- `game page badge watcher installed` at `info` when `frontend/gamepage.tsx` attaches its observer to the main window, `game page badge mounted for app <appid>` at `info` when the badge mounts, and `game page badge found no anchor for app <appid>` at `warn` when a game page carries no play-bar anchor;
 - `<operation> failed for app <appid>: <error>` at `error` for a failed backend call.
 
 ## Data Root Directory and Settings
@@ -240,6 +251,7 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 | `backend/state.lua` | Locked-app records |
 | `backend/paths.lua` | Data root directory resolution, path validation, appmanifest discovery |
 | `backend/migrate.lua` | Data root directory migration |
+| `backend/clock.lua` | 24-hour clock preference from the Steam config |
 | `frontend/index.tsx` | Plugin entry and UI registration |
 | `frontend/bridge.ts` | Backend RPC wire framing; single JSON-string payloads, with zero-argument methods carrying no payload |
 | `frontend/locked.ts` | Reactive locked-app-id store shared by the menu and settings panel |
@@ -251,6 +263,8 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 | `frontend/menu.tsx` | Library context menu |
 | `frontend/settings.tsx` | Settings panel |
 | `frontend/properties.tsx` | App Properties window tab |
+| `frontend/gamepage.tsx` | Game page badge |
+| `frontend/time.ts` | Shared client date and time formatting |
 
 ### Function List
 
@@ -265,6 +279,9 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `CaptureSet = { ok: true; dumps: Record<AppId, string> } | { ok: false; error: string }` — success carries the base dump and each required DLC app's dump, keyed by app id; failure carries an error.
 - `RequiredAppsResult = Ack & { apps?: AppId[] }` — the `get_required_apps` result; success carries the distinct `dlcappid` values whose installed depot the base `BuildInfo` omits.
 - `BuildInfo = { buildid: string; depots: Record<string, string> }` — a captured or spoofed build state.
+- `BadgeStyle = { label: CSSProperties; value: CSSProperties; icon: { color: string; width: string; height: string; opacity: number } }` — the game page badge's sampled label, value, and icon styles; `CSSProperties` is React's style type.
+- `ClockFormat = { locale: string; hour12: boolean | undefined }` — the plugin's shared date and time inputs; `hour12` is `false` when the client's 24-hour clock setting is on and `undefined` when it is off or unread.
+- `ClientTimeOptions = { current_year_short?: boolean }` — the date options `format_client_time` takes; `current_year_short` omits the year for the current year, and its absence keeps the year.
 - `LockedAppRecord = { version: number; appid: AppId; name: string; manifest_path: string; locked_at: number; refreshed_at?: number; auto_update_behavior?: number; locked_build: BuildInfo; original: string }` — the persisted locked-app record.
 - `DataRoots = { data_root: string; is_default: boolean }` — the resolved data root directory; `is_default` reports whether it resolved from the OS-conventional path (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
 - `MigrateResult = Ack & { data_root?: string; warning?: string; is_default?: boolean }` — the migration result; success carries the new data root directory, `warning` carries a non-fatal cleanup failure, and `is_default` is `true` when an empty `set_data_root` reset the root to the OS-conventional default.
@@ -284,6 +301,7 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `get_required_apps(payload: table) -> RequiredAppsResult` — parse `payload.dump` against the app's branch, read the appmanifest's `InstalledDepots`, and return the distinct `dlcappid` values whose depot is absent from the parsed `BuildInfo`; use discovery for an app with no lock record.
 - `set_data_root(payload: table) -> MigrateResult` — migrate the data root directory to `payload.path`; an empty path resets to the OS-conventional default (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
 - `clear_data_root_config() -> void` — internal; clear the `data_root` config key through `config.delete`, or through `config.set("data_root", nil)` when `config.delete` is unavailable.
+- `get_clock_format(payload: table) -> Ack & { is_24h?: boolean }` — read the client's 24-hour clock preference; `is_24h` is absent when the preference cannot be read.
 
 `backend/vdf.lua`
 
@@ -333,6 +351,10 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 `backend/migrate.lua`
 
 - `move(from: string, to: string) -> MigrateResult` — migrate the lock data to a new root directory; a failure to delete the old `locks/` after the new root path is persisted is reported in the result's `warning`.
+
+`backend/clock.lua`
+
+- `is_24h() -> boolean?` — read `b24HourClock` from the per-user `sharedconfig.vdf` under `MILLENNIUM__STEAM_PATH`, through the `UserRoamingConfigStore` path and the `UserLocalConfigStore` fallback, and return `nil` when the file or the value is absent.
 
 #### Frontend
 
@@ -386,10 +408,25 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 
 - `install_properties_patch(): () => void` — install the App Properties hook and return a disposer; a missing `AddWindowCreateHook` or a changed dialog shape makes the tab a no-op.
 - `VerlockTabContent({ appid }): JSX.Element` — the tab content: the app's lock record, status, locked build, and actions.
-- `format_time(value: number | undefined): string | null` — internal/test interface; render a Unix timestamp in the client locale's medium date and short time, or `null` when it is absent, so the tab chooses between `N/A` and `Not yet`.
+- `format_time(value: number | undefined, format: ClockFormat): string | null` — internal/test interface; render a Unix timestamp through `format_client_time`, or `null` when it is absent, so the tab chooses between `N/A` and `Not yet`.
 - `format_lock_text(content: string): string` — internal/test interface; pretty-print a lock record's JSON at two spaces of indentation, or return the text unchanged when it does not parse as a JSON object.
 - `behavior_label(value: number | undefined): string` — internal/test interface; name an `EAppAutoUpdateBehavior` value.
 - `find_record(records: LockedAppRecord[] | null, appid: AppId): LockedAppRecord | null` — internal/test interface; select the record for one app id.
+
+`frontend/gamepage.tsx`
+
+- `install_gamepage_patch(): () => void` — resolve the main window document, watch it for game pages, and return a disposer that stops the watcher and removes the badge.
+- `LockBadge({ appid, style }): ReactNode` — the game page badge: subscribe to the locked set and the clock format, read the record's refresh time, and render the lock icon, the `Last refreshed` label, and the refresh time, or nothing while the app is not locked.
+- `appid_from_path(path: string): AppId | undefined` — internal/test interface; read the app id from a `/app/<appid>` path.
+- `appid_from_image_src(src: string): AppId | undefined` — internal/test interface; read the app id from a `library_hero` image URL.
+- `merge_style(sampled: Partial<BadgeStyle> | null, fallback: BadgeStyle): BadgeStyle` — internal/test interface; merge a sampled style over the fallback field by field.
+
+`frontend/time.ts`
+
+- `install_clock_format(): void` — read `SteamClient.Settings.GetCurrentLanguage` and register the `SteamClient.FriendSettings` clock callback once.
+- `subscribe_clock_format(listener: () => void): () => void` — subscribe to clock-format changes and return an unsubscribe function.
+- `current_clock_format(): ClockFormat` — internal/test interface; the current language and 24-hour clock inputs.
+- `format_client_time(value: number | undefined, format: ClockFormat, options?: ClientTimeOptions, now?: Date): string | undefined` — internal/test interface; render a Unix timestamp as the client language's short date and time, include the year unless `current_year_short` omits it for the current year, or return `undefined` when the value is absent or non-positive; `now` is a test seam for the current-year check.
 
 #### Bridge
 
@@ -406,6 +443,7 @@ frontend to backend (`backend` FFI bridge)
 - `read_file(payload: { appid: AppId; target: "appmanifest" | "lock" }): Promise<FileContentResult>` — resolve the target file and return its text for the tab's content dialog; a file larger than 512 KiB is refused.
 - `set_data_root(payload: { path: string }): Promise<MigrateResult>` — migrate the data root directory to `path`; an empty `path` resets to the OS-conventional default and clears the `data_root` config key (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
 - `reapply_app(payload: { appid: AppId }): Promise<Ack>` — reapply a locked app's spoof when its appmanifest no longer matches; return `code = "not_installed"` when the app is gone.
+- `get_clock_format(): Promise<Ack & { is_24h?: boolean }>` — read the client's 24-hour clock preference from the Steam config; `is_24h` is absent when the preference cannot be read.
 
 backend to frontend (`millennium.call_frontend_method`)
 
@@ -438,6 +476,12 @@ backend to frontend (`millennium.call_frontend_method`)
 - The host's `showModal` throws when it can fall back to `findSP`, which the Properties popup cannot satisfy — prevention: `frontend/notify.tsx` defaults the modal `parent` to the current window, and the Properties tab passes the popup window, so `showModal` skips the `findSP` fallback.
 - `window.appStore.GetAppOverviewByAppID` and the state flags it reflects are undocumented client internals, so the installed check in the settings panel can be unavailable or wrong — prevention: the panel treats a missing overview or a missing field as not installed, so the record still offers `Unlock`.
 - The app Properties window is an undocumented client internal, so a client update can move its tab list or content area and drop or misplace the tab — prevention: the injection lives in `frontend/properties.tsx`, the active-tab class is derived at runtime, the content area is found relative to the `role='tablist'` and `general_Content` anchors, and a missing anchor or `AddWindowCreateHook` makes the tab a no-op.
+- The library game page is an undocumented client internal, so a client update can move its play bar, rename the `PLAY TIME` cell's class, or change the hero image URL and make the badge find no anchor or the wrong app id — prevention: the app id comes from the pathname, the hero image, a `data-appid` element, a Steam link, or an app image URL in turn, the `PLAY TIME` cell comes from a recorded class selector, a text match, and a `Panel`-display selector in turn, the label, value, and icon styles are sampled at run time over recorded fallbacks, and a missing anchor logs a warning once and leaves the page unchanged.
+- The badge sets the play bar's inline `flex-wrap` to `nowrap` while it is mounted, so a client update that relies on wrapping the play bar can push the row's cells off the page — prevention: the badge saves the container's inline `flex-wrap` on mount and restores it on unmount.
+- The running client exposes the 24-hour clock setting through no API, so the backend reads `b24HourClock` from the per-user `sharedconfig.vdf`, whose path and `FriendsUIJSON` shape are an undocumented client internal, and `SteamClient.Settings.GetCurrentLanguage` resolves asynchronously, so the first render can use the language's default hours and the fallback `en` — prevention: `backend/clock.lua` tries the `UserRoamingConfigStore` path and the `UserLocalConfigStore` fallback and returns `nil` when the file or the value is absent, the clock format starts at `{ locale: "en", hour12: undefined }`, and the `SteamClient.FriendSettings` and `SteamClient.Settings` change callbacks stay a best-effort live source that re-renders the badge.
+- The native icon's tint can live in a `fill` or `stroke` value the svg's computed `color` does not carry, so the badge icon can keep the fallback tint and read brighter than its neighbors — prevention: the badge samples the icon svg's computed `color` and `opacity`, falls back to the label's color and the recorded constants, and a mismatched sample only changes the icon's tint.
+- The native icon's tint can live in a `fill` or `stroke` value the svg's computed `color` does not carry, so the badge icon can keep the fallback tint and read brighter than its neighbors — prevention: the badge samples the icon svg's computed `color` and `opacity`, falls back to the label's color and the recorded constants, and a mismatched sample only changes the icon's tint.
+- The play bar can render a cell, such as `ACHIEVEMENTS`, after the badge mounts, which would leave the badge before that cell — prevention: on every watch pass, `frontend/gamepage.tsx` checks whether the badge is the last cell of the play bar and moves it back to the end when it is not.
 - The feature has no uninstall hook, so removing the plugin leaves the lock records in place and stops the reapply — prevention: `Restore All` restores every record's `original` appmanifest and deletes each record after its appmanifest write succeeds, so running it before uninstalling the plugin deletes every successfully restored record, and a record whose write-back fails stays in place for a retry; uninstalling before running it leaves the lock records in place and stops the reapply.
 - Deleting a record without restoring it leaves an app locked with no restore basis — prevention: `Restore All` deletes a record only after its appmanifest write succeeds, and `Unlock` removes a record whose app is no longer installed only when discovery runs and finds no appmanifest.
 

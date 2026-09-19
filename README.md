@@ -12,6 +12,7 @@ The Steam client offers no way to pin an app to a specific build: it provides on
 
 - Lock an installed app to its current build so Steam stops updating it.
 - `Lock`, `Refresh`, and `Unlock` in the library context menu.
+- A `Locked` badge on a locked app's library game page, showing the last refresh time.
 - A settings panel that lists every locked app, with multi-select batch `Refresh` and `Unlock`, `Restore All`, and a selectable data directory.
 - A background watch that reapplies the lock whenever Steam rewrites the `appmanifest`.
 
