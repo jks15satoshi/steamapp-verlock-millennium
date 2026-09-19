@@ -175,3 +175,26 @@ test("capture_build_info_set fails when a required app cannot be captured", asyn
   expect(result.ok).toBe(false);
   expect(bridge.find("refresh_app")).toHaveLength(0);
 });
+
+test("capture_build_info_set reads an empty apps object as no required DLC apps", async () => {
+  setup([multiDepotDump]);
+  setBackendResponse("get_required_apps", { ok: true, apps: {} });
+  bridge.reset();
+  const result = await settle(capture_build_info_set(APPID), 4000, 20);
+  expect(result.ok).toBe(true);
+  if (result.ok) {
+    expect(result.dumps).toEqual({ [APPID]: multiDepotDump });
+  }
+  expect(commands).toEqual([`app_info_print ${APPID}`]);
+});
+
+test("capture_build_info_set rejects a malformed apps field", async () => {
+  setup([multiDepotDump]);
+  setBackendResponse("get_required_apps", { ok: true, apps: "553852" });
+  bridge.reset();
+  const result = await settle(capture_build_info_set(APPID), 4000, 20);
+  expect(result.ok).toBe(false);
+  if (!result.ok) {
+    expect(result.error).toBe("the backend returned an invalid required-apps response");
+  }
+});

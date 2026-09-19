@@ -353,7 +353,7 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 `frontend/console.ts`
 
 - `capture_build_info(appid: AppId): Promise<CaptureResult>` — run `app_info_print` and sample the spew until the app block appears, then return the raw dump; a sample without the `depots` table is not a candidate, and a capture that never sees the app block fails.
-- `capture_build_info_set(appid: AppId): Promise<CaptureSet>` — capture the base app, call the backend's `get_required_apps`, capture each returned app in turn, and return the dumps keyed by app id; a failed capture fails the set, and a set that exceeds the set time limit fails.
+- `capture_build_info_set(appid: AppId): Promise<CaptureSet>` — capture the base app, call the backend's `get_required_apps`, capture each returned app in turn, and return the dumps keyed by app id; the required list is an array, or the keyless object the backend's `cjson` encoder produces for an empty list, and any other value is an invalid response; a failed capture fails the set, and a set that exceeds the set time limit fails.
 - `capture_then_refresh(appid: AppId): Promise<void>` — call `capture_build_info_set` and, on success, pass the dumps to `refresh_app`; the background-refresh entry point.
 
 `frontend/notify.tsx`

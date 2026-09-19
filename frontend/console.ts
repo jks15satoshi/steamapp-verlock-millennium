@@ -35,6 +35,21 @@ function has_app_block(dump: string, appid: AppId): boolean {
   return dump.includes(`"${appid}"`) && dump.includes('"depots"');
 }
 
+function as_app_list(value: unknown): AppId[] | null {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry));
+  }
+  if (
+    Boolean(value) &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value as Record<string, unknown>).length === 0
+  ) {
+    return [];
+  }
+  return null;
+}
+
 export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
   const command = build_app_info_print_command(appid);
   if (command === null) {
@@ -95,13 +110,14 @@ export async function capture_build_info_set(appid: AppId): Promise<CaptureSet> 
     const result = parse_json(await bridge.get_required_apps(appid, base.dump)) as
       | RequiredAppsResult
       | undefined;
-    if (result?.ok !== true || !Array.isArray(result.apps)) {
+    const apps = result?.ok === true ? as_app_list(result.apps) : null;
+    if (apps === null) {
       return {
         ok: false,
         error: result?.error ?? "the backend returned an invalid required-apps response",
       };
     }
-    required = result.apps.map((value) => String(value));
+    required = apps;
   } catch (error) {
     return { ok: false, error: `could not determine the required apps: ${String(error)}` };
   }
