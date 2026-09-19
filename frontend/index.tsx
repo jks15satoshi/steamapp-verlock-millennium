@@ -1,6 +1,7 @@
 import { IconsModule, definePlugin } from "millennium";
 import { capture_then_refresh } from "./console";
 import { install_gamepage_patch } from "./gamepage";
+import { init_i18n } from "./i18n";
 import { install_menu_patch } from "./menu";
 import { install_properties_patch } from "./properties";
 import SettingsPanel from "./settings";
@@ -20,9 +21,13 @@ export type UnlockResult = Ack & {
   auto_update_restored?: boolean;
 };
 
-export type CaptureResult = { ok: true; appid: AppId; dump: string } | { ok: false; error: string };
+export type CaptureResult =
+  | { ok: true; appid: AppId; dump: string }
+  | { ok: false; error: string; code?: string };
 
-export type CaptureSet = { ok: true; dumps: Record<AppId, string> } | { ok: false; error: string };
+export type CaptureSet =
+  | { ok: true; dumps: Record<AppId, string> }
+  | { ok: false; error: string; code?: string };
 
 export type RequiredAppsResult = Ack & { apps?: AppId[] };
 
@@ -64,6 +69,7 @@ export function request_build_info(appid: string): void {
 }
 
 export default definePlugin(() => {
+  void init_i18n();
   install_clock_format();
   const unpatch_menu = install_menu_patch();
   const unpatch_properties = install_properties_patch();

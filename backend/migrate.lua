@@ -34,10 +34,10 @@ end
 ---@param to string
 ---@return MigrateResult
 local function do_move(from, to)
-    local valid, valid_err = paths.validate(to)
+    local valid, valid_err, valid_code = paths.validate(to)
     if not valid then
         log.warn("refused to migrate the data root: " .. tostring(valid_err))
-        return { ok = false, error = valid_err }
+        return { ok = false, code = valid_code, error = valid_err }
     end
     local from_locks = fs.join(from, "locks")
     local to_locks = fs.join(to, "locks")
@@ -47,20 +47,20 @@ local function do_move(from, to)
         if not copied then
             fs.remove_all(to_locks)
             log.error("migrate failed: " .. tostring(copy_err or "failed to copy the lock data"))
-            return { ok = false, error = copy_err or "failed to copy the lock data" }
+            return { ok = false, code = "migration_failed", error = copy_err or "failed to copy the lock data" }
         end
     end
     local verified, verify_err = verify_locks(to_locks)
     if not verified then
         fs.remove_all(to_locks)
         log.error("migrate failed: " .. tostring(verify_err))
-        return { ok = false, error = verify_err }
+        return { ok = false, code = "migration_failed", error = verify_err }
     end
     local persisted, persist_err = millennium.config.set("data_root", to)
     if not persisted then
         fs.remove_all(to_locks)
         log.error("migrate failed: " .. tostring(persist_err or "failed to persist the data root"))
-        return { ok = false, error = persist_err or "failed to persist the data root" }
+        return { ok = false, code = "migration_failed", error = persist_err or "failed to persist the data root" }
     end
     local result = { ok = true, data_root = to }
     if source_exists then
@@ -81,7 +81,7 @@ end
 ---@return MigrateResult
 local function move(from, to)
     if running then
-        return { ok = false, error = "a data root migration is already in progress" }
+        return { ok = false, code = "migration_in_progress", error = "a data root migration is already in progress" }
     end
     running = true
     state.set_migrating(true)

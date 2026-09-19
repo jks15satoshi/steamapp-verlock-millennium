@@ -11,6 +11,7 @@ import {
   type ClockFormat,
 } from "./time";
 import * as bridge from "./bridge";
+import { t } from "./i18n";
 
 const APPID_PATTERN = /\/app\/(\d+)/;
 const PLAY_TIME_LABEL = /^(play\s*time|playtime|游戏时间|遊戲時間|总时数|總時數)$/i;
@@ -348,7 +349,7 @@ export function LockBadge({ appid, style }: { appid: AppId; style: BadgeStyle })
         <LockIcon width={style.icon.width} height={style.icon.height} />
       </div>
       <div style={TEXT_STYLE}>
-        <div style={style.label}>Last refreshed</div>
+        <div style={style.label}>{t("gamepage.last_refreshed")}</div>
         {refreshed !== undefined ? <div style={style.value}>{refreshed}</div> : null}
       </div>
     </div>

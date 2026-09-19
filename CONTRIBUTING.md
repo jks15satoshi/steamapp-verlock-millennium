@@ -87,3 +87,5 @@ Open an issue with the matching form: `Bug`, `Feature`, or `Task`. The forms ask
 - [Spec 4](.agents/specs/004_app-version-lock.md) — the plugin's behavior.
 - [Spec 5](.agents/specs/005_testing-strategy.md) — the test organization.
 - [Spec 6](.agents/specs/006_logging.md) — the logging mechanism.
+- [Spec 7](.agents/specs/007_native-ui-style-alignment.md) — matching the client's native styling.
+- [Spec 8](.agents/specs/008_localization.md) — the localization catalogs and error codes.

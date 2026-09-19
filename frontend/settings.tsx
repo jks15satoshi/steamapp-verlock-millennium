@@ -6,6 +6,7 @@ import { app_name, reapply_all, unwatch_all_then_restore, unwatch_then_unlock } 
 import { as_record_list, sync_locked_ids } from "./locked";
 import * as bridge from "./bridge";
 import { log_error, log_warn } from "./log";
+import { current_locale_tag, refresh_locale, resolve_error, t } from "./i18n";
 import { format_error, report_failure, report_success, show_failure_dialog } from "./notify";
 import { current_clock_format, format_client_time, subscribe_clock_format } from "./time";
 import type { ClockFormat } from "./time";
@@ -94,7 +95,9 @@ function is_ack(value: unknown): value is Ack {
 }
 
 function format_time(value: number | undefined, format: ClockFormat): string {
-  return format_client_time(value, format) ?? "Never";
+  return (
+    format_client_time(value, { ...format, locale: current_locale_tag() }) ?? t("common.never")
+  );
 }
 
 function is_installed(appid: AppId): boolean {
@@ -120,13 +123,17 @@ export default function SettingsPanel() {
 
   useEffect(() => subscribe_clock_format(() => set_clock(current_clock_format())), []);
 
+  useEffect(() => {
+    void refresh_locale();
+  }, []);
+
   const reload = useCallback(async () => {
     try {
       const list = parse_json(await bridge.list_locked());
       const records = as_record_list(list);
       if (is_ack(list) && !list.ok) {
         log_warn(`could not load the lock state: ${list.error ?? "unavailable"}`);
-        set_status("Lock state is temporarily unavailable");
+        set_status(t("settings.status.load_unavailable"));
       } else {
         set_records(records ?? []);
         sync_locked_ids(list);
@@ -140,7 +147,7 @@ export default function SettingsPanel() {
       }
     } catch (error) {
       log_error(`failed to load the lock state: ${String(error)}`);
-      set_status("Failed to load lock state");
+      set_status(t("settings.status.load_failed"));
     }
   }, []);
 
@@ -166,26 +173,28 @@ export default function SettingsPanel() {
     try {
       await task();
     } catch (error) {
-      set_status("Operation failed");
-      report_failure("Operation failed", format_error(error));
+      set_status(t("settings.status.operation_failed"));
+      report_failure(t("settings.status.operation_failed"), format_error(error));
     } finally {
       set_busy(false);
     }
   }
 
   async function refresh_one(appid: AppId): Promise<boolean> {
+    const title = t("settings.dialog.refresh_failed", { appid });
     const captured = await capture_build_info_set(appid);
     if (!captured.ok) {
-      set_status(captured.error);
-      show_failure_dialog(`Refresh failed for app ${appid}`, captured.error);
+      const message = resolve_error(captured);
+      set_status(message);
+      show_failure_dialog(title, message);
       return false;
     }
 
     const refreshed = parse_json(await bridge.refresh_app(appid, captured.dumps));
     if (is_ack(refreshed) && !refreshed.ok) {
-      const message = refreshed.error ?? "Refresh failed";
+      const message = resolve_error(refreshed);
       set_status(message);
-      show_failure_dialog(`Refresh failed for app ${appid}`, message);
+      show_failure_dialog(title, message);
       return false;
     }
     return true;
@@ -194,13 +203,13 @@ export default function SettingsPanel() {
   async function unlock_one(appid: AppId): Promise<boolean> {
     const result = await unwatch_then_unlock(appid);
     if (!result.ok) {
-      const message = result.error ?? "Unlock failed";
+      const message = resolve_error(result);
       set_status(message);
-      show_failure_dialog(`Unlock failed for app ${appid}`, message);
+      show_failure_dialog(t("settings.dialog.unlock_failed", { appid }), message);
       return false;
     }
     if (result.auto_update_restored === false) {
-      set_status(`Unlocked ${appid}, but the auto-update setting could not be restored`);
+      set_status(t("settings.status.unlocked_auto_update_failed", { appid }));
       return false;
     }
     return true;
@@ -216,7 +225,7 @@ export default function SettingsPanel() {
         }
       }
       if (count > 0) {
-        report_success(`Refreshed ${count} app(s)`);
+        report_success(t("settings.status.refreshed_count", { count }));
       }
       await reload();
     });
@@ -232,7 +241,7 @@ export default function SettingsPanel() {
         }
       }
       if (count > 0) {
-        report_success(`Unlocked ${count} app(s)`);
+        report_success(t("settings.status.unlocked_count", { count }));
       }
       await reload();
     });
@@ -251,20 +260,34 @@ export default function SettingsPanel() {
         ).map((appid) => String(appid));
         const notes: string[] = [];
         if (failed.length > 0) {
-          notes.push(`${failed.length} failed: ${failed.join(", ")}`);
+          notes.push(
+            t("settings.status.restore_failed_count", {
+              appids: failed.join(", "),
+              count: failed.length,
+            }),
+          );
         }
         if (auto_update_failed.length > 0) {
-          notes.push(`auto-update restore failed for ${auto_update_failed.join(", ")}`);
+          notes.push(
+            t("settings.status.auto_update_restore_failed", {
+              appids: auto_update_failed.join(", "),
+            }),
+          );
         }
         if (notes.length > 0) {
-          set_status(`Restored ${restore.restored ?? 0} app(s); ${notes.join("; ")}`);
+          set_status(
+            t("settings.status.restored_partial", {
+              count: restore.restored ?? 0,
+              notes: notes.join("; "),
+            }),
+          );
         } else {
-          set_status("Restored all locked apps");
+          set_status(t("settings.status.restored_all"));
         }
       } else {
-        const message = restore.error ?? "Restore All failed";
+        const message = resolve_error(restore);
         set_status(message);
-        show_failure_dialog("Restore All failed", message);
+        show_failure_dialog(t("settings.dialog.restore_failed"), message);
       }
       await reload();
     });
@@ -274,17 +297,17 @@ export default function SettingsPanel() {
     void run(async () => {
       const result = parse_json(await bridge.set_data_root(next_path));
       if (is_ack(result) && !result.ok) {
-        const message = result.error ?? "Data directory change failed";
+        const message = resolve_error(result);
         set_status(message);
-        show_failure_dialog("Data directory change failed", message);
+        show_failure_dialog(t("settings.dialog.data_root_failed"), message);
         return;
       }
       const migrated = result as MigrateResult | undefined;
       await reload();
       set_status(
         migrated?.data_root
-          ? `Data directory set to ${migrated.data_root}`
-          : "Data directory updated",
+          ? t("settings.status.data_root_set", { path: migrated.data_root })
+          : t("settings.status.data_root_updated"),
       );
     });
   }
@@ -311,20 +334,20 @@ export default function SettingsPanel() {
 
   return (
     <div ref={page_ref} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      <SectionHeader>Locked Apps</SectionHeader>
+      <SectionHeader>{t("settings.locked_apps")}</SectionHeader>
       {records.length === 0 ? (
-        <div style={MUTED_TEXT_STYLE}>No locked apps.</div>
+        <div style={MUTED_TEXT_STYLE}>{t("settings.no_locked_apps")}</div>
       ) : (
         <>
           <div style={ACTION_ROW_STYLE}>
             <div style={BUTTON_HALF_STYLE}>
               <ActionButton button_class={button_class} disabled={busy} onClick={batch_refresh}>
-                Refresh selected
+                {t("settings.refresh_selected")}
               </ActionButton>
             </div>
             <div style={BUTTON_HALF_STYLE}>
               <ActionButton button_class={button_class} disabled={busy} onClick={batch_unlock}>
-                Unlock selected
+                {t("settings.unlock_selected")}
               </ActionButton>
             </div>
             {busy ? <Spinner /> : null}
@@ -337,10 +360,10 @@ export default function SettingsPanel() {
                   checked={all_selected}
                   controlled
                   onChange={toggle_all}
-                  tooltip="Select all"
+                  tooltip={t("settings.select_all")}
                 />
               </div>
-              <div style={HEADER_CELL_STYLE}>NAME</div>
+              <div style={HEADER_CELL_STYLE}>{t("settings.name_column")}</div>
             </div>
             {records.map((record) => {
               const installed = is_installed(record.appid);
@@ -358,15 +381,17 @@ export default function SettingsPanel() {
                     </span>
                   </div>
                   <div style={{ ...MUTED_TEXT_STYLE, lineHeight: "20px" }}>
-                    <div>Locked: {format_time(record.locked_at, clock)}</div>
-                    <div>Refreshed: {format_time(record.refreshed_at, clock)}</div>
-                    <div>Installed: {installed ? "Yes" : "No"}</div>
-                  </div>
-                  {installed ? null : (
-                    <div style={MUTED_TEXT_STYLE}>
-                      This app is no longer installed; Unlock removes the orphaned lock record.
+                    <div>
+                      {t("settings.locked_at")} {format_time(record.locked_at, clock)}
                     </div>
-                  )}
+                    <div>
+                      {t("settings.refreshed_at")} {format_time(record.refreshed_at, clock)}
+                    </div>
+                    <div>
+                      {t("settings.installed")} {installed ? t("common.yes") : t("common.no")}
+                    </div>
+                  </div>
+                  {installed ? null : <div style={MUTED_TEXT_STYLE}>{t("settings.orphaned")}</div>}
                   <div style={ACTION_ROW_STYLE}>
                     {installed ? (
                       <div style={BUTTON_HALF_STYLE}>
@@ -376,13 +401,17 @@ export default function SettingsPanel() {
                           onClick={() =>
                             void run(async () => {
                               if (await refresh_one(record.appid)) {
-                                report_success(`Refreshed ${app_name(record.appid, record.name)}`);
+                                report_success(
+                                  t("actions.refreshed_success", {
+                                    name: app_name(record.appid, record.name),
+                                  }),
+                                );
                               }
                               await reload();
                             })
                           }
                         >
-                          Refresh
+                          {t("menu.refresh")}
                         </ActionButton>
                       </div>
                     ) : null}
@@ -393,13 +422,17 @@ export default function SettingsPanel() {
                         onClick={() =>
                           void run(async () => {
                             if (await unlock_one(record.appid)) {
-                              report_success(`Unlocked ${app_name(record.appid, record.name)}`);
+                              report_success(
+                                t("actions.unlocked_success", {
+                                  name: app_name(record.appid, record.name),
+                                }),
+                              );
                             }
                             await reload();
                           })
                         }
                       >
-                        Unlock
+                        {t("menu.unlock")}
                       </ActionButton>
                     </div>
                   </div>
@@ -412,21 +445,21 @@ export default function SettingsPanel() {
 
       <SectionDivider color={divider} />
 
-      <SectionHeader>Maintenance</SectionHeader>
+      <SectionHeader>{t("settings.maintenance")}</SectionHeader>
       <div style={ACTION_ROW_STYLE}>
         <div style={BUTTON_FULL_STYLE}>
           <ActionButton button_class={button_class} disabled={busy} onClick={restore_all}>
-            Restore All
+            {t("settings.restore_all")}
           </ActionButton>
         </div>
       </div>
 
       <SectionDivider color={divider} />
 
-      <SectionHeader>Data Directory</SectionHeader>
+      <SectionHeader>{t("settings.data_directory")}</SectionHeader>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         <TextField
-          label="Data root directory"
+          label={t("settings.data_root_label")}
           value={path_draft}
           onChange={(event) => set_path_draft(event.target.value)}
         />
@@ -437,7 +470,7 @@ export default function SettingsPanel() {
               disabled={busy}
               onClick={() => apply_root(path_draft)}
             >
-              Change
+              {t("settings.change")}
             </ActionButton>
           </div>
           <div style={BUTTON_HALF_STYLE}>
@@ -449,7 +482,7 @@ export default function SettingsPanel() {
                 apply_root("");
               }}
             >
-              Reset to Default
+              {t("settings.reset_to_default")}
             </ActionButton>
           </div>
         </div>
@@ -464,7 +497,7 @@ export default function SettingsPanel() {
                 }
               }}
             >
-              Open Folder
+              {t("settings.open_folder")}
             </ActionButton>
           </div>
         </div>

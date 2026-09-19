@@ -67,10 +67,10 @@ local function path(appid)
     return fs.join(locks_directory(), tostring(appid) .. ".lock")
 end
 
----@return LockedAppRecord[]|nil, string|nil
+---@return LockedAppRecord[]|nil, string|nil, string|nil
 local function list()
     if migrating then
-        return nil, "a data root migration is in progress"
+        return nil, "a data root migration is in progress", "migration_in_progress"
     end
     local entries = fs.list(locks_directory())
     local records = {}
@@ -89,10 +89,10 @@ local function list()
 end
 
 ---@param appid string
----@return LockedAppRecord|nil, string|nil
+---@return LockedAppRecord|nil, string|nil, string|nil
 local function read(appid)
     if migrating then
-        return nil, "a data root migration is in progress"
+        return nil, "a data root migration is in progress", "migration_in_progress"
     end
     local content = utils.read_file(path(appid))
     if content == nil then
@@ -100,30 +100,30 @@ local function read(appid)
     end
     local ok, decoded = pcall(json.decode, content)
     if not ok or type(decoded) ~= "table" then
-        return nil, "the lock record is malformed"
+        return nil, "the lock record is malformed", "record_read_failed"
     end
     if decoded.version ~= 1 then
-        return nil, "the lock record has an unsupported version"
+        return nil, "the lock record has an unsupported version", "record_read_failed"
     end
     if not has_required_fields(decoded) then
-        return nil, "the lock record is incomplete"
+        return nil, "the lock record is incomplete", "record_read_failed"
     end
     return decoded
 end
 
 ---@param record LockedAppRecord
----@return boolean, string|nil
+---@return boolean, string|nil, string|nil
 local function write(record)
     if migrating then
-        return false, "a data root migration is in progress"
+        return false, "a data root migration is in progress", "migration_in_progress"
     end
     if type(record) ~= "table" or record.appid == nil then
-        return false, "a lock record with an appid is required"
+        return false, "a lock record with an appid is required", "record_persist_failed"
     end
     local directory = locks_directory()
     local created, create_err = fs.create_directories(directory)
     if not created and not fs.is_directory(directory) then
-        return false, create_err or "the lock directory cannot be created"
+        return false, create_err or "the lock directory cannot be created", "record_persist_failed"
     end
     local target = path(record.appid)
     local temporary = target .. "." .. tostring(utils.uuid()) .. ".tmp"
@@ -131,12 +131,12 @@ local function write(record)
     local written, write_err = utils.write_file(temporary, encoded)
     if not written then
         fs.remove(temporary)
-        return false, write_err or "failed to write the lock record"
+        return false, write_err or "failed to write the lock record", "record_persist_failed"
     end
     local renamed, rename_err = fs.rename(temporary, target)
     if not renamed then
         fs.remove(temporary)
-        return false, rename_err or "failed to replace the lock record"
+        return false, rename_err or "failed to replace the lock record", "record_persist_failed"
     end
     return true
 end

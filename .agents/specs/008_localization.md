@@ -35,10 +35,13 @@ A message key is lowercase `snake_case` segments separated by `.`. The first seg
 
 | Namespace | Covers | Examples |
 |---|---|---|
-| `menu.*` | Library context menu | `menu.lock`, `menu.unlock`, `menu.state.locked` |
+| `menu.*` | Library context menu, and the shared `Lock`, `Refresh`, and `Unlock` labels | `menu.lock`, `menu.unlock`, `menu.state.locked` |
 | `gamepage.*` | Library game page badge | `gamepage.last_refreshed` |
 | `settings.*` | Settings panel labels, buttons, and field captions | `settings.locked_apps`, `settings.restore_all`, `settings.data_root_label` |
 | `settings.status.*` | Settings panel status messages | `settings.status.load_failed`, `settings.status.restored_all` |
+| `properties.*` | App Properties tab labels and behavior names | `properties.lock_snapshot`, `properties.behavior.launch` |
+| `dialog.*` | Dialog controls shared by the failure and content dialogs | `dialog.copy_error`, `dialog.close` |
+| `actions.*` | Operation titles, success toasts, and rollback warnings | `actions.lock_failed`, `actions.locked_success` |
 | `common.*` | Short words shared across surfaces | `common.yes`, `common.no`, `common.never`, `common.unknown` |
 | `error.*` | Failure messages, one key per backend error code | `error.not_installed`, `error.manifest_write_failed` |
 
@@ -58,9 +61,9 @@ The plugin implements no plural rules. A message that embeds a count is phrased 
 
 ### Frontend Wiring
 
-`frontend/index.tsx` calls `init_i18n()` when the plugin loads, and the settings panel re-resolves the language when it mounts, so a language change shows after the panel is reopened. `frontend/menu.tsx` and `frontend/settings.tsx` replace every user-visible literal and every assembled status string with a `t(...)` call. `frontend/gamepage.tsx` replaces the badge's `Last refreshed` label with a `t("gamepage.last_refreshed")` call; the formatted timestamp under it is produced by `frontend/time.ts` and is not a message. A failure message the frontend assembles from a value, such as an app id, passes the value as an interpolation parameter instead of concatenating it.
+`frontend/index.tsx` calls `init_i18n()` when the plugin loads, and the settings panel calls `refresh_locale()` when it mounts, so a language change shows after the panel is reopened. `frontend/menu.tsx`, `frontend/settings.tsx`, `frontend/properties.tsx`, `frontend/notify.tsx`, and `frontend/actions.ts` replace every user-visible literal and every assembled status string with a `t(...)` call. `frontend/gamepage.tsx` replaces the badge's `Last refreshed` label with a `t("gamepage.last_refreshed")` call; the formatted timestamp under it is produced by `frontend/time.ts` and is not a message. A failure message the frontend assembles from a value, such as an app id, passes the value as an interpolation parameter instead of concatenating it.
 
-`frontend/settings.tsx` formats a timestamp with `Date.prototype.toLocaleString` and passes a language tag for the selected catalog — `en` for English and `zh-CN` for Simplified Chinese — so the date follows the same language as the surrounding text.
+`frontend/settings.tsx` formats a timestamp with `format_client_time` and passes a language tag for the selected catalog — `en` for English and `zh-CN` for Simplified Chinese — so the date follows the same language as the surrounding text. The group label `Steam App Verlock` and the properties tab label of the same text stay untranslated.
 
 ### Backend Error Codes
 
@@ -72,11 +75,8 @@ Every backend operation reports a failure as the `Ack` envelope of [Spec 4](004_
 | `invalid_behavior` | `auto_update_behavior` is present but not a number. |
 | `invalid_target` | A `read_file` payload's `target` is neither `appmanifest` nor `lock`. |
 | `build_info_required` | A captured-dump payload carries no `dump`. |
-| `store_failed` | The backend cannot persist the captured dump. |
-| `no_cached_build_info` | A lock or refresh finds no captured dump for the app. |
 | `dump_parse_failed` | The captured dump does not parse. |
 | `dump_validation_failed` | The parsed dump lacks a required field or carries an invalid depot manifest. |
-| `cache_unavailable` | The cache root directory cannot be resolved. |
 | `already_locked` | A lock targets an app that already has a record. |
 | `not_locked` | A refresh, unlock, or reapply targets an app with no record. |
 | `not_installed` | Discovery finds no appmanifest for the app. |
@@ -85,6 +85,7 @@ Every backend operation reports a failure as the `Ack` envelope of [Spec 4](004_
 | `cannot_parse_manifest` | The appmanifest does not parse. |
 | `manifest_write_failed` | The appmanifest write or rename fails. |
 | `record_persist_failed` | The lock record cannot be written. |
+| `record_read_failed` | A lock record exists but does not decode or lacks a required field. |
 | `operation_in_progress` | Another operation holds the app's write serialization. |
 | `record_removed` | A reapply finds the lock record removed after the reapply began. |
 | `restore_in_progress` | A restore or a migration already runs. |
@@ -94,12 +95,13 @@ Every backend operation reports a failure as the `Ack` envelope of [Spec 4](004_
 | `migration_in_progress` | A data-root migration already runs. |
 | `migration_failed` | A migration cannot copy, verify, or persist the lock data. |
 | `unknown_method` | The bridge receives a method name its dispatch table lacks. |
+| `read_failed` | `read_file` cannot resolve or read the target file, or the file exceeds the display limit. |
+| `steam_path_unavailable` | Discovery cannot run because `MILLENNIUM__STEAM_PATH` is absent. |
 | `console_unavailable` | The Steam console API is absent, so a capture cannot start. |
 | `capture_timeout` | A capture's time limit expires with no non-empty dump. |
 | `invalid_response` | A bridge response is not an `Ack`. |
 | `unlock_failed` | The frontend's unlock path catches a rejected or invalid bridge call. |
 | `restore_all_failed` | The frontend's restore path catches a rejected or invalid bridge call. |
-| `read_failed` | `read_file` cannot resolve or read the target file, or the file exceeds the display limit. |
 
 A code names the failure, not the operation that hit it. `not_installed` therefore serves lock, refresh, unlock, reapply, and Restore All alike, and the frontend displays the same message for each.
 
@@ -109,7 +111,7 @@ A code names the failure, not the operation that hit it. `not_installed` therefo
 
 ### Scope
 
-This spec covers the plugin's user-facing text: the library context menu, the settings panel, the library game page badge, and the failure messages the surfaces display. It excludes the plugin's log messages, which are developer diagnostics and stay in English under [Spec 6](006_logging.md); the plugin manifest's `name` and `description`; and the repository's Markdown, which the bilingual `README.md` and `README.zh-CN.md` already cover.
+This spec covers the plugin's user-facing text: the library context menu, the settings panel, the app Properties tab, the library game page badge, the failure and content dialogs, the operation toasts, and the failure messages the surfaces display. It excludes the plugin's log messages, which are developer diagnostics and stay in English under [Spec 6](006_logging.md); the plugin manifest's `name` and `description`; the group label `Steam App Verlock`; and the repository's Markdown, which the bilingual `README.md` and `README.zh-CN.md` already cover.
 
 ## Implementation Plan
 
@@ -122,8 +124,11 @@ The plugin adds three frontend files and changes the files below. The frontend e
 | `frontend/i18n.ts` | New; language selection, `t`, error resolution |
 | `frontend/index.tsx` | Call `init_i18n()` when the plugin loads |
 | `frontend/menu.tsx` | Replace every literal with `t(...)` |
-| `frontend/settings.tsx` | Replace every literal and status string with `t(...)`; re-resolve the language on mount |
+| `frontend/settings.tsx` | Replace every literal and status string with `t(...)`; call `refresh_locale()` on mount; format dates with `current_locale_tag()` |
 | `frontend/gamepage.tsx` | Replace the badge's `Last refreshed` label with `t("gamepage.last_refreshed")` |
+| `frontend/properties.tsx` | Replace every label and behavior name with `t(...)` |
+| `frontend/notify.tsx` | Replace the dialog controls and fallback text with `t(...)` |
+| `frontend/actions.ts` | Replace the operation titles, success toasts, and rollback warnings with `t(...)` |
 | `frontend/console.ts` | Carry a `code` on each capture failure |
 | `frontend/watch.ts` | Carry a `code` on each unlock and restore failure |
 | `backend/main.lua` | Carry a `code` on each user-visible failure |
@@ -149,9 +154,11 @@ The plugin adds three frontend files and changes the files below. The frontend e
 `frontend/i18n.ts`
 
 - `init_i18n(): Promise<void>` — resolve the Steam client's language through `SteamClient.Settings.GetCurrentLanguage` and select the matching catalog; resolve English on an unknown language, a rejected call, or an absent `Settings` object, and do nothing on a later call.
+- `refresh_locale(): Promise<void>` — re-resolve the client's language and select the matching catalog; keep the current catalog when the call is rejected or returns an unknown language, so a transient failure never demotes a translated user to English.
 - `t(key: MessageKey, params?: Record<string, string | number>): string` — resolve one message key through the selected catalog, the English catalog, and the key itself, then interpolate the given parameters.
 - `resolve_error(result: Ack): string` — resolve a failed `Ack` to a localized message through its `code`, its `error`, and `t("error.unknown")`, in that order.
 - `current_locale(): string` — internal/test interface; return the selected catalog's language short name.
+- `current_locale_tag(): string` — internal/test interface; return the `Intl` language tag for the selected catalog (`en` or `zh-CN`).
 - `set_locale(language: string): void` — internal/test interface; select a catalog by language short name, resolving an unknown name to English.
 - `MessageKey` — the union of the source catalog's keys, derived from `english.json`.
 

@@ -3,6 +3,7 @@ import type { Ack, AppId, RestoreResult, UnlockResult } from "./index";
 import * as bridge from "./bridge";
 import { capture_build_info_set } from "./console";
 import { as_record_list } from "./locked";
+import { t } from "./i18n";
 import { log_error, log_warn } from "./log";
 import { report_warning } from "./notify";
 
@@ -154,7 +155,7 @@ async function handle_game_action_start(
   }
 
   if (!cancelled) {
-    report_warning(`could not cancel the action for app ${appid}; reapplied and let it proceed`);
+    report_warning(t("actions.cancel_failed", { appid }));
   }
 
   await reapply(appid);
@@ -330,14 +331,14 @@ export function app_name(appid: AppId, fallback?: string): string {
   if (typeof fallback === "string" && fallback.trim() !== "") {
     return fallback;
   }
-  return `app ${appid}`;
+  return t("common.app_fallback", { appid });
 }
 
 function restore_behaviors(entries: { appid: AppId; behavior: number }[] | undefined): AppId[] {
   const failed: AppId[] = [];
   for (const entry of Array.isArray(entries) ? entries : []) {
     if (!apply_auto_update_behavior(entry.appid, entry.behavior)) {
-      report_warning(`could not restore the auto-update setting for app ${entry.appid}`);
+      report_warning(t("actions.auto_update_restore_failed_app", { appid: entry.appid }));
       failed.push(entry.appid);
     }
   }
@@ -352,20 +353,22 @@ export async function unwatch_then_unlock(appid: AppId): Promise<UnlockResult> {
   } catch (error) {
     log_error(`unlock failed for app ${appid}: ${String(error)}`);
     watch_app(appid);
-    return { ok: false, error: "unlock failed" };
+    return { ok: false, code: "unlock_failed", error: "unlock failed" };
   }
   if (!is_ack(result) || !result.ok) {
     watch_app(appid);
     if (!is_ack(result)) {
       log_error(`unlock failed for app ${appid}: the backend returned an invalid response`);
     }
-    return is_ack(result) ? (result as UnlockResult) : { ok: false, error: "unlock failed" };
+    return is_ack(result)
+      ? (result as UnlockResult)
+      : { ok: false, code: "unlock_failed", error: "unlock failed" };
   }
   const unlock = result as UnlockResult;
   if (typeof unlock.auto_update_behavior === "number") {
     unlock.auto_update_restored = apply_auto_update_behavior(appid, unlock.auto_update_behavior);
     if (!unlock.auto_update_restored) {
-      report_warning(`could not restore the auto-update setting for app ${appid}`);
+      report_warning(t("actions.auto_update_restore_failed_app", { appid }));
     }
   } else {
     unlock.auto_update_restored = true;
@@ -383,7 +386,13 @@ export async function unwatch_all_then_restore(appids: AppId[]): Promise<Restore
     for (const appid of appids) {
       watch_app(appid);
     }
-    return { ok: false, error: "restore all failed", restored: 0, failed: [] };
+    return {
+      ok: false,
+      code: "restore_all_failed",
+      error: "restore all failed",
+      restored: 0,
+      failed: [],
+    };
   }
   if (!is_ack(result) || !result.ok) {
     for (const appid of appids) {
@@ -394,7 +403,13 @@ export async function unwatch_all_then_restore(appids: AppId[]): Promise<Restore
     }
     return is_ack(result)
       ? (result as RestoreResult)
-      : { ok: false, error: "restore all failed", restored: 0, failed: [] };
+      : {
+          ok: false,
+          code: "restore_all_failed",
+          error: "restore all failed",
+          restored: 0,
+          failed: [],
+        };
   }
   const restore = result as RestoreResult;
   const failed = Array.isArray(restore.failed) ? restore.failed : [];

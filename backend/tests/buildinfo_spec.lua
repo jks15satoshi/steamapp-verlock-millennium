@@ -106,9 +106,10 @@ describe("buildinfo", function()
     end)
 
     it("rejects an empty dump", function()
-        local info, err = buildinfo.parse(buildinfo.clean(support.read_fixture("app_info_print_empty.txt")))
+        local info, err, code = buildinfo.parse(buildinfo.clean(support.read_fixture("app_info_print_empty.txt")))
         assert.is_nil(info)
         assert.is_string(err)
+        assert.equals("dump_parse_failed", code)
     end)
 
     it("accepts a complete BuildInfo", function()
@@ -118,8 +119,10 @@ describe("buildinfo", function()
     end)
 
     it("rejects a BuildInfo without a buildid", function()
-        local ok = buildinfo.validate({ depots = { ["441"] = "7588696787324571854" } })
+        local ok, err, code = buildinfo.validate({ depots = { ["441"] = "7588696787324571854" } })
         assert.is_true(support.is_failure(ok))
+        assert.is_string(err)
+        assert.equals("dump_validation_failed", code)
     end)
 
     it("rejects a BuildInfo without depots", function()

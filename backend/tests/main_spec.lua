@@ -146,7 +146,7 @@ describe("main", function()
         assert.is_table(ack)
         assert.is_false(ack.ok)
         assert.equals("a build info dump is required", ack.error)
-        assert.is_nil(ack.code)
+        assert.equals("build_info_required", ack.code)
     end)
 
     it("fails lock_app for an echo-only dump", function()

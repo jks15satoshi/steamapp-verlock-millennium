@@ -55,6 +55,43 @@ test("format_lock_text returns the text unchanged when it is not a JSON object",
   expect(format_lock_text("42")).toBe("42");
   expect(format_lock_text('"text"')).toBe('"text"');
   expect(format_lock_text("null")).toBe("null");
+  expect(format_lock_text("[1, 2]")).toBe("[1, 2]");
+});
+
+test("format_lock_text orders the record fields regardless of the stored order", () => {
+  const shuffled = {
+    original: "appmanifest text",
+    locked_build: { depots: { "441": "7588696787324571854" }, buildid: "12345678" },
+    name: "Team Fortress 2",
+    version: 1,
+    locked_at: 1726000000,
+    manifest_path: "/steam/steamapps/appmanifest_440.acf",
+    appid: "440",
+    refreshed_at: 1726003600,
+    auto_update_behavior: 1,
+  };
+  const pretty = format_lock_text(JSON.stringify(shuffled));
+  expect(Object.keys(JSON.parse(pretty))).toEqual([
+    "version",
+    "appid",
+    "name",
+    "manifest_path",
+    "locked_at",
+    "refreshed_at",
+    "auto_update_behavior",
+    "locked_build",
+    "original",
+  ]);
+  expect(Object.keys(JSON.parse(pretty).locked_build)).toEqual(["buildid", "depots"]);
+  expect(JSON.parse(pretty)).toEqual(record);
+});
+
+test("format_lock_text appends an unknown record field after the known fields", () => {
+  const extra = { ...record, zz_extra: "value" };
+  const pretty = format_lock_text(JSON.stringify(extra));
+  const keys = Object.keys(JSON.parse(pretty));
+  expect(keys[keys.length - 1]).toBe("zz_extra");
+  expect(JSON.parse(pretty)).toEqual(extra);
 });
 
 test("behavior_label maps the known behaviors and falls back", () => {

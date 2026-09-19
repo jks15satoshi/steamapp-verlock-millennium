@@ -12,6 +12,7 @@ import type { AppId } from "./index";
 import { reapply_all } from "./watch";
 import { is_locked, refresh_locked_ids, subscribe_locked } from "./locked";
 import { lock_app, refresh_app, unlock_app } from "./actions";
+import { t } from "./i18n";
 
 const GROUP_KEY = "steamapp-verlock";
 
@@ -89,7 +90,7 @@ function LockedMenuGroup({ appid }: { appid: AppId }) {
   return (
     <MenuGroup label="Steam App Verlock">
       <MenuItem key={`${GROUP_KEY}-state`} disabled>
-        {locked ? "Locked" : "Not locked"}
+        {locked ? t("menu.state.locked") : t("menu.state.unlocked")}
       </MenuItem>
       <MenuItem
         key={`${GROUP_KEY}-lock`}
@@ -98,7 +99,7 @@ function LockedMenuGroup({ appid }: { appid: AppId }) {
           void lock_app(appid, window);
         }}
       >
-        Lock
+        {t("menu.lock")}
       </MenuItem>
       <MenuItem
         key={`${GROUP_KEY}-refresh`}
@@ -107,7 +108,7 @@ function LockedMenuGroup({ appid }: { appid: AppId }) {
           void refresh_app(appid, window);
         }}
       >
-        Refresh
+        {t("menu.refresh")}
       </MenuItem>
       <MenuItem
         key={`${GROUP_KEY}-unlock`}
@@ -116,7 +117,7 @@ function LockedMenuGroup({ appid }: { appid: AppId }) {
           void unlock_app(appid, window);
         }}
       >
-        Unlock
+        {t("menu.unlock")}
       </MenuItem>
     </MenuGroup>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import * as millennium from "millennium";
 import { format_error } from "./errors";
+import { t } from "./i18n";
 import { log_error, log_warn } from "./log";
 
 export { format_error } from "./errors";
@@ -90,10 +91,10 @@ function dialog_buttons(
   }
 }
 
-function hide_cancel(parent: EventTarget | undefined): void {
+function hide_cancel(parent: EventTarget | undefined, cancel_label: string): void {
   dialog_buttons(parent, (buttons) => {
     for (const button of buttons) {
-      if ((button.textContent ?? "").trim() === "Cancel") {
+      if ((button.textContent ?? "").trim() === cancel_label) {
         button.style.display = "none";
       }
     }
@@ -128,12 +129,12 @@ function DialogView({
             <div style={BODY_STYLE}>{message}</div>
           </div>
         }
-        strOKButtonText={copied ? "Copied" : copy_label}
+        strOKButtonText={copied ? t("dialog.copied") : copy_label}
         onOK={on_copy}
         onEscKeypress={on_close}
-        strMiddleButtonText="Close"
+        strMiddleButtonText={t("dialog.close")}
         onMiddleButton={on_close}
-        strCancelButtonText="Cancel"
+        strCancelButtonText={t("dialog.cancel")}
         onCancel={on_close}
         bAlertDialog={false}
       />
@@ -165,8 +166,8 @@ function DialogView({
         <div style={BODY_STYLE}>{message}</div>
       </div>
       <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-        {footer_button(copied ? "Copied" : copy_label, on_copy)}
-        {footer_button("Close", on_close)}
+        {footer_button(copied ? t("dialog.copied") : copy_label, on_copy)}
+        {footer_button(t("dialog.close"), on_close)}
       </div>
     </div>
   );
@@ -190,7 +191,7 @@ function DialogHost({
   const [copied, set_copied] = useState(false);
 
   useEffect(() => {
-    hide_cancel(parent);
+    hide_cancel(parent, t("dialog.cancel"));
   }, [parent, copied]);
 
   useEffect(
@@ -287,7 +288,7 @@ function open_dialog(
 
 export function show_failure_dialog(title: string, message: string, parent?: EventTarget): void {
   try {
-    open_dialog(title, message, parent, "Copy error");
+    open_dialog(title, message, parent, t("dialog.copy_error"));
     return;
   } catch (error) {
     log_error(`could not show the failure dialog: ${format_error(error)}`);
@@ -306,13 +307,13 @@ export function show_text_dialog(
   note?: string,
 ): void {
   try {
-    open_dialog(title, message, parent, "Copy", note);
+    open_dialog(title, message, parent, t("dialog.copy"), note);
     return;
   } catch (error) {
     log_error(`could not show the text dialog: ${format_error(error)}`);
   }
   try {
-    millennium.toaster.toast({ title, body: "could not display the file content" });
+    millennium.toaster.toast({ title, body: t("dialog.display_failed") });
   } catch {
     // A failed fallback never changes the operation's result.
   }

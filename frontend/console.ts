@@ -56,6 +56,7 @@ export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
     log_warn(`refused to capture build info for a non-numeric appid: ${appid}`);
     return {
       ok: false,
+      code: "invalid_appid",
       error: `Refusing to build a console command for a non-numeric appid: ${appid}`,
     };
   }
@@ -66,7 +67,7 @@ export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
     typeof console_api?.ExecCommand !== "function"
   ) {
     log_error(`capture failed for app ${appid}: Steam console is unavailable`);
-    return { ok: false, error: "Steam console is unavailable" };
+    return { ok: false, code: "console_unavailable", error: "Steam console is unavailable" };
   }
 
   let captured = "";
@@ -88,7 +89,7 @@ export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
 
     if (!has_app_block(captured, appid)) {
       log_error(`capture failed for app ${appid}: the client returned no app info`);
-      return { ok: false, error: "the client returned no app info" };
+      return { ok: false, code: "capture_timeout", error: "the client returned no app info" };
     }
 
     log_info(`captured build info for app ${appid}`);
@@ -101,7 +102,7 @@ export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
 export async function capture_build_info_set(appid: AppId): Promise<CaptureSet> {
   const base = await capture_build_info(appid);
   if (!base.ok) {
-    return { ok: false, error: base.error };
+    return { ok: false, code: base.code, error: base.error };
   }
 
   const dumps: Record<AppId, string> = { [appid]: base.dump };
@@ -114,22 +115,31 @@ export async function capture_build_info_set(appid: AppId): Promise<CaptureSet> 
     if (apps === null) {
       return {
         ok: false,
+        code: "invalid_response",
         error: result?.error ?? "the backend returned an invalid required-apps response",
       };
     }
     required = apps;
   } catch (error) {
-    return { ok: false, error: `could not determine the required apps: ${String(error)}` };
+    return {
+      ok: false,
+      code: "invalid_response",
+      error: `could not determine the required apps: ${String(error)}`,
+    };
   }
 
   const started_at = Date.now();
   for (const dlc_appid of required) {
     if (Date.now() - started_at > CAPTURE_SET_TIME_LIMIT_MS) {
-      return { ok: false, error: "the build info capture exceeded its time budget" };
+      return {
+        ok: false,
+        code: "capture_timeout",
+        error: "the build info capture exceeded its time budget",
+      };
     }
     const captured = await capture_build_info(dlc_appid);
     if (!captured.ok) {
-      return { ok: false, error: captured.error };
+      return { ok: false, code: captured.code, error: captured.error };
     }
     dumps[dlc_appid] = captured.dump;
   }

@@ -116,26 +116,26 @@ local function resolve()
 end
 
 ---@param path string
----@return boolean, string|nil
+---@return boolean, string|nil, string|nil
 local function validate(path)
     if type(path) ~= "string" or path == "" then
-        return false, "a data root path is required"
+        return false, "a data root path is required", "data_root_required"
     end
     if not is_absolute(path) then
-        return false, "the data root path must be absolute"
+        return false, "the data root path must be absolute", "data_root_invalid"
     end
     local current = resolve()
     if is_within(path, current.data_root) or is_within(current.data_root, path) then
-        return false, "the data root path must not nest with the current data root"
+        return false, "the data root path must not nest with the current data root", "data_root_invalid"
     end
     local created, create_err = fs.create_directories(path)
     if not created and not fs.is_directory(path) then
-        return false, create_err or "the data root path cannot be created"
+        return false, create_err or "the data root path cannot be created", "data_root_invalid"
     end
     local probe = fs.join(path, ".verlock-write-probe")
     local written, write_err = utils.write_file(probe, "")
     if not written then
-        return false, write_err or "the data root path is not writable"
+        return false, write_err or "the data root path is not writable", "data_root_invalid"
     end
     fs.remove(probe)
     return true
@@ -159,11 +159,11 @@ local function library_root(parsed)
 end
 
 ---@param appid string
----@return string|nil, string|nil
+---@return string|nil, string|nil, string|nil
 local function find_appmanifest(appid)
     local steam_path = utils.getenv("MILLENNIUM__STEAM_PATH")
     if steam_path == nil or steam_path == "" then
-        return nil, "the Steam path is unavailable"
+        return nil, "the Steam path is unavailable", "steam_path_unavailable"
     end
     local libraries = {}
     local seen = {}
@@ -215,7 +215,7 @@ local function find_appmanifest(appid)
             return candidate
         end
     end
-    return nil, "no appmanifest found for app " .. tostring(appid)
+    return nil, "no appmanifest found for app " .. tostring(appid), "not_installed"
 end
 
 ---@param appid string

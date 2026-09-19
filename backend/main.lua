@@ -65,7 +65,7 @@ local function resolve_target(appid, target)
     local record = state.read(appid)
     if target == "lock" then
         if record == nil then
-            return nil, "the app has no lock record"
+            return nil, "the app has no lock record", "not_locked"
         end
         return state.path(appid)
     end
@@ -76,7 +76,7 @@ local function resolve_target(appid, target)
         path = paths.find_appmanifest(appid)
     end
     if path == nil then
-        return nil, "the appmanifest was not found"
+        return nil, "the appmanifest was not found", "not_installed"
     end
     return path
 end
@@ -86,33 +86,33 @@ local handlers = {}
 ---@param key string
 ---@param dump any
 ---@param branch string
----@return BuildInfo|nil, string|nil
+---@return BuildInfo|nil, string|nil, string|nil
 local function parse_dump(key, dump, branch)
     if type(dump) ~= "string" or dump == "" then
-        return nil, "a build info dump is required for app " .. tostring(key)
+        return nil, "a build info dump is required for app " .. tostring(key), "build_info_required"
     end
-    local info, parse_err = buildinfo.parse(buildinfo.clean(dump), branch)
+    local info, parse_err, parse_code = buildinfo.parse(buildinfo.clean(dump), branch)
     if info == nil then
-        return nil, parse_err
+        return nil, parse_err, parse_code
     end
-    local valid, valid_err = buildinfo.validate(info)
+    local valid, valid_err, valid_code = buildinfo.validate(info)
     if not valid then
-        return nil, valid_err
+        return nil, valid_err, valid_code
     end
     return info
 end
 
 ---@param appid string
 ---@param payload table
----@return BuildInfo|nil, string|nil
+---@return BuildInfo|nil, string|nil, string|nil
 local function collect_build_info(appid, payload)
     local dumps = payload.dumps
     if type(dumps) ~= "table" then
-        return nil, "a build info dump is required"
+        return nil, "a build info dump is required", "build_info_required"
     end
-    local base, base_err = parse_dump(appid, dumps[appid], resolve_branch(appid))
+    local base, base_err, base_code = parse_dump(appid, dumps[appid], resolve_branch(appid))
     if base == nil then
-        return nil, base_err
+        return nil, base_err, base_code
     end
     local infos = { base }
     local keys = {}
@@ -123,9 +123,9 @@ local function collect_build_info(appid, payload)
     end
     table.sort(keys)
     for _, key in ipairs(keys) do
-        local info, info_err = parse_dump(key, dumps[key], "public")
+        local info, info_err, info_code = parse_dump(key, dumps[key], "public")
         if info == nil then
-            return nil, info_err
+            return nil, info_err, info_code
         end
         table.insert(infos, info)
     end
@@ -135,16 +135,16 @@ end
 handlers.lock_app = function(payload)
     local appid = payload.appid
     if not is_numeric_appid(appid) then
-        return { ok = false, error = "a numeric appid is required" }
+        return { ok = false, code = "invalid_appid", error = "a numeric appid is required" }
     end
     local auto_update_behavior = payload.auto_update_behavior
     if auto_update_behavior ~= nil and type(auto_update_behavior) ~= "number" then
-        return { ok = false, error = "the auto update behavior must be a number" }
+        return { ok = false, code = "invalid_behavior", error = "the auto update behavior must be a number" }
     end
-    local info, info_err = collect_build_info(appid, payload)
+    local info, info_err, info_code = collect_build_info(appid, payload)
     if info == nil then
         log.error("lock failed for app " .. appid .. ": " .. tostring(info_err))
-        return { ok = false, error = info_err }
+        return { ok = false, code = info_code, error = info_err }
     end
     return lock.lock(appid, info, auto_update_behavior)
 end
@@ -152,12 +152,12 @@ end
 handlers.refresh_app = function(payload)
     local appid = payload.appid
     if not is_numeric_appid(appid) then
-        return { ok = false, error = "a numeric appid is required" }
+        return { ok = false, code = "invalid_appid", error = "a numeric appid is required" }
     end
-    local info, info_err = collect_build_info(appid, payload)
+    local info, info_err, info_code = collect_build_info(appid, payload)
     if info == nil then
         log.error("refresh failed for app " .. appid .. ": " .. tostring(info_err))
-        return { ok = false, error = info_err }
+        return { ok = false, code = info_code, error = info_err }
     end
     return lock.refresh(appid, info)
 end
@@ -165,25 +165,25 @@ end
 handlers.get_required_apps = function(payload)
     local appid = payload.appid
     if not is_numeric_appid(appid) then
-        return { ok = false, error = "a numeric appid is required" }
+        return { ok = false, code = "invalid_appid", error = "a numeric appid is required" }
     end
     if type(payload.dump) ~= "string" or payload.dump == "" then
-        return { ok = false, error = "a build info dump is required" }
+        return { ok = false, code = "build_info_required", error = "a build info dump is required" }
     end
-    local info, parse_err = buildinfo.parse(buildinfo.clean(payload.dump), resolve_branch(appid))
+    local info, parse_err, parse_code = buildinfo.parse(buildinfo.clean(payload.dump), resolve_branch(appid))
     if info == nil then
         log.error("get_required_apps failed for app " .. appid .. ": " .. tostring(parse_err))
-        return { ok = false, error = parse_err }
+        return { ok = false, code = parse_code, error = parse_err }
     end
-    local valid, valid_err = buildinfo.validate(info)
+    local valid, valid_err, valid_code = buildinfo.validate(info)
     if not valid then
         log.error("get_required_apps failed for app " .. appid .. ": " .. tostring(valid_err))
-        return { ok = false, error = valid_err }
+        return { ok = false, code = valid_code, error = valid_err }
     end
-    local apps, apps_err = lock.required_apps(appid, info)
+    local apps, apps_err, apps_code = lock.required_apps(appid, info)
     if apps == nil then
         log.error("get_required_apps failed for app " .. appid .. ": " .. tostring(apps_err))
-        return { ok = false, error = apps_err }
+        return { ok = false, code = apps_code, error = apps_err }
     end
     return { ok = true, apps = apps }
 end
@@ -191,15 +191,15 @@ end
 handlers.unlock_app = function(payload)
     local appid = payload.appid
     if not is_numeric_appid(appid) then
-        return { ok = false, error = "a numeric appid is required" }
+        return { ok = false, code = "invalid_appid", error = "a numeric appid is required" }
     end
     return lock.unlock(appid)
 end
 
 handlers.list_locked = function()
-    local records, err = state.list()
+    local records, err, code = state.list()
     if records == nil then
-        error(err or "the lock records are unavailable", 0)
+        error({ message = err or "the lock records are unavailable", code = code }, 0)
     end
     return records
 end
@@ -223,7 +223,7 @@ end
 handlers.get_paths = function(payload)
     local appid = payload.appid
     if not is_numeric_appid(appid) then
-        return { ok = false, error = "a numeric appid is required" }
+        return { ok = false, code = "invalid_appid", error = "a numeric appid is required" }
     end
     local record = state.read(appid)
     local manifest
@@ -240,25 +240,25 @@ end
 handlers.read_file = function(payload)
     local appid = payload.appid
     if not is_numeric_appid(appid) then
-        return { ok = false, error = "a numeric appid is required" }
+        return { ok = false, code = "invalid_appid", error = "a numeric appid is required" }
     end
     local target = payload.target
     if target ~= "appmanifest" and target ~= "lock" then
-        return { ok = false, error = "a valid target is required" }
+        return { ok = false, code = "invalid_target", error = "a valid target is required" }
     end
-    local path, path_err = resolve_target(appid, target)
+    local path, path_err, path_code = resolve_target(appid, target)
     if path == nil then
-        return { ok = false, error = path_err }
+        return { ok = false, code = path_code, error = path_err }
     end
     if type(utils.read_file) ~= "function" then
-        return { ok = false, error = "the file reader is unavailable" }
+        return { ok = false, code = "read_failed", error = "the file reader is unavailable" }
     end
     local content, read_err = utils.read_file(path)
     if content == nil then
-        return { ok = false, error = read_err or "the file could not be read" }
+        return { ok = false, code = "read_failed", error = read_err or "the file could not be read" }
     end
     if #content > MAX_READ then
-        return { ok = false, error = "the file is too large to display" }
+        return { ok = false, code = "read_failed", error = "the file is too large to display" }
     end
     return { ok = true, content = content }
 end
@@ -266,16 +266,20 @@ end
 handlers.set_data_root = function(payload)
     local target = payload.path
     if target == nil then
-        return { ok = false, error = "a data root path is required" }
+        return { ok = false, code = "data_root_required", error = "a data root path is required" }
     end
     if type(target) ~= "string" then
-        return { ok = false, error = "the data root path must be a string" }
+        return { ok = false, code = "data_root_invalid", error = "the data root path must be a string" }
     end
     local roots = paths.resolve()
     if target == "" then
         local default_root = paths.defaults().data_root
         if type(default_root) ~= "string" or default_root == "" then
-            return { ok = false, error = "the default data root is unavailable" }
+            return {
+                ok = false,
+                code = "default_data_root_unavailable",
+                error = "the default data root is unavailable",
+            }
         end
         local result
         if normalize(default_root) == normalize(roots.data_root) then
@@ -297,7 +301,7 @@ end
 handlers.reapply_app = function(payload)
     local appid = payload.appid
     if not is_numeric_appid(appid) then
-        return { ok = false, error = "a numeric appid is required" }
+        return { ok = false, code = "invalid_appid", error = "a numeric appid is required" }
     end
     return lock.reapply(appid)
 end
@@ -320,12 +324,17 @@ end
 local function dispatch(name, payload)
     local handler = handlers[name]
     if type(handler) ~= "function" then
-        return { ok = false, error = "unknown method: " .. tostring(name) }
+        return { ok = false, code = "unknown_method", error = "unknown method: " .. tostring(name) }
     end
     local ok, result = pcall(handler, payload or {})
     if not ok then
+        local code
+        if type(result) == "table" and result.message ~= nil then
+            code = result.code
+            result = result.message
+        end
         log.error("method " .. tostring(name) .. " failed: " .. tostring(result))
-        return { ok = false, error = tostring(result) }
+        return { ok = false, code = code, error = tostring(result) }
     end
     if result == nil then
         return { ok = false, error = "the handler returned no result" }

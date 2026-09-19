@@ -16,6 +16,8 @@ import type {
   UnlockResult,
 } from "../index";
 import * as wire from "../bridge";
+import english from "../locales/english.json";
+import schinese from "../locales/schinese.json";
 import { bridge as recorder, installSteamClient, resetBackendResponses } from "./harness";
 
 interface FrontendToBackend {
@@ -195,6 +197,55 @@ test("append_log sends one JSON string argument with the level and message", asy
   expect(calls).toHaveLength(1);
   expect(typeof calls[0]?.payload).toBe("string");
   expect(JSON.parse(calls[0]?.payload as string)).toEqual({ level: "info", message: "hello" });
+});
+
+const ERROR_CODES = [
+  "invalid_appid",
+  "invalid_behavior",
+  "invalid_target",
+  "build_info_required",
+  "dump_parse_failed",
+  "dump_validation_failed",
+  "already_locked",
+  "not_locked",
+  "not_installed",
+  "not_fully_installed",
+  "cannot_read_manifest",
+  "cannot_parse_manifest",
+  "manifest_write_failed",
+  "record_persist_failed",
+  "record_read_failed",
+  "operation_in_progress",
+  "record_removed",
+  "restore_in_progress",
+  "data_root_required",
+  "data_root_invalid",
+  "default_data_root_unavailable",
+  "migration_in_progress",
+  "migration_failed",
+  "unknown_method",
+  "read_failed",
+  "steam_path_unavailable",
+  "console_unavailable",
+  "capture_timeout",
+  "invalid_response",
+  "unlock_failed",
+  "restore_all_failed",
+  "unknown",
+] as const;
+
+test("the catalogs carry an identical key set", () => {
+  expect(Object.keys(english).sort()).toEqual(Object.keys(schinese).sort());
+});
+
+test("every error code has an error.<code> catalog key and no key is orphaned", () => {
+  const expected = new Set(ERROR_CODES.map((code) => `error.${code}`));
+  const present = new Set(Object.keys(english).filter((key) => key.startsWith("error.")));
+  expect(present).toEqual(expected);
+  for (const code of ERROR_CODES) {
+    expect(english[`error.${code}` as keyof typeof english]).toBeString();
+    expect(schinese[`error.${code}` as keyof typeof schinese]).toBeString();
+  }
 });
 
 test("zero-argument methods send no arguments", async () => {

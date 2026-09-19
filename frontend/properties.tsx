@@ -5,6 +5,7 @@ import type { AppId, FileContentResult, LockedAppRecord, PathsResult } from "./i
 import { lock_app, refresh_app, unlock_app } from "./actions";
 import { as_record_list, is_locked, refresh_locked_ids, subscribe_locked } from "./locked";
 import * as bridge from "./bridge";
+import { resolve_error, t } from "./i18n";
 import { log_error, log_info, log_warn } from "./log";
 import { format_error, show_failure_dialog, show_text_dialog } from "./notify";
 import { current_clock_format, format_client_time, subscribe_clock_format } from "./time";
@@ -24,13 +25,14 @@ const DIALOG_TIMEOUT_MS = 1000;
 const TAB_MARKER = "data-verlock-tab";
 const TAB_LABEL = "Steam App Verlock";
 
-const BEHAVIOR_LABELS: Record<number, string> = {
-  0: "Always",
-  1: "Launch",
-  2: "High priority",
+const BEHAVIOR_KEYS: Record<
+  number,
+  "properties.behavior.always" | "properties.behavior.launch" | "properties.behavior.high_priority"
+> = {
+  0: "properties.behavior.always",
+  1: "properties.behavior.launch",
+  2: "properties.behavior.high_priority",
 };
-
-const LOCK_FORMAT_NOTE = "For readability, the original text has been pretty-printed.";
 
 const roots: Root[] = [];
 
@@ -49,6 +51,35 @@ export function format_time(value: number | undefined, format: ClockFormat): str
   return format_client_time(value, format) ?? null;
 }
 
+const RECORD_KEY_ORDER = [
+  "version",
+  "appid",
+  "name",
+  "manifest_path",
+  "locked_at",
+  "refreshed_at",
+  "auto_update_behavior",
+  "locked_build",
+  "original",
+];
+
+const BUILD_KEY_ORDER = ["buildid", "depots"];
+
+function order_keys(source: Record<string, unknown>, order: string[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const key of order) {
+    if (key in source) {
+      result[key] = source[key];
+    }
+  }
+  for (const key of Object.keys(source).sort()) {
+    if (!(key in result)) {
+      result[key] = source[key];
+    }
+  }
+  return result;
+}
+
 export function format_lock_text(content: string): string {
   let parsed: unknown;
   try {
@@ -56,17 +87,23 @@ export function format_lock_text(content: string): string {
   } catch {
     return content;
   }
-  if (parsed === null || typeof parsed !== "object") {
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
     return content;
   }
-  return JSON.stringify(parsed, null, 2);
+  const ordered = order_keys(parsed as Record<string, unknown>, RECORD_KEY_ORDER);
+  const build = ordered.locked_build;
+  if (build !== null && typeof build === "object" && !Array.isArray(build)) {
+    ordered.locked_build = order_keys(build as Record<string, unknown>, BUILD_KEY_ORDER);
+  }
+  return JSON.stringify(ordered, null, 2);
 }
 
 export function behavior_label(value: number | undefined): string {
   if (typeof value !== "number") {
-    return "Store default";
+    return t("properties.behavior.store_default");
   }
-  return BEHAVIOR_LABELS[value] ?? `Unknown (${value})`;
+  const key = BEHAVIOR_KEYS[value];
+  return key !== undefined ? t(key) : t("properties.behavior.unknown", { value });
 }
 
 export function find_record(
@@ -97,13 +134,13 @@ function DepotSection({ record }: { record: LockedAppRecord | null }) {
   if (record === null) {
     return (
       <Row>
-        Depots: <Muted>N/A</Muted>
+        {t("properties.depots_label")} <Muted>{t("common.na")}</Muted>
       </Row>
     );
   }
   const entries = Object.entries(record.locked_build?.depots ?? {});
   if (entries.length === 0) {
-    return <Row>Depots: none</Row>;
+    return <Row>{t("properties.depots_none")}</Row>;
   }
   return (
     <>
@@ -120,13 +157,13 @@ function DepotSection({ record }: { record: LockedAppRecord | null }) {
           }}
           style={{ cursor: "pointer" }}
         >
-          Depots ({entries.length})&nbsp; {expanded ? "▾" : "▸"}
+          {t("properties.depots", { count: entries.length })}&nbsp; {expanded ? "▾" : "▸"}
         </span>
       </Row>
       {expanded
         ? entries.map(([depot, manifest]) => (
             <Row key={depot}>
-              Depot {depot}: <Value>{manifest}</Value>
+              {t("properties.depot", { depot })} <Value>{manifest}</Value>
             </Row>
           ))
         : null}
@@ -198,7 +235,7 @@ export function VerlockTabContent({
   };
 
   const show_content = async (target: "appmanifest" | "lock"): Promise<void> => {
-    const label = target === "lock" ? "Lock File" : "Appmanifest";
+    const label = target === "lock" ? t("properties.lock_file") : t("properties.appmanifest");
     try {
       const fetched = parse_json(await bridge.read_file(appid, target)) as
         | FileContentResult
@@ -206,11 +243,13 @@ export function VerlockTabContent({
       if (fetched?.ok === true && typeof fetched.content === "string") {
         const message = target === "lock" ? format_lock_text(fetched.content) : fetched.content;
         const note =
-          target === "lock" && message !== fetched.content ? LOCK_FORMAT_NOTE : undefined;
+          target === "lock" && message !== fetched.content
+            ? t("properties.lock_format_note")
+            : undefined;
         show_text_dialog(label, message, parent, note);
         return;
       }
-      const message = fetched?.error ?? "the file could not be read";
+      const message = fetched !== undefined ? resolve_error(fetched) : t("error.read_failed");
       log_error(`could not read the ${target} for app ${appid}: ${message}`);
       show_failure_dialog(TAB_LABEL, message, parent);
     } catch (caught) {
@@ -228,9 +267,9 @@ export function VerlockTabContent({
       return <StatusValue color={accent}>{time}</StatusValue>;
     }
     if (not_yet) {
-      return <StatusValue color={accent}>Not yet</StatusValue>;
+      return <StatusValue color={accent}>{t("common.not_yet")}</StatusValue>;
     }
-    return <StatusValue color={MUTED_COLOR}>N/A</StatusValue>;
+    return <StatusValue color={MUTED_COLOR}>{t("common.na")}</StatusValue>;
   };
 
   const lock_path = paths?.lock;
@@ -249,11 +288,11 @@ export function VerlockTabContent({
           }}
         >
           <span>
-            State:{" "}
+            {t("properties.state")}{" "}
             <span
               style={{ fontWeight: 700, marginLeft: "5px", color: locked ? accent : undefined }}
             >
-              {locked ? "Locked" : "Not locked"}
+              {locked ? t("menu.state.locked") : t("menu.state.unlocked")}
             </span>
           </span>
           <div style={{ display: "flex", gap: "8px" }}>
@@ -264,14 +303,14 @@ export function VerlockTabContent({
                   disabled={busy}
                   onClick={() => run(() => refresh_app(appid, parent))}
                 >
-                  Refresh
+                  {t("menu.refresh")}
                 </ActionButton>
                 <ActionButton
                   button_class={button_class}
                   disabled={busy}
                   onClick={() => run(() => unlock_app(appid, parent))}
                 >
-                  Unlock
+                  {t("menu.unlock")}
                 </ActionButton>
               </>
             ) : (
@@ -280,13 +319,17 @@ export function VerlockTabContent({
                 disabled={busy}
                 onClick={() => run(() => lock_app(appid, parent))}
               >
-                Lock
+                {t("menu.lock")}
               </ActionButton>
             )}
           </div>
         </div>
-        <Row>Locked: {status(locked_time, false)}</Row>
-        <Row>Refreshed: {status(refreshed_time, locked_time !== null)}</Row>
+        <Row>
+          {t("properties.locked_at")} {status(locked_time, false)}
+        </Row>
+        <Row>
+          {t("properties.refreshed_at")} {status(refreshed_time, locked_time !== null)}
+        </Row>
         <div
           style={{
             flexShrink: 0,
@@ -303,7 +346,7 @@ export function VerlockTabContent({
               gap: "8px",
             }}
           >
-            <div className="SettingsDialogSubHeader">Lock Snapshot</div>
+            <div className="SettingsDialogSubHeader">{t("properties.lock_snapshot")}</div>
             <div style={{ display: "flex", gap: "8px" }}>
               {lock_path !== undefined ? (
                 <ActionButton
@@ -311,7 +354,7 @@ export function VerlockTabContent({
                   disabled={false}
                   onClick={() => void show_content("lock")}
                 >
-                  Lock File
+                  {t("properties.lock_file")}
                 </ActionButton>
               ) : null}
               <ActionButton
@@ -319,28 +362,28 @@ export function VerlockTabContent({
                 disabled={manifest_path === undefined}
                 onClick={() => void show_content("appmanifest")}
               >
-                Appmanifest
+                {t("properties.appmanifest")}
               </ActionButton>
             </div>
           </div>
           <Row>
-            App ID: <Value>{record?.appid ?? appid}</Value>
+            {t("properties.app_id")} <Value>{record?.appid ?? appid}</Value>
           </Row>
           <Row>
-            Build ID:{" "}
+            {t("properties.build_id")}{" "}
             {record ? (
-              <Value>{record.locked_build?.buildid ?? "Unknown"}</Value>
+              <Value>{record.locked_build?.buildid ?? t("common.unknown")}</Value>
             ) : (
-              <Muted>N/A</Muted>
+              <Muted>{t("common.na")}</Muted>
             )}
           </Row>
           <DepotSection record={record} />
           <Row>
-            Auto-update:{" "}
+            {t("properties.auto_update")}{" "}
             {record ? (
               <Value>{behavior_label(record.auto_update_behavior)}</Value>
             ) : (
-              <Muted>N/A</Muted>
+              <Muted>{t("common.na")}</Muted>
             )}
           </Row>
         </div>

@@ -134,24 +134,24 @@ end
 
 ---@param text string
 ---@param branch string|nil
----@return BuildInfo|nil, string|nil
+---@return BuildInfo|nil, string|nil, string|nil
 local function parse(text, branch)
     branch = branch or "public"
     local root, err = vdf.parse(text)
     if root == nil then
-        return nil, err or "malformed build info dump"
+        return nil, err or "malformed build info dump", "dump_parse_failed"
     end
     local app = find_app(root)
     if app == nil then
-        return nil, "no app info in dump"
+        return nil, "no app info in dump", "dump_parse_failed"
     end
     local depots = app.depots
     if type(depots) ~= "table" then
-        return nil, "no depots in dump"
+        return nil, "no depots in dump", "dump_parse_failed"
     end
     local buildid = resolve_buildid(app, branch)
     if buildid == nil or buildid == "" then
-        return nil, "no buildid in dump"
+        return nil, "no buildid in dump", "dump_parse_failed"
     end
     local manifests = {}
     for depot_id, depot in pairs(depots) do
@@ -170,23 +170,23 @@ local function parse(text, branch)
         end
     end
     if next(manifests) == nil then
-        return nil, "no depot manifests in dump"
+        return nil, "no depot manifests in dump", "dump_validation_failed"
     end
     return { buildid = tostring(buildid), depots = manifests }
 end
 
 ---@param infos BuildInfo[]
----@return BuildInfo|nil, string|nil
+---@return BuildInfo|nil, string|nil, string|nil
 local function merge(infos)
     if type(infos) ~= "table" or #infos == 0 then
-        return nil, "no build info to merge"
+        return nil, "no build info to merge", "dump_validation_failed"
     end
     local base = infos[1]
     if type(base) ~= "table" then
-        return nil, "build info must be a table"
+        return nil, "build info must be a table", "dump_validation_failed"
     end
     if type(base.buildid) ~= "string" or base.buildid == "" then
-        return nil, "build info is missing a buildid"
+        return nil, "build info is missing a buildid", "dump_validation_failed"
     end
     local depots = {}
     for _, info in ipairs(infos) do
@@ -202,26 +202,26 @@ local function merge(infos)
 end
 
 ---@param info BuildInfo
----@return boolean, string|nil
+---@return boolean, string|nil, string|nil
 local function validate(info)
     if type(info) ~= "table" then
-        return false, "build info must be a table"
+        return false, "build info must be a table", "dump_validation_failed"
     end
     if type(info.buildid) ~= "string" or info.buildid == "" then
-        return false, "build info is missing a buildid"
+        return false, "build info is missing a buildid", "dump_validation_failed"
     end
     if type(info.depots) ~= "table" then
-        return false, "build info is missing depots"
+        return false, "build info is missing depots", "dump_validation_failed"
     end
     local count = 0
     for _, manifest_id in pairs(info.depots) do
         if type(manifest_id) ~= "string" or manifest_id == "" then
-            return false, "build info has an invalid depot manifest"
+            return false, "build info has an invalid depot manifest", "dump_validation_failed"
         end
         count = count + 1
     end
     if count == 0 then
-        return false, "build info has no depot manifests"
+        return false, "build info has no depot manifests", "dump_validation_failed"
     end
     return true
 end

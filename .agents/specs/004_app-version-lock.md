@@ -160,7 +160,7 @@ The badge reads the locked set and the record through `frontend/locked.ts` and t
 
 The `Appmanifest` and `Lock File` buttons call the backend's `read_file` method, which resolves the file path itself and returns the file's text; the tab shows it in a native modal through the `show_text_dialog` helper of `frontend/notify.tsx`. `read_file` validates the numeric `appid` and a `target` of `appmanifest` or `lock`; for `lock` it requires a record and uses `state.path`, and for `appmanifest` it uses the record's `manifest_path` or, without a record, discovery. A read failure or a file larger than 512 KiB shows the failure dialog instead.
 
-The `Lock File` dialog renders the record through `format_lock_text`: when the file's text parses as a JSON object, the dialog shows it pretty-printed at two spaces of indentation, and, because the pretty text differs from the file's on-disk bytes, it carries a one-line note above the text box that names the text a readability rendering. A record that does not parse as a JSON object shows the raw text with no note. The `Appmanifest` dialog shows the VDF text unchanged, because the appmanifest already spans multiple lines.
+The `Lock File` dialog renders the record through `format_lock_text`: when the file's text parses as a JSON object, the dialog shows it pretty-printed at two spaces of indentation in the lock record's schema order, and, because the pretty text differs from the file's on-disk bytes, it carries a one-line note above the text box that names the text a readability rendering. The on-disk record stays compact and unordered; the dialog alone imposes the order. A record that does not parse as a JSON object, or parses as an array, shows the raw text with no note. The `Appmanifest` dialog shows the VDF text unchanged, because the appmanifest already spans multiple lines.
 
 The helper builds the same `ConfirmModal` shape as the failure dialog, with a bordered scrollable text box styled after the client's System Information panel and `Copy` and `Close` buttons side by side below it, without a cancel button; `Copy` changes its own label to `Copied` for one second and leaves the dialog open. The note, when present, sits above the text box, and `Copy` copies the text box alone.
 
@@ -271,12 +271,12 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 #### Shared Types
 
 - `AppId = string` — a Steam app id written as a numeric string.
-- `Ack = { ok: boolean; error?: string; code?: string }` — the result envelope a backend operation that reports its outcome returns. It wraps the operations that change state; `list_locked` returns its records directly when it can and carries the error form of the envelope only while a data root migration runs, and `get_data_root` always returns its data directly and never carries the envelope.
+- `Ack = { ok: boolean; error?: string; code?: string }` — the result envelope a backend operation that reports its outcome returns. It wraps the operations that change state; `list_locked` returns its records directly when it can and carries the error form of the envelope only while a data root migration runs, and `get_data_root` always returns its data directly and never carries the envelope. A displayable failure carries a stable `code` from [Spec 8](008_localization.md#backend-error-codes) so the frontend can localize it; `error` stays a developer diagnostic.
 - `LockResult = Ack & { record?: LockedAppRecord }` — success carries the locked-app record.
 - `RefreshResult = Ack` — the refresh result.
 - `UnlockResult = Ack & { auto_update_behavior?: number; auto_update_restored?: boolean }` — the unlock result; success carries the stored auto-update behavior when the record has one, and the frontend sets `auto_update_restored` to `false` when restoring that behavior failed (it is `true` when the behavior was written or the record carried no behavior).
-- `CaptureResult = { ok: true; appid: AppId; dump: string } | { ok: false; error: string }` — success carries the captured dump; failure carries an error.
-- `CaptureSet = { ok: true; dumps: Record<AppId, string> } | { ok: false; error: string }` — success carries the base dump and each required DLC app's dump, keyed by app id; failure carries an error.
+- `CaptureResult = { ok: true; appid: AppId; dump: string } | { ok: false; error: string; code?: string }` — success carries the captured dump; failure carries an error and, when a stable code exists, its [Spec 8](008_localization.md#backend-error-codes) code.
+- `CaptureSet = { ok: true; dumps: Record<AppId, string> } | { ok: false; error: string; code?: string }` — success carries the base dump and each required DLC app's dump, keyed by app id; failure carries an error and, when a stable code exists, its [Spec 8](008_localization.md#backend-error-codes) code.
 - `RequiredAppsResult = Ack & { apps?: AppId[] }` — the `get_required_apps` result; success carries the distinct `dlcappid` values whose installed depot the base `BuildInfo` omits.
 - `BuildInfo = { buildid: string; depots: Record<string, string> }` — a captured or spoofed build state.
 - `BadgeStyle = { label: CSSProperties; value: CSSProperties; icon: { color: string; width: string; height: string; opacity: number } }` — the game page badge's sampled label, value, and icon styles; `CSSProperties` is React's style type.
@@ -411,7 +411,7 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `install_properties_patch(): () => void` — install the App Properties hook and return a disposer; a missing `AddWindowCreateHook` or a changed dialog shape makes the tab a no-op.
 - `VerlockTabContent({ appid }): JSX.Element` — the tab content: the app's lock record, status, locked build, and actions.
 - `format_time(value: number | undefined, format: ClockFormat): string | null` — internal/test interface; render a Unix timestamp through `format_client_time`, or `null` when it is absent, so the tab chooses between `N/A` and `Not yet`.
-- `format_lock_text(content: string): string` — internal/test interface; pretty-print a lock record's JSON at two spaces of indentation, or return the text unchanged when it does not parse as a JSON object.
+- `format_lock_text(content: string): string` — internal/test interface; pretty-print a lock record's JSON at two spaces of indentation in the record's schema order, with the known top-level fields (`version`, `appid`, `name`, `manifest_path`, `locked_at`, `refreshed_at`, `auto_update_behavior`, `locked_build`, `original`) first and the `locked_build` fields (`buildid`, `depots`) ordered the same way, and any unknown field appended in key order; return the text unchanged when it does not parse as a JSON object or parses as an array.
 - `behavior_label(value: number | undefined): string` — internal/test interface; name an `EAppAutoUpdateBehavior` value.
 - `find_record(records: LockedAppRecord[] | null, appid: AppId): LockedAppRecord | null` — internal/test interface; select the record for one app id.
 
@@ -444,7 +444,7 @@ frontend to backend (`backend` FFI bridge)
 - `get_paths(payload: { appid: AppId }): Promise<PathsResult>` — return the app's appmanifest path — from the lock record when one exists, otherwise from discovery — and the lock record path when a record exists.
 - `read_file(payload: { appid: AppId; target: "appmanifest" | "lock" }): Promise<FileContentResult>` — resolve the target file and return its text for the tab's content dialog; a file larger than 512 KiB is refused.
 - `set_data_root(payload: { path: string }): Promise<MigrateResult>` — migrate the data root directory to `path`; an empty `path` resets to the OS-conventional default and clears the `data_root` config key (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
-- `reapply_app(payload: { appid: AppId }): Promise<Ack>` — reapply a locked app's spoof when its appmanifest no longer matches; return `code = "not_installed"` when the app is gone.
+- `reapply_app(payload: { appid: AppId }): Promise<Ack>` — reapply a locked app's spoof when its appmanifest no longer matches; return `code = "not_installed"` when the app is gone, and the other [Spec 8](008_localization.md#backend-error-codes) codes on a displayable failure.
 - `get_clock_format(): Promise<Ack & { is_24h?: boolean }>` — read the client's 24-hour clock preference from the Steam config; `is_24h` is absent when the preference cannot be read.
 
 backend to frontend (`millennium.call_frontend_method`)

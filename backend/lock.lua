@@ -206,7 +206,7 @@ local function resolve_target(appid, record)
     if manifest ~= nil then
         return manifest
     end
-    local retry_path, retry_err = paths.find_appmanifest(appid)
+    local retry_path, retry_err, retry_code = paths.find_appmanifest(appid)
     if retry_path ~= nil then
         return retry_path
     end
@@ -225,30 +225,33 @@ local function resolve_target(appid, record)
     local error_text = retry_err or resolve_err or "the appmanifest was not found"
     local steam_path = utils.getenv("MILLENNIUM__STEAM_PATH")
     if type(steam_path) ~= "string" or steam_path == "" then
-        return nil, nil, retry_err or resolve_err or "the Steam path is unavailable"
+        return nil, "steam_path_unavailable", retry_err or resolve_err or "the Steam path is unavailable"
     end
-    return nil, "not_installed", error_text
+    return nil, retry_code or "not_installed", error_text
 end
 
 -- The DLC apps whose installed depots the base app's PICS does not cover, so
 -- their manifests must be read from the owning app's own app_info_print.
 ---@param appid string
 ---@param info BuildInfo
----@return string[]|nil, string|nil
+---@return string[]|nil, string|nil, string|nil
 local function required_apps(appid, info)
     local record = state.read(appid)
     local manifest
+    local manifest_code
     if record ~= nil then
-        manifest = resolve_target(appid, record)
+        manifest, manifest_code = resolve_target(appid, record)
     else
-        manifest = paths.find_appmanifest(appid)
+        local found, _, find_code = paths.find_appmanifest(appid)
+        manifest = found
+        manifest_code = find_code
     end
     if manifest == nil then
-        return nil, "the appmanifest was not found"
+        return nil, "the appmanifest was not found", manifest_code or "not_installed"
     end
     local state_table = acf.read(manifest)
     if state_table == nil then
-        return nil, "cannot parse the appmanifest"
+        return nil, "cannot parse the appmanifest", "cannot_parse_manifest"
     end
     local body = body_of(state_table)
     local depots = body.InstalledDepots
@@ -295,34 +298,34 @@ end
 ---@param auto_update_behavior integer|nil
 ---@return LockResult
 local function do_lock(appid, info, auto_update_behavior)
-    local existing, existing_err = state.read(appid)
+    local existing, existing_err, existing_code = state.read(appid)
     if existing ~= nil then
         log.warn("refused to lock app " .. appid .. ": the app is already locked")
-        return { ok = false, error = "the app is already locked" }
+        return { ok = false, code = "already_locked", error = "the app is already locked" }
     end
     if existing_err ~= nil then
         log.error("lock failed for app " .. appid .. ": " .. tostring(existing_err))
-        return { ok = false, error = existing_err }
+        return { ok = false, code = existing_code, error = existing_err }
     end
-    local manifest, find_err = paths.find_appmanifest(appid)
+    local manifest, find_err, find_code = paths.find_appmanifest(appid)
     if manifest == nil then
         log.warn("refused to lock app " .. appid .. ": " .. tostring(find_err))
-        return { ok = false, error = find_err }
+        return { ok = false, code = find_code or "not_installed", error = find_err }
     end
     local original, read_err = utils.read_file(manifest)
     if original == nil then
         log.error("lock failed for app " .. appid .. ": " .. tostring(read_err or "cannot read the appmanifest"))
-        return { ok = false, error = read_err or "cannot read the appmanifest" }
+        return { ok = false, code = "cannot_read_manifest", error = read_err or "cannot read the appmanifest" }
     end
     local state_table = acf.read(manifest)
     if state_table == nil then
         log.error("lock failed for app " .. appid .. ": cannot parse the appmanifest")
-        return { ok = false, error = "cannot parse the appmanifest" }
+        return { ok = false, code = "cannot_parse_manifest", error = "cannot parse the appmanifest" }
     end
     local body = body_of(state_table)
     if not lockable(body.StateFlags) then
         log.warn("refused to lock app " .. appid .. ": the app is not fully installed")
-        return { ok = false, error = "the app is not fully installed" }
+        return { ok = false, code = "not_fully_installed", error = "the app is not fully installed" }
     end
     local record = {
         version = 1,
@@ -339,14 +342,14 @@ local function do_lock(appid, info, auto_update_behavior)
     local saved, save_err = state.write(record)
     if not saved then
         log.error("lock failed for app " .. appid .. ": " .. tostring(save_err or "failed to persist the lock record"))
-        return { ok = false, error = save_err or "failed to persist the lock record" }
+        return { ok = false, code = "record_persist_failed", error = save_err or "failed to persist the lock record" }
     end
     apply_spoof(state_table, info)
     local written, write_err = acf.write(manifest, state_table)
     if not written then
         state.remove(appid)
         log.error("lock failed for app " .. appid .. ": " .. tostring(write_err))
-        return { ok = false, error = write_err }
+        return { ok = false, code = "manifest_write_failed", error = write_err }
     end
     log.info("locked app " .. appid .. " at build " .. tostring(info.buildid))
     return { ok = true, record = record }
@@ -358,7 +361,7 @@ end
 ---@return LockResult
 local function lock(appid, info, auto_update_behavior)
     if not begin_app(appid) then
-        return { ok = false, error = "another operation is in progress for this app" }
+        return { ok = false, code = "operation_in_progress", error = "another operation is in progress for this app" }
     end
     local ok, result = pcall(do_lock, appid, info, auto_update_behavior)
     end_app(appid)
@@ -373,10 +376,10 @@ end
 ---@param info BuildInfo
 ---@return RefreshResult
 local function do_refresh(appid, info)
-    local record, read_err = state.read(appid)
+    local record, read_err, read_code = state.read(appid)
     if record == nil then
         log.warn("refused to refresh app " .. appid .. ": " .. tostring(read_err or "the app is not locked"))
-        return { ok = false, error = read_err or "the app is not locked" }
+        return { ok = false, code = read_code or "not_locked", error = read_err or "the app is not locked" }
     end
     local manifest, code, resolve_err = resolve_target(appid, record)
     if manifest == nil then
@@ -390,7 +393,7 @@ local function do_refresh(appid, info)
     local state_table = acf.read(manifest)
     if state_table == nil then
         log.error("refresh failed for app " .. appid .. ": cannot parse the appmanifest")
-        return { ok = false, error = "cannot parse the appmanifest" }
+        return { ok = false, code = "cannot_parse_manifest", error = "cannot parse the appmanifest" }
     end
     local previous = {
         locked_build = record.locked_build,
@@ -405,7 +408,7 @@ local function do_refresh(appid, info)
         log.error(
             "refresh failed for app " .. appid .. ": " .. tostring(save_err or "failed to persist the lock record")
         )
-        return { ok = false, error = save_err or "failed to persist the lock record" }
+        return { ok = false, code = "record_persist_failed", error = save_err or "failed to persist the lock record" }
     end
     apply_spoof(state_table, info)
     local written, write_err = acf.write(manifest, state_table)
@@ -415,7 +418,7 @@ local function do_refresh(appid, info)
         record.manifest_path = previous.manifest_path
         state.write(record)
         log.error("refresh failed for app " .. appid .. ": " .. tostring(write_err))
-        return { ok = false, error = write_err }
+        return { ok = false, code = "manifest_write_failed", error = write_err }
     end
     log.info("refreshed app " .. appid .. " to build " .. tostring(info.buildid))
     return { ok = true }
@@ -426,7 +429,7 @@ end
 ---@return RefreshResult
 local function refresh(appid, info)
     if not begin_app(appid) then
-        return { ok = false, error = "another operation is in progress for this app" }
+        return { ok = false, code = "operation_in_progress", error = "another operation is in progress for this app" }
     end
     local ok, result = pcall(do_refresh, appid, info)
     end_app(appid)
@@ -440,10 +443,10 @@ end
 ---@param appid string
 ---@return UnlockResult
 local function do_unlock(appid)
-    local record, read_err = state.read(appid)
+    local record, read_err, read_code = state.read(appid)
     if record == nil then
         log.warn("refused to unlock app " .. appid .. ": " .. tostring(read_err or "the app is not locked"))
-        return { ok = false, error = read_err or "the app is not locked" }
+        return { ok = false, code = read_code or "not_locked", error = read_err or "the app is not locked" }
     end
     local manifest, code, resolve_err = resolve_target(appid, record)
     if manifest == nil then
@@ -453,12 +456,12 @@ local function do_unlock(appid)
             return { ok = true, auto_update_behavior = record.auto_update_behavior }
         end
         log.error("unlock failed for app " .. appid .. ": " .. tostring(resolve_err))
-        return { ok = false, error = resolve_err }
+        return { ok = false, code = code, error = resolve_err }
     end
     local written, write_err = write_original(manifest, record.original)
     if not written then
         log.error("unlock failed for app " .. appid .. ": " .. tostring(write_err))
-        return { ok = false, error = write_err }
+        return { ok = false, code = "manifest_write_failed", error = write_err }
     end
     state.remove(appid)
     log.info("unlocked app " .. appid)
@@ -469,7 +472,7 @@ end
 ---@return UnlockResult
 local function unlock(appid)
     if not begin_app(appid) then
-        return { ok = false, error = "another operation is in progress for this app" }
+        return { ok = false, code = "operation_in_progress", error = "another operation is in progress for this app" }
     end
     local ok, result = pcall(do_unlock, appid)
     end_app(appid)
@@ -483,10 +486,10 @@ end
 ---@param appid string
 ---@return Ack
 local function do_reapply(appid)
-    local record, read_err = state.read(appid)
+    local record, read_err, read_code = state.read(appid)
     if record == nil then
         log.warn("refused to reapply app " .. appid .. ": " .. tostring(read_err or "the app is not locked"))
-        return { ok = false, error = read_err or "the app is not locked" }
+        return { ok = false, code = read_code or "not_locked", error = read_err or "the app is not locked" }
     end
     local manifest, code, resolve_err = resolve_target(appid, record)
     if manifest == nil then
@@ -495,7 +498,7 @@ local function do_reapply(appid)
             return { ok = false, code = "not_installed", error = resolve_err }
         end
         log.error("reapply failed for app " .. appid .. ": " .. tostring(resolve_err))
-        return { ok = false, error = resolve_err }
+        return { ok = false, code = code, error = resolve_err }
     end
     if manifest ~= record.manifest_path then
         record.manifest_path = manifest
@@ -504,7 +507,7 @@ local function do_reapply(appid)
     local state_table = acf.read(manifest)
     if state_table == nil then
         log.error("reapply failed for app " .. appid .. ": cannot parse the appmanifest")
-        return { ok = false, error = "cannot parse the appmanifest" }
+        return { ok = false, code = "cannot_parse_manifest", error = "cannot parse the appmanifest" }
     end
     local normalized = installed_depots(state_table, record.locked_build)
     if not same_depots(record.locked_build.depots, normalized) then
@@ -517,13 +520,13 @@ local function do_reapply(appid)
     local current = state.read(appid)
     if current == nil then
         log.warn("refused to reapply app " .. appid .. ": the lock record was removed")
-        return { ok = false, error = "the lock record was removed" }
+        return { ok = false, code = "record_removed", error = "the lock record was removed" }
     end
     apply_spoof(state_table, current.locked_build)
     local written, write_err = acf.write(manifest, state_table)
     if not written then
         log.error("reapply failed for app " .. appid .. ": " .. tostring(write_err))
-        return { ok = false, error = write_err }
+        return { ok = false, code = "manifest_write_failed", error = write_err }
     end
     log.info("reapplied app " .. appid)
     return { ok = true }
@@ -533,7 +536,7 @@ end
 ---@return Ack
 local function reapply(appid)
     if restoring then
-        return { ok = false, error = "a restore is in progress" }
+        return { ok = false, code = "restore_in_progress", error = "a restore is in progress" }
     end
     if active[appid] then
         return { ok = true }
@@ -550,10 +553,10 @@ end
 
 ---@return RestoreResult
 local function do_restore_all()
-    local records, list_err = state.list()
+    local records, list_err, list_code = state.list()
     if records == nil then
         log.error("restore all failed: " .. tostring(list_err))
-        return { ok = false, error = list_err, restored = 0, failed = {} }
+        return { ok = false, code = list_code, error = list_err, restored = 0, failed = {} }
     end
     local restored = 0
     local failed = {}
@@ -590,7 +593,13 @@ end
 ---@return RestoreResult
 local function restore_all()
     if restoring then
-        return { ok = false, error = "a restore is already in progress", restored = 0, failed = {} }
+        return {
+            ok = false,
+            code = "restore_in_progress",
+            error = "a restore is already in progress",
+            restored = 0,
+            failed = {},
+        }
     end
     restoring = true
     local ok, result = pcall(do_restore_all)

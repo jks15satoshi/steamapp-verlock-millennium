@@ -80,6 +80,7 @@ export interface SteamClientFake {
   Console: unknown;
   Apps: unknown;
   System: unknown;
+  Settings?: unknown;
 }
 
 export function installSteamClient(steamClient: SteamClientFake): void {
@@ -87,6 +88,24 @@ export function installSteamClient(steamClient: SteamClientFake): void {
   globals.SteamClient = steamClient;
   globals.Millennium = Millennium;
   globals.backend = backend;
+}
+
+export function installLanguage(result: string | (() => Promise<string>) | (() => string)): void {
+  const globals = globalThis as Record<string, unknown>;
+  const settings = {
+    GetCurrentLanguage(): Promise<string> {
+      if (this !== settings) {
+        return Promise.reject(new Error("GetCurrentLanguage called without its Settings receiver"));
+      }
+      return Promise.resolve(typeof result === "function" ? result() : result);
+    },
+  };
+  globals.SteamClient = { Settings: settings };
+}
+
+export function clearLanguage(): void {
+  const globals = globalThis as Record<string, unknown>;
+  globals.SteamClient = undefined;
 }
 
 export async function flush(): Promise<void> {
