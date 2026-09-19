@@ -35,6 +35,7 @@ interface FrontendToBackend {
   set_data_root(path: string): Promise<MigrateResult>;
   reapply_app(appid: AppId): Promise<Ack>;
   append_log(level: string, message: string): Promise<Ack>;
+  get_clock_format(): Promise<Ack & { is_24h?: boolean }>;
 }
 
 interface BackendToFrontend {
@@ -54,6 +55,7 @@ const FRONTEND_TO_BACKEND_METHODS = [
   "set_data_root",
   "reapply_app",
   "append_log",
+  "get_clock_format",
 ] as const;
 
 const BACKEND_TO_FRONTEND_METHODS = ["request_build_info"] as const;
@@ -83,9 +85,9 @@ beforeEach(() => {
   installSteamClient({ Console: {}, Apps: {}, System: {} });
 });
 
-test("the frontend-to-backend bridge exposes the twelve documented methods", () => {
-  expect(FRONTEND_TO_BACKEND_METHODS).toHaveLength(12);
-  expect(new Set(FRONTEND_TO_BACKEND_METHODS).size).toBe(12);
+test("the frontend-to-backend bridge exposes the thirteen documented methods", () => {
+  expect(FRONTEND_TO_BACKEND_METHODS).toHaveLength(13);
+  expect(new Set(FRONTEND_TO_BACKEND_METHODS).size).toBe(13);
   for (const method of FRONTEND_TO_BACKEND_METHODS) {
     expect(typeof wire[method]).toBe("function");
   }
@@ -199,7 +201,13 @@ test("zero-argument methods send no arguments", async () => {
   await wire.list_locked();
   await wire.restore_all();
   await wire.get_data_root();
-  for (const method of ["list_locked", "restore_all", "get_data_root"] as const) {
+  await wire.get_clock_format();
+  for (const method of [
+    "list_locked",
+    "restore_all",
+    "get_data_root",
+    "get_clock_format",
+  ] as const) {
     const calls = recorder.find(method);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.payload).toBeUndefined();

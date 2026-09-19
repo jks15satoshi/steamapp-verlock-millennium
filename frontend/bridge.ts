@@ -57,6 +57,10 @@ export function get_data_root(): Promise<DataRoots> {
   return as_result<DataRoots>(backend.get_data_root());
 }
 
+export function get_clock_format(): Promise<Ack & { is_24h?: boolean }> {
+  return as_result<Ack & { is_24h?: boolean }>(backend.get_clock_format());
+}
+
 export function get_paths(appid: AppId): Promise<PathsResult> {
   return as_result<PathsResult>(backend.get_paths(JSON.stringify({ appid })));
 }

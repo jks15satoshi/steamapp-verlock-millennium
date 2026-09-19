@@ -3,7 +3,7 @@ local dkjson = require("dkjson")
 
 local support = {}
 
-local BACKEND_MODULES = { "vdf", "buildinfo", "acf", "state", "paths", "migrate", "lock", "log", "main" }
+local BACKEND_MODULES = { "vdf", "buildinfo", "acf", "state", "paths", "migrate", "lock", "log", "clock", "main" }
 
 support.env = {}
 support.tmpdirs = {}

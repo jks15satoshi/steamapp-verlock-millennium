@@ -1,8 +1,10 @@
 import { IconsModule, definePlugin } from "millennium";
 import { capture_then_refresh } from "./console";
+import { install_gamepage_patch } from "./gamepage";
 import { install_menu_patch } from "./menu";
 import { install_properties_patch } from "./properties";
 import SettingsPanel from "./settings";
+import { install_clock_format } from "./time";
 import { sync_watches, unwatch_all } from "./watch";
 
 export type AppId = string;
@@ -62,8 +64,10 @@ export function request_build_info(appid: string): void {
 }
 
 export default definePlugin(() => {
+  install_clock_format();
   const unpatch_menu = install_menu_patch();
   const unpatch_properties = install_properties_patch();
+  const unpatch_gamepage = install_gamepage_patch();
   void sync_watches();
 
   return {
@@ -73,6 +77,7 @@ export default definePlugin(() => {
     onDismount() {
       unpatch_menu();
       unpatch_properties();
+      unpatch_gamepage();
       unwatch_all();
     },
   };

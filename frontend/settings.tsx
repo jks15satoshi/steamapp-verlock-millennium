@@ -7,6 +7,8 @@ import { as_record_list, sync_locked_ids } from "./locked";
 import * as bridge from "./bridge";
 import { log_error, log_warn } from "./log";
 import { format_error, report_failure, show_failure_dialog } from "./notify";
+import { current_clock_format, format_client_time, subscribe_clock_format } from "./time";
+import type { ClockFormat } from "./time";
 import {
   ActionButton,
   BUTTON_CLASS_FALLBACK,
@@ -91,14 +93,8 @@ function is_ack(value: unknown): value is Ack {
   return Boolean(value) && typeof value === "object" && typeof (value as Ack).ok === "boolean";
 }
 
-function format_time(value: number | undefined): string {
-  if (typeof value !== "number" || value <= 0) {
-    return "Never";
-  }
-  return new Date(value * 1000).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+function format_time(value: number | undefined, format: ClockFormat): string {
+  return format_client_time(value, format) ?? "Never";
 }
 
 function is_installed(appid: AppId): boolean {
@@ -119,7 +115,10 @@ export default function SettingsPanel() {
   const [status, set_status] = useState("");
   const [button_class, set_button_class] = useState(BUTTON_CLASS_FALLBACK);
   const [divider, set_divider] = useState(DIVIDER_FALLBACK);
+  const [clock, set_clock] = useState<ClockFormat>(() => current_clock_format());
   const page_ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => subscribe_clock_format(() => set_clock(current_clock_format())), []);
 
   const reload = useCallback(async () => {
     try {
@@ -341,8 +340,8 @@ export default function SettingsPanel() {
                     </span>
                   </div>
                   <div style={{ ...MUTED_TEXT_STYLE, lineHeight: "20px" }}>
-                    <div>Locked: {format_time(record.locked_at)}</div>
-                    <div>Refreshed: {format_time(record.refreshed_at)}</div>
+                    <div>Locked: {format_time(record.locked_at, clock)}</div>
+                    <div>Refreshed: {format_time(record.refreshed_at, clock)}</div>
                     <div>Installed: {installed ? "Yes" : "No"}</div>
                   </div>
                   {installed ? null : (

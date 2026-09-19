@@ -8,6 +8,7 @@ local buildinfo = require("buildinfo")
 local lock = require("lock")
 local migrate = require("migrate")
 local log = require("log")
+local clock = require("clock")
 
 ---@param path string|nil
 ---@return string|nil
@@ -211,6 +212,14 @@ handlers.get_data_root = function()
     return paths.resolve()
 end
 
+handlers.get_clock_format = function()
+    local is_24h = clock.is_24h()
+    if is_24h == nil then
+        return { ok = true }
+    end
+    return { ok = true, is_24h = is_24h }
+end
+
 handlers.get_paths = function(payload)
     local appid = payload.appid
     if not is_numeric_appid(appid) then
@@ -412,6 +421,12 @@ end
 ---@return string
 function get_data_root()
     return encode(dispatch("get_data_root", {}))
+end
+
+---@ffi
+---@return string
+function get_clock_format()
+    return encode(dispatch("get_clock_format", {}))
 end
 
 ---@ffi

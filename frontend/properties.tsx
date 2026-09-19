@@ -7,6 +7,8 @@ import { as_record_list, is_locked, refresh_locked_ids, subscribe_locked } from 
 import * as bridge from "./bridge";
 import { log_error, log_info, log_warn } from "./log";
 import { format_error, show_failure_dialog, show_text_dialog } from "./notify";
+import { current_clock_format, format_client_time, subscribe_clock_format } from "./time";
+import type { ClockFormat } from "./time";
 import {
   accent_color,
   ActionButton,
@@ -43,14 +45,8 @@ function parse_json(raw: unknown): unknown {
   return raw;
 }
 
-export function format_time(value: number | undefined): string | null {
-  if (typeof value !== "number" || value <= 0) {
-    return null;
-  }
-  return new Date(value * 1000).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+export function format_time(value: number | undefined, format: ClockFormat): string | null {
+  return format_client_time(value, format) ?? null;
 }
 
 export function format_lock_text(content: string): string {
@@ -155,6 +151,9 @@ export function VerlockTabContent({
   const [paths, set_paths] = useState<PathsResult | null>(null);
   const [locked, set_locked] = useState<boolean>(() => is_locked(appid));
   const [busy, set_busy] = useState(false);
+  const [clock, set_clock] = useState<ClockFormat>(() => current_clock_format());
+
+  useEffect(() => subscribe_clock_format(() => set_clock(current_clock_format())), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -221,8 +220,8 @@ export function VerlockTabContent({
     }
   };
 
-  const locked_time = locked && record ? format_time(record.locked_at) : null;
-  const refreshed_time = locked && record ? format_time(record.refreshed_at) : null;
+  const locked_time = locked && record ? format_time(record.locked_at, clock) : null;
+  const refreshed_time = locked && record ? format_time(record.refreshed_at, clock) : null;
 
   const status = (time: string | null, not_yet: boolean): ReactNode => {
     if (time !== null) {

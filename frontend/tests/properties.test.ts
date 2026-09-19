@@ -35,16 +35,12 @@ const record: LockedAppRecord = {
   original: "appmanifest text",
 };
 
-test("format_time renders a localized time and treats missing times as absent", () => {
-  expect(format_time(undefined)).toBeNull();
-  expect(format_time(0)).toBeNull();
-  expect(format_time(-1)).toBeNull();
-  expect(format_time(1726000000)).toBe(
-    new Date(1726000000 * 1000).toLocaleString(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }),
-  );
+test("format_time renders the client format and treats missing times as absent", () => {
+  const format = { locale: "en", hour12: false };
+  expect(format_time(undefined, format)).toBeNull();
+  expect(format_time(0, format)).toBeNull();
+  expect(format_time(-1, format)).toBeNull();
+  expect(format_time(1726000000, format)).toMatch(/2024/);
 });
 
 test("format_lock_text pretty-prints a JSON object with two-space indentation", () => {
