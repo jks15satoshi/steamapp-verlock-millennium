@@ -1,5 +1,5 @@
-import { Button, PanelSection, PanelSectionRow, Spinner, TextField } from "millennium";
-import { useCallback, useEffect, useState } from "react";
+import { DialogCheckbox, Spinner, TextField } from "millennium";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Ack, AppId, DataRoots, LockedAppRecord, MigrateResult } from "./index";
 import { capture_build_info_set } from "./console";
 import { reapply_all, unwatch_all_then_restore, unwatch_then_unlock } from "./watch";
@@ -7,6 +7,74 @@ import { as_record_list, sync_locked_ids } from "./locked";
 import * as bridge from "./bridge";
 import { log_error, log_warn } from "./log";
 import { format_error, report_failure, show_failure_dialog } from "./notify";
+import {
+  ActionButton,
+  BUTTON_CLASS_FALLBACK,
+  divider_color,
+  DIVIDER_FALLBACK,
+  MUTED_COLOR,
+  read_button_class,
+} from "./native";
+
+const TABLE_FONT_SIZE = "13px";
+const TABLE_BACKGROUND = "rgb(35, 38, 46)";
+const HEADER_BACKGROUND = "rgb(61, 68, 80)";
+
+const TABLE_CONTAINER_STYLE: CSSProperties = {
+  background: TABLE_BACKGROUND,
+  color: MUTED_COLOR,
+  display: "flex",
+  flexDirection: "column",
+};
+
+const HEADER_CELL_STYLE: CSSProperties = {
+  color: MUTED_COLOR,
+  fontSize: TABLE_FONT_SIZE,
+  fontWeight: 500,
+  padding: "10px 8px",
+};
+
+const HEADER_ROW_STYLE: CSSProperties = {
+  alignItems: "center",
+  background: HEADER_BACKGROUND,
+  display: "grid",
+  gridTemplateColumns: "auto 1fr",
+};
+
+const RECORD_STYLE: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "6px",
+  padding: "8px",
+};
+
+const ACTION_ROW_STYLE: CSSProperties = {
+  display: "flex",
+  gap: "8px",
+};
+
+const BUTTON_HALF_STYLE: CSSProperties = {
+  display: "flex",
+  flex: "1 1 0",
+};
+
+const BUTTON_FULL_STYLE: CSSProperties = {
+  display: "flex",
+  flex: "1 1 100%",
+};
+
+const MUTED_TEXT_STYLE: CSSProperties = {
+  color: MUTED_COLOR,
+  fontSize: TABLE_FONT_SIZE,
+};
+
+function SectionHeader({ children }: { children: string }) {
+  return <div className="SettingsDialogSubHeader">{children}</div>;
+}
+
+function SectionDivider({ color }: { color: string }) {
+  return <div style={{ borderTop: `1px solid ${color}`, margin: "6px 0" }} />;
+}
 
 function parse_json(raw: unknown): unknown {
   if (typeof raw === "string") {
@@ -49,6 +117,9 @@ export default function SettingsPanel() {
   const [selected, set_selected] = useState<Set<AppId>>(new Set());
   const [busy, set_busy] = useState(false);
   const [status, set_status] = useState("");
+  const [button_class, set_button_class] = useState(BUTTON_CLASS_FALLBACK);
+  const [divider, set_divider] = useState(DIVIDER_FALLBACK);
+  const page_ref = useRef<HTMLDivElement | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -71,6 +142,14 @@ export default function SettingsPanel() {
     } catch (error) {
       log_error(`failed to load the lock state: ${String(error)}`);
       set_status("Failed to load lock state");
+    }
+  }, []);
+
+  useEffect(() => {
+    const page = page_ref.current;
+    if (page) {
+      set_button_class(read_button_class(document, page));
+      set_divider(divider_color(document));
     }
   }, []);
 
@@ -214,63 +293,68 @@ export default function SettingsPanel() {
     typeof SteamClient?.System?.OpenLocalDirectoryInSystemExplorer === "function";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "8px" }}>
-      <PanelSection title="Locked Apps">
-        {records.length === 0 ? (
-          <PanelSectionRow>
-            <div>No locked apps.</div>
-          </PanelSectionRow>
-        ) : (
-          <>
-            <PanelSectionRow>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <input
-                    type="checkbox"
-                    checked={all_selected}
-                    onChange={(event) => toggle_all(event.target.checked)}
-                  />
-                  Select all
-                </label>
-                <Button disabled={busy} onClick={batch_refresh}>
-                  Refresh selected
-                </Button>
-                <Button disabled={busy} onClick={batch_unlock}>
-                  Unlock selected
-                </Button>
-                {busy ? <Spinner /> : null}
+    <div ref={page_ref} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <SectionHeader>Locked Apps</SectionHeader>
+      {records.length === 0 ? (
+        <div style={MUTED_TEXT_STYLE}>No locked apps.</div>
+      ) : (
+        <>
+          <div style={ACTION_ROW_STYLE}>
+            <div style={BUTTON_HALF_STYLE}>
+              <ActionButton button_class={button_class} disabled={busy} onClick={batch_refresh}>
+                Refresh selected
+              </ActionButton>
+            </div>
+            <div style={BUTTON_HALF_STYLE}>
+              <ActionButton button_class={button_class} disabled={busy} onClick={batch_unlock}>
+                Unlock selected
+              </ActionButton>
+            </div>
+            {busy ? <Spinner /> : null}
+          </div>
+          <div style={TABLE_CONTAINER_STYLE}>
+            <div style={HEADER_ROW_STYLE}>
+              <div style={HEADER_CELL_STYLE}>
+                <DialogCheckbox
+                  bottomSeparator="none"
+                  checked={all_selected}
+                  controlled
+                  onChange={toggle_all}
+                  tooltip="Select all"
+                />
               </div>
-            </PanelSectionRow>
-
+              <div style={HEADER_CELL_STYLE}>NAME</div>
+            </div>
             {records.map((record) => {
               const installed = is_installed(record.appid);
               return (
-                <PanelSectionRow key={record.appid}>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "4px",
-                      padding: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: "4px",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <input
-                        type="checkbox"
-                        checked={selected.has(record.appid)}
-                        onChange={(event) => toggle_selected(record.appid, event.target.checked)}
-                      />
-                      <strong>{record.name}</strong>
-                      <span>({record.appid})</span>
-                    </div>
+                <div key={record.appid} style={RECORD_STYLE}>
+                  <div style={{ alignItems: "center", display: "flex", gap: "8px" }}>
+                    <DialogCheckbox
+                      bottomSeparator="none"
+                      checked={selected.has(record.appid)}
+                      controlled
+                      onChange={(checked) => toggle_selected(record.appid, checked)}
+                    />
+                    <span style={{ flex: "1 1 0", fontSize: TABLE_FONT_SIZE, minWidth: 0 }}>
+                      {record.name} <span style={{ color: MUTED_COLOR }}>({record.appid})</span>
+                    </span>
+                  </div>
+                  <div style={{ ...MUTED_TEXT_STYLE, lineHeight: "20px" }}>
                     <div>Locked: {format_time(record.locked_at)}</div>
                     <div>Refreshed: {format_time(record.refreshed_at)}</div>
                     <div>Installed: {installed ? "Yes" : "No"}</div>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      {installed ? (
-                        <Button
+                  </div>
+                  {installed ? null : (
+                    <div style={MUTED_TEXT_STYLE}>
+                      This app is no longer installed; Unlock removes the orphaned lock record.
+                    </div>
+                  )}
+                  <div style={ACTION_ROW_STYLE}>
+                    {installed ? (
+                      <div style={BUTTON_HALF_STYLE}>
+                        <ActionButton
+                          button_class={button_class}
                           disabled={busy}
                           onClick={() =>
                             void run(async () => {
@@ -280,9 +364,12 @@ export default function SettingsPanel() {
                           }
                         >
                           Refresh
-                        </Button>
-                      ) : null}
-                      <Button
+                        </ActionButton>
+                      </div>
+                    ) : null}
+                    <div style={installed ? BUTTON_HALF_STYLE : BUTTON_FULL_STYLE}>
+                      <ActionButton
+                        button_class={button_class}
                         disabled={busy}
                         onClick={() =>
                           void run(async () => {
@@ -292,66 +379,77 @@ export default function SettingsPanel() {
                         }
                       >
                         Unlock
-                      </Button>
+                      </ActionButton>
                     </div>
-                    {installed ? null : (
-                      <div>
-                        This app is no longer installed; Unlock removes the orphaned lock record.
-                      </div>
-                    )}
                   </div>
-                </PanelSectionRow>
+                </div>
               );
             })}
-          </>
-        )}
-      </PanelSection>
-
-      <PanelSection title="Maintenance">
-        <PanelSectionRow>
-          <Button disabled={busy} onClick={restore_all}>
-            Restore All
-          </Button>
-        </PanelSectionRow>
-      </PanelSection>
-
-      <PanelSection title="Data Directory">
-        <PanelSectionRow>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <TextField
-              label="Data root directory"
-              value={path_draft}
-              onChange={(event) => set_path_draft(event.target.value)}
-            />
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <Button disabled={busy} onClick={() => apply_root(path_draft)}>
-                Change
-              </Button>
-              <Button
-                disabled={busy}
-                onClick={() => {
-                  set_path_draft("");
-                  apply_root("");
-                }}
-              >
-                Reset to Default
-              </Button>
-              <Button
-                disabled={busy || !can_open_directory}
-                onClick={() => {
-                  if (can_open_directory && roots) {
-                    SteamClient.System.OpenLocalDirectoryInSystemExplorer(roots.data_root);
-                  }
-                }}
-              >
-                Open Folder
-              </Button>
-            </div>
           </div>
-        </PanelSectionRow>
-      </PanelSection>
+        </>
+      )}
 
-      {status ? <PanelSectionRow>{status}</PanelSectionRow> : null}
+      <SectionDivider color={divider} />
+
+      <SectionHeader>Maintenance</SectionHeader>
+      <div style={ACTION_ROW_STYLE}>
+        <div style={BUTTON_FULL_STYLE}>
+          <ActionButton button_class={button_class} disabled={busy} onClick={restore_all}>
+            Restore All
+          </ActionButton>
+        </div>
+      </div>
+
+      <SectionDivider color={divider} />
+
+      <SectionHeader>Data Directory</SectionHeader>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <TextField
+          label="Data root directory"
+          value={path_draft}
+          onChange={(event) => set_path_draft(event.target.value)}
+        />
+        <div style={ACTION_ROW_STYLE}>
+          <div style={BUTTON_HALF_STYLE}>
+            <ActionButton
+              button_class={button_class}
+              disabled={busy}
+              onClick={() => apply_root(path_draft)}
+            >
+              Change
+            </ActionButton>
+          </div>
+          <div style={BUTTON_HALF_STYLE}>
+            <ActionButton
+              button_class={button_class}
+              disabled={busy}
+              onClick={() => {
+                set_path_draft("");
+                apply_root("");
+              }}
+            >
+              Reset to Default
+            </ActionButton>
+          </div>
+        </div>
+        <div style={ACTION_ROW_STYLE}>
+          <div style={BUTTON_FULL_STYLE}>
+            <ActionButton
+              button_class={button_class}
+              disabled={busy || !can_open_directory}
+              onClick={() => {
+                if (can_open_directory && roots) {
+                  SteamClient.System.OpenLocalDirectoryInSystemExplorer(roots.data_root);
+                }
+              }}
+            >
+              Open Folder
+            </ActionButton>
+          </div>
+        </div>
+      </div>
+
+      {status ? <div style={MUTED_TEXT_STYLE}>{status}</div> : null}
     </div>
   );
 }
