@@ -40,6 +40,11 @@ try {
     }
   }
 
+  & (Join-Path $RocksDir "luarocks.bat") config variables.LUALIB lua51.lib
+  if ($LASTEXITCODE -ne 0) {
+    throw "LuaRocks config failed with exit code $LASTEXITCODE"
+  }
+
   & (Join-Path $RocksDir "luarocks.bat") make --deps-only (Join-Path $RootDir "steamapp-verlock-dev-1.rockspec")
   if ($LASTEXITCODE -ne 0) {
     throw "LuaRocks make failed with exit code $LASTEXITCODE"

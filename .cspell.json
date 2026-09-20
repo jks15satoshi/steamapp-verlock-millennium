@@ -46,6 +46,7 @@
     "luacheck",
     "luacov",
     "luajit",
+    "lualib",
     "luarocks",
     "maxsize",
     "metacharacters",
