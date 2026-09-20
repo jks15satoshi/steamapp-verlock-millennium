@@ -71,7 +71,7 @@ Single tests:
 ## Opening a Pull Request
 
 - Reference at least one issue. A non-trivial change also references the spec that owns it, or says why it is exempt.
-- Fill the template: `Motivation` (with `Fixes #NN` or `Related #NN`), `Changes`, and `Testing`.
+- Fill the template: `Motivation` (with `Fixes #NN`, `Closes #NN`, `Resolves #NN`, `Related #NN`, or `Refs #NN`), `Changes`, and `Testing`.
 - Keep the pull request a draft until the checks and the evidence are ready.
 - A second maintainer reviews and merges; the author never approves or merges their own pull request, and an agent never merges at all.
 

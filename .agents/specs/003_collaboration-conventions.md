@@ -87,11 +87,11 @@ The repository's default labels classify an issue: a `Bug` carries `bug`, a `Fea
 
 ### Pull Requests
 
-A pull request title is a commit header in the grammar of [Commit Messages](#commit-messages), because a merge or squash uses it as the resulting commit's header.
+A pull request title is a commit header in the grammar of [Commit Messages](#commit-messages), because a merge or squash uses it as the resulting commit's header. A Git-generated merge header such as `Merge branch 'main'` does not satisfy the pull request title requirement.
 
 The body follows the repository template, with three sections:
 
-- `Motivation` states the problem and carries a closing reference (`Fixes #<issue>`) or an informational reference (`Related #<issue>`).
+- `Motivation` states the problem and carries a closing reference (`Fixes #<issue>`, `Closes #<issue>`, or `Resolves #<issue>`) or an informational reference (`Related #<issue>` or `Refs #<issue>`).
 - `Changes` states the public-interface change and the behavior change, or `None`.
 - `Testing` lists each test method with its proof inside a `details` element.
 
