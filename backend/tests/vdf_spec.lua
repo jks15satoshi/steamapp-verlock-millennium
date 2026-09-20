@@ -145,6 +145,19 @@ describe("vdf", function()
     end)
 
     it("releases parsed trees once they are unreachable", function()
+        local meta
+        for index = 1, 64 do
+            local name, value = debug.getupvalue(vdf.parse, index)
+            if name == nil then
+                break
+            end
+            if name == "META" then
+                meta = value
+                break
+            end
+        end
+        assert.is_not_nil(meta, "vdf.parse should close over the metadata cache")
+
         local lines = { '"root"', "{" }
         for index = 1, 500 do
             table.insert(lines, string.format('\t"key%d"\n\t{\n\t\t"value"\t\t"%s"\n\t}', index, string.rep("x", 128)))
@@ -152,21 +165,27 @@ describe("vdf", function()
         table.insert(lines, "}")
         local text = table.concat(lines, "\n")
 
-        collectgarbage("collect")
-        local before = collectgarbage("count")
-
         for _ = 1, 50 do
-            local parsed = vdf.parse(text)
-            if parsed == nil then
+            if vdf.parse(text) == nil then
                 error("vdf.parse returned nil")
             end
         end
 
-        collectgarbage("collect")
-        local after = collectgarbage("count")
+        local entries = 0
+        for _ in pairs(meta) do
+            entries = entries + 1
+        end
+        assert.is_true(entries > 0, "the metadata cache should hold the parsed trees while they are reachable")
 
-        local retained = after - before
-        assert.is_true(retained < 1024, string.format("vdf retained %.1f KiB after parsing", retained))
+        for _ = 1, 4 do
+            collectgarbage("collect")
+        end
+
+        entries = 0
+        for _ in pairs(meta) do
+            entries = entries + 1
+        end
+        assert.equals(0, entries)
     end)
 
     it("returns an error on malformed text", function()
