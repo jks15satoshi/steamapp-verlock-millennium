@@ -144,6 +144,31 @@ describe("vdf", function()
         assert.equals(text:gsub("}\n$", '\t"TargetBuildID"\t\t"0"\n}\n'), out)
     end)
 
+    it("releases parsed trees once they are unreachable", function()
+        local lines = { '"root"', "{" }
+        for index = 1, 500 do
+            table.insert(lines, string.format('\t"key%d"\n\t{\n\t\t"value"\t\t"%s"\n\t}', index, string.rep("x", 128)))
+        end
+        table.insert(lines, "}")
+        local text = table.concat(lines, "\n")
+
+        collectgarbage("collect")
+        local before = collectgarbage("count")
+
+        for _ = 1, 50 do
+            local parsed = vdf.parse(text)
+            if parsed == nil then
+                error("vdf.parse returned nil")
+            end
+        end
+
+        collectgarbage("collect")
+        local after = collectgarbage("count")
+
+        local retained = after - before
+        assert.is_true(retained < 1024, string.format("vdf retained %.1f KiB after parsing", retained))
+    end)
+
     it("returns an error on malformed text", function()
         local parsed, err = vdf.parse('"root"\n{\n\t"a"\t\t"1"\n')
         assert.is_nil(parsed)

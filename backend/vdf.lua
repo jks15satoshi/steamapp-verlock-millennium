@@ -1,4 +1,6 @@
-local META = {}
+-- Weak keys: the entries keep each parsed tree's original formatting alive only
+-- for as long as the caller holds that tree, so parsing does not accumulate.
+local META = setmetatable({}, { __mode = "k" })
 
 ---@class VdfState
 ---@field [string] VdfState|string
@@ -221,7 +223,6 @@ local function parse(text)
                         key_raw = key_raw,
                         middle_raw = middle,
                         lead_raw = pending,
-                        child = child,
                     })
                     object[key] = child
                 else
@@ -285,7 +286,6 @@ local function parse(text)
                 key_raw = key_raw,
                 middle_raw = middle,
                 lead_raw = pending,
-                child = child,
             })
             root[key] = child
         else
