@@ -314,18 +314,26 @@ describe("main", function()
     end)
 
     it("returns the new data root from set_data_root", function()
-        local ack = invoke("set_data_root", { path = "/newdata" })
+        local target = support.host("/newdata")
+        local ack = invoke("set_data_root", { path = target })
         assert.is_table(ack)
         assert.is_true(ack.ok)
-        assert.equals("/newdata", ack.data_root)
+        assert.equals(target, ack.data_root)
     end)
 
     it("resets to the default data root when given an empty path", function()
-        support.set_env("XDG_DATA_HOME", "/base")
+        local base
+        if support.is_windows then
+            base = support.host("/base")
+            support.set_env("LOCALAPPDATA", base)
+        else
+            base = "/base"
+            support.set_env("XDG_DATA_HOME", base)
+        end
         local ack = invoke("set_data_root", { path = "" })
         assert.is_table(ack)
         assert.is_true(ack.ok)
-        assert.equals("/base/steamapp-verlock", ack.data_root)
+        assert.equals(base .. "/steamapp-verlock", ack.data_root)
         assert.is_true(ack.is_default)
     end)
 

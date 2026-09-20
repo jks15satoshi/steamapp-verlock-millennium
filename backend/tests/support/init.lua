@@ -3,6 +3,15 @@ local dkjson = require("dkjson")
 
 local support = {}
 
+support.is_windows = (type(jit) == "table" and jit.os == "Windows") or false
+
+function support.host(path)
+    if support.is_windows then
+        return "C:" .. path
+    end
+    return path
+end
+
 local BACKEND_MODULES = { "vdf", "buildinfo", "acf", "state", "paths", "migrate", "lock", "log", "clock", "main" }
 
 support.env = {}
@@ -268,10 +277,23 @@ function support.read_fixture(name)
     return content
 end
 
+support._tmp_counter = 0
+
 function support.tmpdir(prefix)
-    local name = os.tmpname()
-    os.remove(name)
-    local directory = prefix and (name .. "-" .. prefix) or name
+    local base = os.getenv("TMPDIR")
+    if base == nil or base == "" then
+        base = os.getenv("TEMP")
+    end
+    if base == nil or base == "" then
+        base = os.getenv("TMP")
+    end
+    if base == nil or base == "" then
+        base = support.is_windows and "." or "/tmp"
+    end
+    base = tostring(base):gsub("\\", "/"):gsub("/+$", "")
+    support._tmp_counter = support._tmp_counter + 1
+    local suffix = prefix and ("-" .. prefix) or ""
+    local directory = string.format("%s/verlock-test-%d-%d%s", base, os.time(), support._tmp_counter, suffix)
     local ok, err = lfs.mkdir(directory)
     if not ok then
         error(err or ("cannot create temporary directory: " .. directory))
