@@ -133,13 +133,23 @@ function fake_fs.new()
         if path == "/" or path == "" then
             return true
         end
-        local segments = {}
-        for segment in path:gmatch("[^/]+") do
-            table.insert(segments, segment)
-        end
         local current = ""
-        for _, segment in ipairs(segments) do
-            current = current .. "/" .. segment
+        if path:sub(1, 1) == "/" then
+            current = "/"
+            path = path:sub(2)
+        else
+            local drive = path:match("^(%a:)")
+            if drive then
+                current = drive
+                path = path:sub(3)
+            end
+        end
+        for segment in path:gmatch("[^/]+") do
+            if current == "" or current == "/" then
+                current = current .. segment
+            else
+                current = current .. "/" .. segment
+            end
             local node = store.nodes[current]
             if node == nil then
                 store.nodes[current] = { kind = "dir", mtime = clock() }
