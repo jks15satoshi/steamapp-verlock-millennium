@@ -109,5 +109,5 @@ test("resolve_error ignores an object prototype key as a code", () => {
 });
 
 test("the two catalogs carry the same key set", () => {
-  expect(Object.keys(english).sort()).toEqual(Object.keys(schinese).sort());
+  expect(Object.keys(english).toSorted()).toEqual(Object.keys(schinese).toSorted());
 });

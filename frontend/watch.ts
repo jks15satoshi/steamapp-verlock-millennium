@@ -182,7 +182,7 @@ async function read_locked_appids(): Promise<AppId[] | null> {
     if (records === null) {
       return null;
     }
-    return records.map((record) => String(record.appid));
+    return records.map((record) => record.appid);
   } catch {
     return null;
   }
@@ -360,9 +360,7 @@ export async function unwatch_then_unlock(appid: AppId): Promise<UnlockResult> {
     if (!is_ack(result)) {
       log_error(`unlock failed for app ${appid}: the backend returned an invalid response`);
     }
-    return is_ack(result)
-      ? (result as UnlockResult)
-      : { ok: false, code: "unlock_failed", error: "unlock failed" };
+    return is_ack(result) ? result : { ok: false, code: "unlock_failed", error: "unlock failed" };
   }
   const unlock = result as UnlockResult;
   if (typeof unlock.auto_update_behavior === "number") {
@@ -413,7 +411,7 @@ export async function unwatch_all_then_restore(appids: AppId[]): Promise<Restore
   }
   const restore = result as RestoreResult;
   const failed = Array.isArray(restore.failed) ? restore.failed : [];
-  for (const appid of failed.map((value) => String(value))) {
+  for (const appid of failed) {
     watch_app(appid);
   }
   restore.auto_update_failed = restore_behaviors(restore.auto_update);

@@ -72,7 +72,7 @@ function order_keys(source: Record<string, unknown>, order: string[]): Record<st
       result[key] = source[key];
     }
   }
-  for (const key of Object.keys(source).sort()) {
+  for (const key of Object.keys(source).toSorted()) {
     if (!(key in result)) {
       result[key] = source[key];
     }
@@ -110,7 +110,7 @@ export function find_record(
   records: LockedAppRecord[] | null,
   appid: AppId,
 ): LockedAppRecord | null {
-  return records?.find((entry) => String(entry.appid) === appid) ?? null;
+  return records?.find((entry) => entry.appid === appid) ?? null;
 }
 
 function Value({ children }: { children: ReactNode }) {
@@ -483,7 +483,7 @@ function inject(document_ref: Document, appid: string): void {
     our_area.style.display = active ? "" : "none";
   };
 
-  let refresh_content: () => void = () => {};
+  let refresh_content: () => void;
 
   our_tab.addEventListener("click", (event) => {
     event.preventDefault();

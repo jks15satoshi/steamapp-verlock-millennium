@@ -22,5 +22,8 @@ export function format_error(error: unknown): string {
   if (typeof error === "symbol" || typeof error === "function") {
     return error.toString();
   }
-  return String(error as string);
+  if (typeof error === "number" || typeof error === "boolean" || typeof error === "bigint") {
+    return `${error}`;
+  }
+  return "Unknown error";
 }

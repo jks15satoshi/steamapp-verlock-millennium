@@ -163,7 +163,7 @@ export function install_menu_patch(): () => void {
     const component: any = Object.values(module).find((sibling: unknown) =>
       (sibling as { toString?: () => string } | null)?.toString?.().includes("navigator:"),
     );
-    const library_context_menu = component ? (fakeRenderComponent(component)?.type as any) : null;
+    const library_context_menu = component ? fakeRenderComponent(component)?.type : null;
     if (!library_context_menu?.prototype?.render) {
       return false;
     }

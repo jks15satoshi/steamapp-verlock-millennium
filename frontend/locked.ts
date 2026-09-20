@@ -57,7 +57,7 @@ export function sync_locked_ids(records: unknown): void {
   if (list === null) {
     return;
   }
-  locked_ids = new Set(list.map((record) => String(record.appid)));
+  locked_ids = new Set(list.map((record) => record.appid));
   loaded_at = Date.now();
   notify();
 }

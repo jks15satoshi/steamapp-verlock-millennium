@@ -59,6 +59,14 @@ interface AppsHarness {
   setBehaviorFails(value: boolean): void;
 }
 
+function removeFrom(callbacks: Set<Callback>, callback: Callback): { unregister(): void } {
+  return {
+    unregister: (): void => {
+      callbacks.delete(callback);
+    },
+  };
+}
+
 function createApps(): AppsHarness {
   const appDetails = new Map<string, Set<Callback>>();
   const overviewChanges = new Set<Callback>();
@@ -75,11 +83,6 @@ function createApps(): AppsHarness {
   const behaviors: { appid: string; mode: number }[] = [];
   let cancelFails = false;
   let behaviorFails = false;
-  const removeFrom = (callbacks: Set<Callback>, callback: Callback): { unregister(): void } => ({
-    unregister: (): void => {
-      callbacks.delete(callback);
-    },
-  });
   const apps = {
     RegisterForAppDetails(appid: number | string, callback: Callback): { unregister(): void } {
       const key = String(appid);
@@ -106,7 +109,7 @@ function createApps(): AppsHarness {
       canceled.push(gameActionId);
     },
     RunGame(appid: string, launchOptions: string, param2: number, launchSource: unknown): void {
-      runGameCalls.push({ appid: String(appid), launchOptions, param2, launchSource });
+      runGameCalls.push({ appid, launchOptions, param2, launchSource });
     },
     ContinueGameAction(gameActionId: number, actionType: string): void {
       continueCalls.push({ gameActionId, actionType });

@@ -251,7 +251,7 @@ function pick_text_style(view: Window, element: HTMLElement): CSSProperties {
     fontWeight: style.fontWeight,
     letterSpacing: style.letterSpacing,
     lineHeight: style.lineHeight,
-    textTransform: style.textTransform as CSSProperties["textTransform"],
+    textTransform: style.textTransform,
   };
 }
 
@@ -315,7 +315,7 @@ export function LockBadge({ appid, style }: { appid: AppId; style: BadgeStyle })
             return;
           }
           const list = as_record_list(parse_json(raw));
-          const record = list?.find((entry) => String(entry.appid) === appid);
+          const record = list?.find((entry) => entry.appid === appid);
           set_refreshed_at(record?.refreshed_at ?? record?.locked_at);
         })
         .catch(() => {

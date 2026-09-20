@@ -149,7 +149,7 @@ function appidFrom(payload: unknown): string {
     }
   }
   if (payload !== null && typeof payload === "object" && "appid" in payload) {
-    return String((payload as { appid: unknown }).appid);
+    return String(payload.appid);
   }
   return String(payload);
 }

@@ -235,7 +235,7 @@ const ERROR_CODES = [
 ] as const;
 
 test("the catalogs carry an identical key set", () => {
-  expect(Object.keys(english).sort()).toEqual(Object.keys(schinese).sort());
+  expect(Object.keys(english).toSorted()).toEqual(Object.keys(schinese).toSorted());
 });
 
 test("every error code has an error.<code> catalog key and no key is orphaned", () => {

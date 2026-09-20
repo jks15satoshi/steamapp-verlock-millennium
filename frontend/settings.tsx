@@ -130,12 +130,12 @@ export default function SettingsPanel() {
   const reload = useCallback(async () => {
     try {
       const list = parse_json(await bridge.list_locked());
-      const records = as_record_list(list);
+      const loaded_records = as_record_list(list);
       if (is_ack(list) && !list.ok) {
         log_warn(`could not load the lock state: ${list.error ?? "unavailable"}`);
         set_status(t("settings.status.load_unavailable"));
       } else {
-        set_records(records ?? []);
+        set_records(loaded_records ?? []);
         sync_locked_ids(list);
       }
 
@@ -252,12 +252,10 @@ export default function SettingsPanel() {
     void run(async () => {
       const restore = await unwatch_all_then_restore(snapshot.map((record) => record.appid));
       if (restore.ok) {
-        const failed = (Array.isArray(restore.failed) ? restore.failed : []).map((appid) =>
-          String(appid),
-        );
-        const auto_update_failed = (
-          Array.isArray(restore.auto_update_failed) ? restore.auto_update_failed : []
-        ).map((appid) => String(appid));
+        const failed = Array.isArray(restore.failed) ? restore.failed : [];
+        const auto_update_failed = Array.isArray(restore.auto_update_failed)
+          ? restore.auto_update_failed
+          : [];
         const notes: string[] = [];
         if (failed.length > 0) {
           notes.push(

@@ -44,6 +44,7 @@
     "localconfig",
     "ltrim",
     "luacheck",
+    "luacheckrc",
     "luacov",
     "luajit",
     "lualib",

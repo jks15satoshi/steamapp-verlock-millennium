@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "warn"
+  },
+  "env": {
+    "browser": true
+  },
+  "settings": {
+    "react": {
+      "version": "19.0.0"
+    }
+  },
+  "ignorePatterns": ["node_modules/**", ".millennium/**", ".tmp/**", "coverage/**", ".agents/**"],
+  "rules": {
+    "typescript/no-unsafe-type-assertion": "off",
+    "eslint/no-await-in-loop": "off",
+    "eslint/no-unmodified-loop-condition": "off",
+    "eslint/no-underscore-dangle": ["error", { "allow": ["_owner"] }]
+  }
+}

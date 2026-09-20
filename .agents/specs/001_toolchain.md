@@ -39,6 +39,12 @@ The Oxc toolchain checks the frontend. `oxlint` lints TypeScript and React code;
 
 `luacheck` performs static analysis on Lua. StyLua formats Lua. `lua-language-server` supplies type hints and diagnostics. `cspell` checks spelling. `luacheck` comes from LuaRocks; `stylua` and `lua-language-server` come from `mise`.
 
+### Lint Rule Policy
+
+The frontend lint policy lives in `.oxlintrc.json`, and the backend lint policy lives in `.luacheckrc`. `oxlint` enables the `correctness` and `suspicious` categories as errors and the `perf` category as warnings; a `perf` warning does not fail `bun run lint`. `tsconfig.json` includes the `ES2023` library so the frontend may use `Array.prototype.toSorted`. `luacheck` sets `max_line_length` to `120`, matching StyLua's `column_width`.
+
+Three `oxlint` rules are off because the plugin's Steam-bound code would violate them by design: `typescript/no-unsafe-type-assertion`, because the Steam globals and the bridge payloads are untyped; `eslint/no-await-in-loop`, because the lock, refresh, and restore operations must run their backend calls one at a time; and `eslint/no-unmodified-loop-condition`, because a test loop's callback mutates the condition the rule cannot see. `eslint/no-underscore-dangle` allows the React internal property `_owner`.
+
 ### Repository Quality
 
 EditorConfig fixes line endings, indentation, and charset per file type. markdownlint-cli2 checks the repository Markdown, including the spec corpus, while the corpus's content still follows [Spec 0](000_metaspec.md). `tombi` formats and lints TOML. `cspell` checks spelling across the repository. `markdownlint-cli2`, `cspell`, and `tombi` are pinned by `mise`.
