@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/verification.yml
+
+  release:
+    name: Publish release
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Check the tag matches the plugin version
+        run: bun .github/scripts/check-release-version.ts "$GITHUB_REF_NAME"
+
+      - name: Build the release
+        run: bun run build:release
+
+      - name: Verify the archive
+        run: ./node_modules/.bin/starlight verify dist/steamapp-verlock.star
+
+      - name: Render the release notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun .github/scripts/render-release-notes.ts "$GITHUB_REF_NAME" dist/steamapp-verlock.star > dist/RELEASE_NOTES.md
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/steamapp-verlock.star \
+            --title "Steam App Verlock $GITHUB_REF_NAME" \
+            --notes-file dist/RELEASE_NOTES.md \
+            --verify-tag

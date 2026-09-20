@@ -54,6 +54,7 @@ The Lua tests run on LuaRocks:
     bun run format                  # oxfmt, stylua, tombi
     bun run spell                   # cspell
     bun run build                   # starlight pack
+    bun run build:release           # starlight pack --release into dist/
     bun run dev                     # starlight watch
 
 Single tests:
@@ -89,3 +90,4 @@ Open an issue with the matching form: `Bug`, `Feature`, or `Task`. The forms ask
 - [Spec 6](.agents/specs/006_logging.md) — the logging mechanism.
 - [Spec 7](.agents/specs/007_native-ui-style-alignment.md) — matching the client's native styling.
 - [Spec 8](.agents/specs/008_localization.md) — the localization catalogs and error codes.
+- [Spec 9](.agents/specs/009_release-and-distribution.md) — the release and distribution process.

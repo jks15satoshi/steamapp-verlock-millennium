@@ -25,7 +25,7 @@ Windows and Linux desktop Steam clients (tested on AMD64 (x86-64)). macOS, Steam
 Steam App Verlock depends on Millennium: install [Millennium](https://steambrew.app/) first.
 
 - **Plugin store**: open Millennium Settings → Plugins → "Install a plugin", then search for or enter the Steam App Verlock plugin ID.
-- **Manual install**: download the release package from [Releases](https://github.com/jks15satoshi/steamapp-verlock-millennium/releases), extract it into Millennium's `plugins` directory, restart Steam, and enable the plugin from the Millennium menu.
+- **Manual install**: download `steamapp-verlock.star` from [Releases](https://github.com/jks15satoshi/steamapp-verlock-millennium/releases), place it in Millennium's `plugins` directory, restart Steam, and enable the plugin from the Millennium menu.
 
 ## Usage
 

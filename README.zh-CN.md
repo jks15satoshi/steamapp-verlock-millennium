@@ -29,7 +29,7 @@ Steam 客户端不提供将应用锁定在特定构建版本的功能：它只�
 Steam App Verlock 依赖 Millennium：请先安装 [Millennium](https://steambrew.app/)。
 
 - **插件商店**：打开 Millennium 设置 → 插件 → “安装插件”，搜索或输入 Steam App Verlock 的插件 ID 进行安装。
-- **手动安装**：从 [Releases](https://github.com/jks15satoshi/steamapp-verlock-millennium/releases) 下载发布包，解压到 Millennium 的 `plugins` 目录，重启 Steam 后在 Millennium 菜单中启用。
+- **手动安装**：从 [Releases](https://github.com/jks15satoshi/steamapp-verlock-millennium/releases) 下载 `steamapp-verlock.star`，放入 Millennium 的 `plugins` 目录，重启 Steam 后在 Millennium 菜单中启用。
 
 ## 使用
 

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "starlight watch",
     "build": "starlight pack",
+    "build:release": "bun scripts/build-release.ts",
     "prepare": "starlight lsp",
     "test": "bun run test:frontend && bun run test:backend",
     "test:frontend": "bun test frontend",
