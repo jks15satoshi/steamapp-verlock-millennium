@@ -123,18 +123,7 @@ function register_globals(): void {
   }
 }
 
-function reissue_action(
-  appid: AppId,
-  action: string,
-  launch_source: ELaunchSource,
-  game_action_id: number,
-): void {
-  if (action === "UpdateApp") {
-    SteamClient.Apps.ContinueGameAction(game_action_id, action);
-    return;
-  }
-  SteamClient.Apps.RunGame(appid, "", 0, launch_source);
-}
+const UPDATE_ACTIONS = new Set(["UpdateApp"]);
 
 async function handle_game_action_start(
   game_action_id: number,
@@ -146,6 +135,17 @@ async function handle_game_action_start(
     return;
   }
 
+  // A launch passes through: the pinned build is already on disk, and
+  // cancelling it and re-issuing it through RunGame makes the handler cancel
+  // its own re-issued action forever, so the app never starts. Refresh the
+  // spoof opportunistically instead.
+  if (!UPDATE_ACTIONS.has(action)) {
+    void reapply(appid);
+    return;
+  }
+
+  // An update action is cancelled so the reapplied spoof wins, then the
+  // launch is issued again through RunGame.
   let cancelled = false;
   try {
     SteamClient.Apps.CancelGameAction(game_action_id);
@@ -156,13 +156,12 @@ async function handle_game_action_start(
 
   if (!cancelled) {
     report_warning(t("actions.cancel_failed", { appid }));
+    await reapply(appid);
+    return;
   }
 
   await reapply(appid);
-
-  if (cancelled) {
-    reissue_action(appid, action, launch_source, game_action_id);
-  }
+  SteamClient.Apps.RunGame(appid, "", 0, launch_source);
 }
 
 function start_backstop(): void {

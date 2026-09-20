@@ -57,6 +57,7 @@ interface AppsHarness {
   reset(): void;
   setCancelFails(value: boolean): void;
   setBehaviorFails(value: boolean): void;
+  setRunGameReenters(value: boolean): void;
 }
 
 function removeFrom(callbacks: Set<Callback>, callback: Callback): { unregister(): void } {
@@ -83,6 +84,8 @@ function createApps(): AppsHarness {
   const behaviors: { appid: string; mode: number }[] = [];
   let cancelFails = false;
   let behaviorFails = false;
+  let runGameReenters = false;
+  let nextActionId = 1000;
   const apps = {
     RegisterForAppDetails(appid: number | string, callback: Callback): { unregister(): void } {
       const key = String(appid);
@@ -110,6 +113,14 @@ function createApps(): AppsHarness {
     },
     RunGame(appid: string, launchOptions: string, param2: number, launchSource: unknown): void {
       runGameCalls.push({ appid, launchOptions, param2, launchSource });
+      if (runGameReenters) {
+        const gameActionId = nextActionId;
+        nextActionId += 1;
+        activeActions.add(gameActionId);
+        for (const callback of gameActions) {
+          callback(gameActionId, appid, "LaunchApp", launchSource);
+        }
+      }
     },
     ContinueGameAction(gameActionId: number, actionType: string): void {
       continueCalls.push({ gameActionId, actionType });
@@ -143,6 +154,9 @@ function createApps(): AppsHarness {
     },
     setBehaviorFails(value: boolean): void {
       behaviorFails = value;
+    },
+    setRunGameReenters(value: boolean): void {
+      runGameReenters = value;
     },
   };
 }
@@ -272,33 +286,31 @@ test("unwatch_app releases the app callbacks", async () => {
   expect(appIdsFor("reapply_app")).not.toContain(APPID);
 });
 
-test("the game action handler re-issues a launch action through RunGame", async () => {
+test("the game action handler lets a launch action proceed after a reapply", async () => {
   watch_app(APPID);
   await flush();
   bridge.reset();
   fireGameAction(42, APPID, "LaunchApp", 1000);
   await pump(100, 20);
-  expect(apps.canceled).toContain(42);
-  expect(appIdsFor("reapply_app")).toContain(APPID);
-  expect(apps.runGameCalls).toEqual([
-    { appid: APPID, launchOptions: "", param2: 0, launchSource: 1000 },
-  ]);
+  expect(apps.canceled).toHaveLength(0);
+  expect(apps.runGameCalls).toHaveLength(0);
   expect(apps.continueCalls).toHaveLength(0);
+  expect(appIdsFor("reapply_app")).toContain(APPID);
 });
 
-test("the game action handler re-applies and lets the action proceed when cancel fails", async () => {
+test("the game action handler re-applies and lets an update proceed when cancel fails", async () => {
   apps.setCancelFails(true);
   watch_app(APPID);
   await flush();
   bridge.reset();
-  fireGameAction(43, APPID, "LaunchApp", 1000);
+  fireGameAction(43, APPID, "UpdateApp", 1000);
   await pump(100, 20);
   expect(appIdsFor("reapply_app")).toContain(APPID);
   expect(apps.runGameCalls).toHaveLength(0);
   expect(apps.continueCalls).toHaveLength(0);
 });
 
-test("the game action handler re-issues an update action through ContinueGameAction", async () => {
+test("the game action handler cancels an update action and relaunches through RunGame", async () => {
   watch_app(APPID);
   await flush();
   bridge.reset();
@@ -306,8 +318,22 @@ test("the game action handler re-issues an update action through ContinueGameAct
   await pump(100, 20);
   expect(appIdsFor("reapply_app")).toContain(APPID);
   expect(apps.canceled).toContain(44);
-  expect(apps.continueCalls).toEqual([{ gameActionId: 44, actionType: "UpdateApp" }]);
-  expect(apps.runGameCalls).toHaveLength(0);
+  expect(apps.runGameCalls).toEqual([
+    { appid: APPID, launchOptions: "", param2: 0, launchSource: 1000 },
+  ]);
+  expect(apps.continueCalls).toHaveLength(0);
+});
+
+test("the update interception does not re-cancel the launch it re-issues", async () => {
+  apps.setRunGameReenters(true);
+  watch_app(APPID);
+  await flush();
+  bridge.reset();
+  fireGameAction(45, APPID, "UpdateApp", 1000);
+  await pump(100, 20);
+  apps.setRunGameReenters(false);
+  expect(apps.canceled).toEqual([45]);
+  expect(apps.runGameCalls).toHaveLength(1);
 });
 
 test("the backstop timer refreshes a watched app", async () => {
