@@ -99,7 +99,20 @@ export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
   }
 }
 
-export async function capture_build_info_set(appid: AppId): Promise<CaptureSet> {
+// RegisterForSpewOutput exposes one shared spew stream, so captures run one at
+// a time through this queue; a failed capture must not block the next one.
+let capture_queue: Promise<void> = Promise.resolve();
+
+export function capture_build_info_set(appid: AppId): Promise<CaptureSet> {
+  const result = capture_queue.then(() => run_capture_build_info_set(appid));
+  capture_queue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
+async function run_capture_build_info_set(appid: AppId): Promise<CaptureSet> {
   const base = await capture_build_info(appid);
   if (!base.ok) {
     return { ok: false, code: base.code, error: base.error };

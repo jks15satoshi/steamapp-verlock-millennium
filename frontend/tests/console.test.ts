@@ -198,3 +198,30 @@ test("capture_build_info_set rejects a malformed apps field", async () => {
     expect(result.error).toBe("the backend returned an invalid required-apps response");
   }
 });
+
+test("capture_build_info_set serializes concurrent captures", async () => {
+  const dlc = "553852";
+  const other = "440";
+  const dlcDump = `"${dlc}"\n{\n"depots"\n{\n}\n}`;
+  const otherDump = `"${other}"\n{\n"depots"\n{\n}\n}`;
+  setup([multiDepotDump, dlcDump, otherDump, dlcDump]);
+  setBackendResponse("get_required_apps", { ok: true, apps: [dlc] });
+  bridge.reset();
+  const [first, second] = await settle(
+    Promise.all([capture_build_info_set(APPID), capture_build_info_set(other)]),
+    8000,
+    20,
+  );
+  expect(first.ok).toBe(true);
+  expect(second.ok).toBe(true);
+  expect(commands).toEqual([
+    `app_info_print ${APPID}`,
+    `app_info_print ${dlc}`,
+    `app_info_print ${other}`,
+    `app_info_print ${dlc}`,
+  ]);
+  if (first.ok && second.ok) {
+    expect(first.dumps[other]).toBeUndefined();
+    expect(second.dumps[APPID]).toBeUndefined();
+  }
+});

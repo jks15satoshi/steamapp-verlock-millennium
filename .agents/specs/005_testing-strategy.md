@@ -66,7 +66,7 @@ The backend tests replace the filesystem module in `package.loaded` before they 
 
 ### Console Capture Tests
 
-A fake `SteamClient.Console` feeds recorded `app_info_print` dumps to the capture module. The fixtures include a multi-depot dump and a beta-branch dump for the backend parser, and the frontend capture test emits a valid dump, an echo-only response, and no response. The tests assert that the module accepts a dump that carries the app block, rejects an echo-only response and a timeout, runs only `app_info_print` (never `app_info_update`), captures each app `get_required_apps` names in order, and that the command builder rejects a non-numeric `appid`.
+A fake `SteamClient.Console` feeds recorded `app_info_print` dumps to the capture module. The fixtures include a multi-depot dump and a beta-branch dump for the backend parser, and the frontend capture test emits a valid dump, an echo-only response, and no response. The tests assert that the module accepts a dump that carries the app block, rejects an echo-only response and a timeout, runs only `app_info_print` (never `app_info_update`), captures each app `get_required_apps` names in order, serializes concurrent captures, and that the command builder rejects a non-numeric `appid`.
 
 ### Fixtures
 

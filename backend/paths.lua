@@ -220,7 +220,7 @@ end
 
 ---@param appid string
 ---@param cached string|nil
----@return string|nil, string|nil
+---@return string|nil, string|nil, string|nil
 local function resolve_manifest(appid, cached)
     if type(cached) == "string" and cached ~= "" then
         local name = fs.filename(cached)

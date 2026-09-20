@@ -202,32 +202,17 @@ end
 ---@param record LockedAppRecord
 ---@return string|nil, string|nil, string|nil
 local function resolve_target(appid, record)
-    local manifest, resolve_err = paths.resolve_manifest(appid, record.manifest_path)
+    -- resolve_manifest already validates the cached path and falls back to
+    -- discovery, so a single call covers both.
+    local manifest, resolve_err, resolve_code = paths.resolve_manifest(appid, record.manifest_path)
     if manifest ~= nil then
         return manifest
     end
-    local retry_path, retry_err, retry_code = paths.find_appmanifest(appid)
-    if retry_path ~= nil then
-        return retry_path
-    end
-    if type(record.manifest_path) == "string" and fs.is_file(record.manifest_path) then
-        local name = fs.filename(record.manifest_path)
-        if name == ("appmanifest_" .. tostring(appid) .. ".acf") then
-            local cached_state = acf.read(record.manifest_path)
-            if cached_state ~= nil then
-                local cached_body = body_of(cached_state)
-                if tostring(cached_body.appid) == tostring(appid) then
-                    return record.manifest_path
-                end
-            end
-        end
-    end
-    local error_text = retry_err or resolve_err or "the appmanifest was not found"
     local steam_path = utils.getenv("MILLENNIUM__STEAM_PATH")
     if type(steam_path) ~= "string" or steam_path == "" then
-        return nil, "steam_path_unavailable", retry_err or resolve_err or "the Steam path is unavailable"
+        return nil, "steam_path_unavailable", resolve_err or "the Steam path is unavailable"
     end
-    return nil, retry_code or "not_installed", error_text
+    return nil, resolve_code or "not_installed", resolve_err or "the appmanifest was not found"
 end
 
 -- The DLC apps whose installed depots the base app's PICS does not cover, so
@@ -597,6 +582,15 @@ local function restore_all()
             ok = false,
             code = "restore_in_progress",
             error = "a restore is already in progress",
+            restored = 0,
+            failed = {},
+        }
+    end
+    if next(active) ~= nil then
+        return {
+            ok = false,
+            code = "operation_in_progress",
+            error = "another operation is in progress",
             restored = 0,
             failed = {},
         }

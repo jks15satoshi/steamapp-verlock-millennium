@@ -117,13 +117,18 @@ local function collect_build_info(appid, payload)
     local infos = { base }
     local keys = {}
     for key, dump in pairs(dumps) do
-        if key ~= appid and type(dump) == "string" and dump ~= "" then
-            table.insert(keys, key)
+        if key ~= appid then
+            if not is_numeric_appid(key) then
+                return nil, "a numeric appid is required for every dump", "invalid_appid"
+            end
+            if type(dump) == "string" and dump ~= "" then
+                table.insert(keys, key)
+            end
         end
     end
     table.sort(keys)
     for _, key in ipairs(keys) do
-        local info, info_err, info_code = parse_dump(key, dumps[key], "public")
+        local info, info_err, info_code = parse_dump(key, dumps[key], resolve_branch(key))
         if info == nil then
             return nil, info_err, info_code
         end

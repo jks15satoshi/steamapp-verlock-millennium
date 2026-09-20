@@ -71,7 +71,7 @@ Every backend operation reports a failure as the `Ack` envelope of [Spec 4](004_
 
 | Code | Condition |
 |---|---|
-| `invalid_appid` | The payload's `appid` is absent or not a numeric string. |
+| `invalid_appid` | The payload's `appid` is absent or not a numeric string, or a `dumps` map key is not a numeric string. |
 | `invalid_behavior` | `auto_update_behavior` is present but not a number. |
 | `invalid_target` | A `read_file` payload's `target` is neither `appmanifest` nor `lock`. |
 | `build_info_required` | A captured-dump payload carries no `dump`. |
@@ -86,7 +86,7 @@ Every backend operation reports a failure as the `Ack` envelope of [Spec 4](004_
 | `manifest_write_failed` | The appmanifest write or rename fails. |
 | `record_persist_failed` | The lock record cannot be written. |
 | `record_read_failed` | A lock record exists but does not decode or lacks a required field. |
-| `operation_in_progress` | Another operation holds the app's write serialization. |
+| `operation_in_progress` | Another operation holds an app's write serialization. |
 | `record_removed` | A reapply finds the lock record removed after the reapply began. |
 | `restore_in_progress` | A restore or a migration already runs. |
 | `data_root_required` | A `set_data_root` payload carries no path. |

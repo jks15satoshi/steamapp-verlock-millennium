@@ -558,16 +558,11 @@ describe("lock", function()
 
     it("does not report not_installed when the cached manifest path still exists", function()
         assert.is_true(lock.lock("440", INFO).ok)
-        local original_resolve = paths.resolve_manifest
         local original_find = paths.find_appmanifest
-        paths.resolve_manifest = function()
-            return nil, "transient read failure"
-        end
         paths.find_appmanifest = function()
             return nil, "transient discovery failure"
         end
         local result = lock.reapply("440")
-        paths.resolve_manifest = original_resolve
         paths.find_appmanifest = original_find
         assert.is_true(result.ok)
         assert.is_nil(result.code)
@@ -611,18 +606,17 @@ describe("lock", function()
         assert.equals("not_installed", result.code)
     end)
 
-    it("re-applies when discovery finds the manifest on retry", function()
+    it("re-applies when discovery finds the manifest after the cached path goes stale", function()
         assert.is_true(lock.lock("440", INFO).ok)
         store.seed(MANIFEST, STEAM_REWRITTEN)
-        local original_resolve = paths.resolve_manifest
-        paths.resolve_manifest = function()
-            return nil, "transient discovery failure"
-        end
+        local record = state.read("440")
+        record.manifest_path = MANIFEST_570
+        state.write(record)
         local result = lock.reapply("440")
-        paths.resolve_manifest = original_resolve
         assert.is_true(result.ok)
         assert.is_nil(result.code)
         assert.is_not_nil(store.read(MANIFEST):find('"buildid"%s+"12345678"'))
+        assert.equals(MANIFEST, state.read("440").manifest_path)
     end)
 
     it("returns a steam_path_unavailable code when discovery cannot run", function()
@@ -722,6 +716,22 @@ describe("lock", function()
         assert.is_false(nested.ok)
         assert.equals("operation_in_progress", nested.code)
         assert.is_string(nested.error)
+    end)
+
+    it("refuses to restore while another operation is in progress", function()
+        local nested
+        store.hook = function(op, path)
+            if op == "write" and path:sub(1, #MANIFEST) == MANIFEST and path:sub(-4) == ".tmp" then
+                nested = lock.restore_all()
+            end
+        end
+        local result = lock.lock("440", INFO)
+        store.hook = nil
+        assert.is_true(result.ok)
+        assert.is_false(nested.ok)
+        assert.equals("operation_in_progress", nested.code)
+        assert.equals(0, nested.restored)
+        assert.equals(0, #(nested.failed or {}))
     end)
 
     it("aborts a reapply when the record disappears before the write", function()

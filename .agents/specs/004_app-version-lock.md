@@ -55,7 +55,7 @@ The feature never issues `app_info_update`. `app_info_print` prints the client's
 
 `frontend/console.ts` samples `app_info_print` until the captured text carries the app block — the quoted numeric `appid` key and the `depots` table — and returns the raw dump. A sample that carries only the command echo, or any text without the `depots` table, is neither content nor a candidate; when no sample carries the app block before the time limit, the capture fails. The limit is undecided: it is a constant in `frontend/console.ts`, and the current working value is 2 seconds.
 
-`SteamClient.Console` is the Steam client's console as exposed to the frontend. `frontend/console.ts` calls `SteamClient.Console.RegisterForSpewOutput(callback)` to read the console output, then `SteamClient.Console.ExecCommand(<command>)` to run the command; the returned handle's `unregister()` stops the callback. Millennium's SDK declares both methods ([Console.ts](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/typescript/sdk/src/sharedjscontext/globals/steam-client/Console.ts)). Captures run one at a time, because `RegisterForSpewOutput` exposes one shared spew stream.
+`SteamClient.Console` is the Steam client's console as exposed to the frontend. `frontend/console.ts` calls `SteamClient.Console.RegisterForSpewOutput(callback)` to read the console output, then `SteamClient.Console.ExecCommand(<command>)` to run the command; the returned handle's `unregister()` stops the callback. Millennium's SDK declares both methods ([Console.ts](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/typescript/sdk/src/sharedjscontext/globals/steam-client/Console.ts)). Captures run one at a time, because `RegisterForSpewOutput` exposes one shared spew stream; `frontend/console.ts` serializes them on a promise queue, and a failed capture does not block the next one.
 
 The base app's `app_info_print` does not always list the installed DLC depots: `Sid Meier's Civilization VI` lists them, while `The Sims 4` lists only its own depots, so a spoof built from the base dump alone leaves the `The Sims 4` DLC depots stale. `frontend/console.ts` closes that gap with `capture_build_info_set`, which calls the backend's `get_required_apps` bridge method with the base dump and receives the distinct `dlcappid` values whose depot is absent from the base `BuildInfo`. The frontend captures each returned app in turn. The base and per-app dumps travel in the `lock_app` or `refresh_app` payload's `dumps` map, keyed by app id, through Millennium's `backend` FFI bridge, which carries the payload as a single JSON string ([Millennium TS SDK](https://docs.steambrew.app/plugins/ts/Millennium)); the backend merges the depot maps and takes `buildid` from the base dump.
 
@@ -345,8 +345,8 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 - `resolve() -> DataRoots` — resolve the data root directory.
 - `defaults() -> DataRoots` — return the OS-conventional data root directory.
 - `validate(path: string) -> ok: boolean, err: string?` — validate a candidate data root path.
-- `find_appmanifest(appid: AppId) -> path: string?, err: string?` — locate the appmanifest across the libraries, accepting both the object-style and the legacy string-style entries of `libraryfolders.vdf`.
-- `resolve_manifest(appid: AppId, cached: string) -> path: string?, err: string?` — validate the cached path, fall back to discovery, and return the resolved path.
+- `find_appmanifest(appid: AppId) -> path: string?, err: string?, code: string?` — locate the appmanifest across the libraries, accepting both the object-style and the legacy string-style entries of `libraryfolders.vdf`.
+- `resolve_manifest(appid: AppId, cached: string) -> path: string?, err: string?, code: string?` — validate the cached path, fall back to discovery, and return the resolved path.
 
 `backend/migrate.lua`
 

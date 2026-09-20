@@ -160,6 +160,21 @@ describe("main", function()
         assert.is_string(ack.error)
     end)
 
+    it("rejects a non-numeric dump key", function()
+        store.seed(MANIFEST, support.read_fixture("appmanifest_440.acf"))
+        local ack = invoke("lock_app", {
+            appid = "440",
+            dumps = {
+                ["440"] = support.read_fixture("app_info_print_440.txt"),
+                ["../440"] = support.read_fixture("app_info_print_440.txt"),
+            },
+        })
+        assert.is_table(ack)
+        assert.is_false(ack.ok)
+        assert.equals("invalid_appid", ack.code)
+        assert.is_string(ack.error)
+    end)
+
     it("returns an Ack with a lock record from lock_app", function()
         local ack = seed_locked_440()
         assert.is_true(ack.ok)
