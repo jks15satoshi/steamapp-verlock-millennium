@@ -20,3 +20,12 @@ indent_size = 2
 [*.lua]
 indent_style = space
 indent_size = 4
+
+[/.luarc.json]
+insert_final_newline = false
+
+[/tsconfig.json]
+insert_final_newline = false
+
+[/package.json]
+insert_final_newline = false

@@ -32,7 +32,7 @@ LuaRocks 3.13.0 installs the Lua development rocks (`luacheck`, `busted`, `luaco
 
     mise install
     bun install
-    bun run prepare     # generates the .millennium/ type stubs and normalizes the Starlight config JSON
+    bun run prepare     # generates the .millennium/ type stubs
 
 You do not have to use `mise`. If you prefer, install the tools from the Requirements list yourself, using the versions declared in `mise.toml`.
 

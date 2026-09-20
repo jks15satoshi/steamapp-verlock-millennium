@@ -24,7 +24,7 @@ from LuaRocks:
 
     bun install
     bun run setup:lua   # builds .rocks/, needs `mise where luajit`
-    bun run prepare     # generates the .millennium/ type stubs and normalizes the Starlight config JSON
+    bun run prepare     # generates the .millennium/ type stubs
 
 `.rocks/`, `.millennium/`, `.tmp/`, and `coverage/` are generated and gitignored; never edit
 or commit them. `bun run prepare` is required before `bun run typecheck` (`tsconfig.json`

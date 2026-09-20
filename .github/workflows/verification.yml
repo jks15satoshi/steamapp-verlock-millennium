@@ -49,7 +49,7 @@ jobs:
       - name: Generate type stubs
         run: bun run prepare
 
-      - name: Verify generated config is normalized
+      - name: Verify the Starlight config is current
         run: git diff --exit-code -- .luarc.json tsconfig.json package.json
 
       - name: Typecheck
@@ -59,7 +59,7 @@ jobs:
         run: bun run build
 
       - name: Format check frontend
-        run: bunx oxfmt --check frontend .luarc.json tsconfig.json package.json
+        run: bunx oxfmt --check frontend
 
       - name: Format check backend
         run: stylua --check backend scripts
