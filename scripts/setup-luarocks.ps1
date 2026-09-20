@@ -13,6 +13,16 @@ New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
 
 try {
   $LuaJitDir = (mise where luajit).Trim()
+  $LuaBase = $LuaJitDir
+  if (Test-Path (Join-Path $LuaJitDir "Library")) {
+    $LuaBase = Join-Path $LuaJitDir "Library"
+  }
+  $LuaBin = Join-Path $LuaBase "bin"
+  $LuaLib = Join-Path $LuaBase "lib"
+  $LuaInc = Join-Path $LuaBase "include\luajit-2.1"
+  if (-not (Test-Path (Join-Path $LuaInc "lua.h"))) {
+    $LuaInc = Join-Path $LuaBase "include"
+  }
 
   if (-not (Test-Path (Join-Path $RocksDir "luarocks.bat"))) {
     Invoke-WebRequest -Uri $Url -OutFile $Archive
@@ -20,7 +30,7 @@ try {
 
     Push-Location $SrcDir
     try {
-      cmd /c "install.bat /P `"$RocksDir`" /TREE `"$RocksDir`" /LUA `"$LuaJitDir`" /LV 5.1 /MSVC /NOADMIN /Q /F"
+      cmd /c "install.bat /P `"$RocksDir`" /TREE `"$RocksDir`" /BIN `"$LuaBin`" /LIB `"$LuaLib`" /INC `"$LuaInc`" /LV 5.1 /MSVC /NOADMIN /Q /F"
       if ($LASTEXITCODE -ne 0) {
         throw "LuaRocks installer failed with exit code $LASTEXITCODE"
       }

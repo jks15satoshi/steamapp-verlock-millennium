@@ -95,7 +95,7 @@ jobs:
 
       - name: Set up MSVC toolchain (Windows)
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: TheMrMilchmann/setup-msvc-dev@v4
 
       - name: Provision LuaRocks (Windows)
         if: runner.os == 'Windows'
