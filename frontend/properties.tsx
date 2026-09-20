@@ -455,7 +455,7 @@ function inject(document_ref: Document, appid: string): void {
   container.appendChild(our_area);
 
   const native_area = (): HTMLElement | null => {
-    for (const child of [...container.children]) {
+    for (const child of container.children) {
       if (child !== our_area && !child.contains(tablist)) {
         return child as HTMLElement;
       }
