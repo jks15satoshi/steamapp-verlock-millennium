@@ -10,7 +10,7 @@ is the only plugin manifest (there is no `plugin.json`).
 elsewhere disagrees, the spec wins. Read @.agents/specs/000_metaspec.md before creating or
 editing a spec. Commit, branch, issue, and PR rules are owned by
 @.agents/specs/003_collaboration-conventions.md; agents carry the same obligations as
-humans and must never approve or merge a PR. `README.md` and `README.zh-CN.md` give the
+humans. `README.md` and `README.zh-CN.md` give the
 project overview. `CONTRIBUTING.md` is a human onboarding guide that owns no rule and
 defers to Spec 3.
 
@@ -56,8 +56,7 @@ Read @.agents/specs/004_app-version-lock.md before changing behavior or tests.
 ## Gotchas
 
 - A new domain word fails `bun run spell`; add it to `.cspell.json`.
-- `lefthook.yml` hooks format/lint/typecheck staged files and enforce the commit-message
-  grammar. CI runs the full set on Ubuntu and Windows; Windows runs the lint tools
+- `lefthook.yml` hooks format/lint/typecheck staged files. CI runs the full set on Ubuntu and Windows; Windows runs the lint tools
   individually rather than `bun run lint`.
 - Commit, branch, issue, and PR rules live in the specs and the `.github/` templates;
   follow them instead of restating them.

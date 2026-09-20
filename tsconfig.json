@@ -22,5 +22,5 @@
     },
     "types": ["bun"]
   },
-  "include": ["**/*", ".millennium/**/*.d.ts"]
+  "include": ["**/*", ".github/**/*.ts", ".millennium/**/*.d.ts"]
 }

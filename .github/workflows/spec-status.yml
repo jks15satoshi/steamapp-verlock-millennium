@@ -1,0 +1,21 @@
+name: Spec status
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  spec-status:
+    name: Feature spec status
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Check feature spec status
+        run: bun .github/scripts/verify-spec-status.ts

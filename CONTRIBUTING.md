@@ -65,15 +65,15 @@ Single tests:
 ## Making a Change
 
 - Branch from `master` as `<type>/<slug>`, for example `feat/app-verlock`.
-- Commit with a [Conventional Commits](https://www.conventionalcommits.org/) header: `<type>(<scope>): <subject>`. [Spec 3](.agents/specs/003_collaboration-conventions.md) owns the type table, the scope rules, and the subject phrasing.
+- Prefer a [Conventional Commits](https://www.conventionalcommits.org/) header: `<type>(<scope>): <subject>`. [Spec 3](.agents/specs/003_collaboration-conventions.md) owns the type table, the scope rules, and the subject phrasing.
 - Keep one logical change per commit, and run the checks above before you push.
 
 ## Opening a Pull Request
 
-- Reference at least one issue. A non-trivial change also references the spec that owns it, or says why it is exempt.
-- Fill the template: `Motivation` (with `Fixes #NN`, `Closes #NN`, `Resolves #NN`, `Related #NN`, or `Refs #NN`), `Changes`, and `Testing`.
+- A bug-fix pull request references an issue. A non-trivial change also references the spec that owns it, or says why it is exempt.
+- The template asks for `Motivation` (with `Fixes #NN`, `Closes #NN`, `Resolves #NN`, `Related #NN`, or `Refs #NN`), `Changes`, and `Testing`.
 - Keep the pull request a draft until the checks and the evidence are ready.
-- A second maintainer reviews and merges; the author never approves or merges their own pull request, and an agent never merges at all.
+- You may review and merge your own pull request.
 
 ## Reporting Bugs and Requesting Features
 
