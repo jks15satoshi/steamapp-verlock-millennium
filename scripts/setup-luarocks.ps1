@@ -7,7 +7,7 @@ $LuaRocksVersion = "3.13.0"
 $BuildDir = Join-Path ([System.IO.Path]::GetTempPath()) ("luarocks-build-" + [System.Guid]::NewGuid().ToString("N"))
 $Archive = Join-Path $BuildDir "luarocks-$LuaRocksVersion.tar.gz"
 $SrcDir = Join-Path $BuildDir "luarocks-$LuaRocksVersion"
-$Url = "https://luarocks.org/releases/luarocks-$LuaRocksVersion.tar.gz"
+$Url = "https://github.com/luarocks/luarocks/archive/refs/tags/v$LuaRocksVersion.tar.gz"
 
 New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
 
@@ -41,6 +41,9 @@ try {
   }
 
   & (Join-Path $RocksDir "luarocks.bat") make --deps-only (Join-Path $RootDir "steamapp-verlock-dev-1.rockspec")
+  if ($LASTEXITCODE -ne 0) {
+    throw "LuaRocks make failed with exit code $LASTEXITCODE"
+  }
 }
 finally {
   Remove-Item -Recurse -Force $BuildDir -ErrorAction SilentlyContinue
