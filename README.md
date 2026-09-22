@@ -167,6 +167,8 @@ To contribute code, read [CONTRIBUTING.md](CONTRIBUTING.md) for the project's co
 
 Copyright © 2026 Satoshi Jek. Licensed under the [MIT License](LICENSE).
 
+Third-party notices are listed in [CREDITS](CREDITS).
+
 This project operates on and simulates the internal files of the Steam client, which strictly speaking may violate the [Steam Subscriber Agreement](https://store.steampowered.com/subscriber_agreement/). By using this project you acknowledge these risks and agree to bear all consequences that follow from them.
 
 This project has no affiliation with Valve whatsoever.

@@ -1,0 +1,116 @@
+# Credits
+
+Steam App Verlock
+Copyright 2026 Satoshi Jek
+
+Steam App Verlock is licensed under the MIT License; see [LICENSE](LICENSE). This document
+credits the third-party open-source software related to the plugin. Each project remains
+under its own license, and nothing here changes those terms. Following the Apache
+LICENSE/NOTICE guidance, it separates software bundled in a distribution from software that
+is not; only bundled bits bear on redistribution terms.
+
+## Bundled Software
+
+The release archive (`dist/steamapp-verlock.star`) contains only Steam App Verlock's own
+Lua backend, compiled frontend, and plugin metadata. It bundles no third-party library: the
+frontend imports React, React DOM, and the Millennium SDK from host globals, and the backend
+runs on Millennium's host modules. Compiler-generated helper snippets, if any, come from
+Starlight's Oxc-based toolchain (MIT), listed below.
+
+## Host-Provided Components
+
+These components are loaded from the Steam client or Millennium at runtime and are not part
+of any distribution. They are listed for completeness.
+
+- Millennium, supplied by the host for the plugin framework, the Lua host, and the `fs`,
+  `utils`, `logger`, and `json` backend modules, is available under the MIT License. For
+  details, see <https://github.com/SteamClientHomebrew/Millennium>.
+- React, supplied by the Steam client for the frontend UI library, is available under the
+  MIT License. For details, see <https://github.com/facebook/react>.
+- React DOM, supplied by the Steam client for the frontend renderer, is available under the
+  MIT License. For details, see <https://github.com/facebook/react>.
+
+## Development and Build Tools
+
+These tools build, check, test, or format the plugin. None of their code is redistributed in
+the release archive. They are listed for completeness.
+
+- @steambrew/starlight 1.1.5, used for the plugin compiler (`pack`, `watch`, `lsp`), is
+  available under the MIT License. For details, see
+  <https://github.com/SteamClientHomebrew/Millennium>.
+- TypeScript 5.9.3, used for the TypeScript compiler (`tsc --noEmit`), is available under
+  the Apache-2.0 license. For details, see <https://github.com/microsoft/TypeScript>.
+- Bun 1.4.0, used for the package manager, script runner, and frontend test runner, is
+  available under the MIT License. For details, see <https://github.com/oven-sh/bun>.
+- Node.js 26.8.2, used as the runtime for Starlight, is available under the MIT License.
+  For details, see <https://github.com/nodejs/node>.
+- oxlint 1.83.0, used for TypeScript and React linting, is available under the MIT License.
+  For details, see <https://github.com/oxc-project/oxc>.
+- oxlint-tsgolint 7.0.2001, used for the type-aware lint backend for oxlint, is
+  available under the MIT License. For details, see <https://github.com/oxc-project/tsgolint>.
+- oxfmt 0.68.0, used for frontend formatting, is available under the MIT License. For
+  details, see <https://github.com/oxc-project/oxc>.
+- @types/bun 1.4.2, used for the Bun type definitions, is available under the MIT License.
+  For details, see <https://github.com/DefinitelyTyped/DefinitelyTyped>.
+- @types/react 19.3.0, used for the React type definitions, is available under the MIT
+  License. For details, see <https://github.com/DefinitelyTyped/DefinitelyTyped>.
+- @types/react-dom 19.3.0, used for the React DOM type definitions, is available under the
+  MIT License. For details, see <https://github.com/DefinitelyTyped/DefinitelyTyped>.
+- lefthook 2.1.14, used for the Git hook manager, is available under the MIT License. For
+  details, see <https://github.com/evilmartians/lefthook>.
+- Lua 5.4.9, used for backend language tooling, is available under the MIT License. For
+  details, see <https://www.lua.org/license.html>.
+- LuaJIT 2.1, used as Millennium's Lua runtime, is available under the MIT License. For
+  details, see <https://github.com/LuaJIT/LuaJIT>.
+- LuaRocks 3.13.0, used as the provider of the Lua development tools, is available under
+  the MIT License. For details, see <https://github.com/luarocks/luarocks>.
+- luacheck 1.2.0-1, used for Lua static analysis, is available under the MIT License. For
+  details, see <https://github.com/lunarmodules/luacheck>.
+- busted 2.3.0-1, used as the Lua test runner, is available under the MIT License. For
+  details, see <https://github.com/lunarmodules/busted>.
+- luacov 0.17.0-1, used as the Lua coverage reporter, is available under the MIT License.
+  For details, see <https://github.com/lunarmodules/luacov>.
+- StyLua 2.5.2, used for Lua formatting, is available under the MPL-2.0 license. For
+  details, see <https://github.com/JohnnyMorganz/StyLua>.
+- lua-language-server 3.19.1, used for Lua type hints and diagnostics, is available under
+  the MIT License. For details, see <https://github.com/LuaLS/lua-language-server>.
+- cspell 10.1.1, used for spell checking, is available under the MIT License. For details,
+  see <https://github.com/streetsidesoftware/cspell>.
+- markdownlint-cli2 0.23.2, used for Markdown linting, is available under the MIT License.
+  For details, see <https://github.com/DavidAnson/markdownlint-cli2>.
+- tombi 1.5.0, used for TOML formatting and linting, is available under the MIT License.
+  For details, see <https://github.com/tombi-toml/tombi>.
+
+## Design References
+
+These projects are not software dependencies. Their documents informed decisions in the
+spec corpus. They are listed for completeness.
+
+- DeepSeek Harness, available under the MIT License, informed the document-management
+  approach and convention rules ([Spec 0](.agents/specs/000_metaspec.md)). For details, see
+  <https://github.com/deepseek-ai/deepseek-harness>.
+- Python Enhancement Proposals (PEP), available under the Public domain /
+  CC0-1.0-Universal license, informed the proposal format and writing structure
+  ([Spec 0](.agents/specs/000_metaspec.md)). For details, see <https://peps.python.org/>.
+- Humanizer, available under the MIT License, informed the prose-style pattern catalog
+  ([Spec 0](.agents/specs/000_metaspec.md)). For details, see
+  <https://github.com/blader/humanizer>.
+- Agent Skills specification, available under the Apache-2.0 license for code and the
+  CC-BY-4.0 license for documentation, informed the `SKILL.md` format and skill directory
+  layout ([Spec 2](.agents/specs/002_agent-skills.md)); it is pinned to commit
+  `69ef37e9424c0a7ea9dd2293b559e43ec8176379`. For details, see
+  <https://github.com/agentskills/agentskills>.
+- Conventional Commits, available under the MIT License, informed the commit-message
+  convention ([Spec 3](.agents/specs/003_collaboration-conventions.md)). For details, see
+  <https://www.conventionalcommits.org/>.
+
+## Notes
+
+- The bundled/non-bundled distinction follows the Apache Software Foundation's
+  LICENSE/NOTICE guidance; no third-party license text needs to ship with the archive
+  because nothing third-party is bundled.
+- StyLua is the only listed component under a copyleft license (MPL-2.0); every other
+  component is MIT or Apache-2.0.
+- Non-open-source references, such as the Steam Subscriber Agreement, the Valve Developer
+  Community wiki, community guides, and upstream issue trackers, are out of scope here.
+- Update this file in the same change that adds, removes, or relicenses a dependency.

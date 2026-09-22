@@ -5,6 +5,7 @@
     "bun.lock",
     "mise.lock",
     "LICENSE",
+    "CREDITS",
     "coverage",
     "luacov.*.out",
     "mise.toml",
