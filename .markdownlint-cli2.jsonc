@@ -1,0 +1,19 @@
+{
+  "config": {
+    "MD009": { "br_spaces": 2 },
+    "MD013": false,
+    "MD033": {
+      "allowed_elements": ["details", "summary"],
+    },
+    "MD060": false,
+  },
+  "ignores": [
+    "LICENSE",
+    "node_modules/**",
+    ".millennium/**",
+    ".rocks/**",
+    "dist",
+    ".tmp/**",
+    "**/AGENTS.local.md",
+  ],
+}

@@ -1,0 +1,61 @@
+] app_info_print 730
+AppID : 730, change number : 2000000/0, token 0, last change : Wed Oct 25 15:07:00 2017
+"730"
+{
+	"appid"		"730"
+	"common"
+	{
+		"name"		"Counter-Strike 2"
+		"type"		"Game"
+	}
+	"depots"
+	{
+		"731"
+		{
+			"name"		"Counter-Strike Client"
+			"systemdefined"		"1"
+			"manifests"
+			{
+				"public"		"2000000000000000001"
+			}
+			"maxsize"		"100"
+		}
+		"732"
+		{
+			"name"		"Counter-Strike Content"
+			"systemdefined"		"1"
+			"manifests"
+			{
+				"public"		"2000000000000000002"
+			}
+			"maxsize"		"200"
+		}
+		"733"
+		{
+			"name"		"Counter-Strike Tools"
+			"manifests"
+			{
+				"public"		"2000000000000000003"
+			}
+			"maxsize"		"300"
+		}
+		"734"
+		{
+			"name"		"Counter-Strike Workshop"
+			"manifests"
+			{
+				"public"		"2000000000000000004"
+			}
+			"maxsize"		"400"
+		}
+		"branches"
+		{
+			"public"
+			{
+				"buildid"		"20000000"
+				"timeupdated"	"1700000000"
+			}
+		}
+	}
+}
+Connectivity state changed: 2

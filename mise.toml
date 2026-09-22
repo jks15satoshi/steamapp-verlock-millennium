@@ -1,0 +1,18 @@
+[tools]
+# Millennium frontend tools
+bun  = "1"
+node = "26"
+
+# Millennium backend tools
+lua                 = { version = "5.4", os = ["linux", "macos"] }
+luajit              = "2.1"
+stylua              = "2"
+lua-language-server = "3"
+
+# Common tools
+cspell            = "latest"
+markdownlint-cli2 = "latest"
+tombi             = "latest"
+
+[env]
+_.path = ["./.rocks/bin"]

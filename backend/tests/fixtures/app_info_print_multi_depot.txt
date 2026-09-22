@@ -1,0 +1,52 @@
+] app_info_print 570
+AppID : 570, change number : 7654321/0, token 0, last change : Wed Oct 25 15:07:00 2017
+"570"
+{
+	"appid"		"570"
+	"common"
+	{
+		"name"		"Dota 2"
+		"type"		"Game"
+	}
+	"depots"
+	{
+		"570"
+		{
+			"name"		"Dota 2"
+			"systemdefined"		"1"
+			"manifests"
+			{
+				"public"		"1111111111111111111"
+			}
+			"maxsize"		"100"
+		}
+		"571"
+		{
+			"name"		"Dota 2 content"
+			"systemdefined"		"1"
+			"manifests"
+			{
+				"public"		"2222222222222222222"
+			}
+			"maxsize"		"200"
+		}
+		"580"
+		{
+			"name"		"Dota 2 tools"
+			"manifests"
+			{
+				"public"		"3333333333333333333"
+			}
+			"maxsize"		"300"
+		}
+		"branches"
+		{
+			"public"
+			{
+				"buildid"		"20000000"
+				"timeupdated"	"1700000000"
+			}
+		}
+	}
+}
+Connectivity state changed: 2

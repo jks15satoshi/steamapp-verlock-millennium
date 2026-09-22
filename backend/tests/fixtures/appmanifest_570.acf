@@ -1,0 +1,33 @@
+"AppState"
+{
+	"appid"		"570"
+	"universe"		"1"
+	"name"		"Dota 2"
+	"StateFlags"		"4"
+	"installdir"		"Dota 2"
+	"LastUpdated"		"1700000000"
+	"buildid"		"20000000"
+	"TargetBuildID"		"0"
+	"InstalledDepots"
+	{
+		"570"
+		{
+			"manifest"		"1111111111111111111"
+			"size"		"100"
+		}
+		"571"
+		{
+			"manifest"		"2222222222222222222"
+			"size"		"200"
+		}
+		"580"
+		{
+			"manifest"		"3333333333333333333"
+			"size"		"300"
+		}
+	}
+	"UserConfig"
+	{
+		"language"		"english"
+	}
+}

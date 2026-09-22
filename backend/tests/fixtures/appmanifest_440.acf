@@ -1,0 +1,32 @@
+"AppState"
+{
+	"appid"		"440"
+	"universe"		"1"
+	"name"		"Team Fortress 2"
+	"StateFlags"		"4"
+	"installdir"		"Team Fortress 2"
+	"LastUpdated"		"1700000000"
+	"LastPlayed"		"1699999999"
+	"SizeOnDisk"		"25000000000"
+	"buildid"		"12345678"
+	"TargetBuildID"		"0"
+	"InstalledDepots"
+	{
+		"441"
+		{
+			"manifest"		"7588696787324571854"
+			"size"		"100"
+			"dlcappid"		"441"
+		}
+	}
+	"UserConfig"
+	{
+		"language"		"english"
+	}
+	"AppWorkshop"
+	{
+		"workshopitemsinstalled"
+		{
+		}
+	}
+}

@@ -1,0 +1,20 @@
+"AppState"
+{
+	"appid"		"730"
+	"universe"		"1"
+	"name"		"Counter-Strike 2"
+	"StateFlags"		"4"
+	"installdir"		"Counter-Strike Global Offensive"
+	"LastUpdated"		"1700000000"
+	"buildid"		"20000000"
+	"TargetBuildID"		"0"
+	"BetaKey"		"beta"
+	"InstalledDepots"
+	{
+		"731"
+		{
+			"manifest"		"1111111111111111111"
+			"size"		"100"
+		}
+	}
+}

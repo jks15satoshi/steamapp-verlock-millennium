@@ -1,0 +1,33 @@
+pre-commit:
+  parallel: true
+  commands:
+    format-oxfmt:
+      glob: "*.{js,jsx,ts,tsx,json,jsonc}"
+      exclude:
+        - ".agents/**"
+        - ".tmp/**"
+        - ".luarc.json"
+        - "tsconfig.json"
+        - "package.json"
+      run: node_modules/.bin/oxfmt {staged_files}
+      stage_fixed: true
+    format-stylua:
+      glob: "*.lua"
+      run: stylua {staged_files}
+      stage_fixed: true
+    format-tombi:
+      glob: "*.toml"
+      run: tombi format --offline {staged_files}
+      stage_fixed: true
+    lint-oxlint:
+      glob: "*.{js,jsx,ts,tsx}"
+      run: node_modules/.bin/oxlint --type-aware --type-check {staged_files}
+    lint-luacheck:
+      glob: "*.lua"
+      run: luacheck {staged_files}
+    lint-tombi:
+      glob: "*.toml"
+      run: tombi lint --offline {staged_files}
+    typecheck:
+      glob: "*.{ts,tsx}"
+      run: node_modules/.bin/tsc --noEmit

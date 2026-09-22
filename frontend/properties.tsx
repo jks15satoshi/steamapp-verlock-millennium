@@ -1,0 +1,591 @@
+import { useEffect, useState, type ReactNode } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { DialogHeader, Millennium } from "millennium";
+import type { AppId, FileContentResult, LockedAppRecord, PathsResult } from "./index";
+import { lock_app, refresh_app, unlock_app } from "./actions";
+import { as_record_list, is_locked, refresh_locked_ids, subscribe_locked } from "./locked";
+import * as bridge from "./bridge";
+import { resolve_error, t } from "./i18n";
+import { log_error, log_info, log_warn } from "./log";
+import { format_error, show_failure_dialog, show_text_dialog } from "./notify";
+import { parse_json } from "./shared";
+import {
+  current_clock_format,
+  format_time as format_time_value,
+  subscribe_clock_format,
+} from "./time";
+import type { ClockFormat } from "./time";
+import {
+  accent_color,
+  ActionButton,
+  divider_color,
+  MUTED_COLOR,
+  native_button_class,
+  read_button_class,
+} from "./native";
+
+const PROPERTIES_CONTENT_SELECTOR = "div.DialogContent[id$='/properties/general_Content']";
+const APPID_PATTERN = /\/app\/(\d+)\/properties\//;
+const DIALOG_TIMEOUT_MS = 1000;
+const TAB_MARKER = "data-verlock-tab";
+const TAB_LABEL = "Steam App Verlock";
+
+const BEHAVIOR_KEYS: Record<
+  number,
+  "properties.behavior.always" | "properties.behavior.launch" | "properties.behavior.high_priority"
+> = {
+  0: "properties.behavior.always",
+  1: "properties.behavior.launch",
+  2: "properties.behavior.high_priority",
+};
+
+const roots: Root[] = [];
+
+export function format_time(value: number | undefined, format: ClockFormat): string | null {
+  return format_time_value(value, format) ?? null;
+}
+
+const RECORD_KEY_ORDER = [
+  "version",
+  "appid",
+  "name",
+  "manifest_path",
+  "locked_at",
+  "refreshed_at",
+  "auto_update_behavior",
+  "locked_build",
+  "original",
+];
+
+const BUILD_KEY_ORDER = ["buildid", "depots"];
+
+function order_keys(source: Record<string, unknown>, order: string[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const key of order) {
+    if (key in source) {
+      result[key] = source[key];
+    }
+  }
+  for (const key of Object.keys(source).toSorted()) {
+    if (!(key in result)) {
+      result[key] = source[key];
+    }
+  }
+  return result;
+}
+
+export function format_lock_text(content: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return content;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return content;
+  }
+  const ordered = order_keys(parsed as Record<string, unknown>, RECORD_KEY_ORDER);
+  const build = ordered.locked_build;
+  if (build !== null && typeof build === "object" && !Array.isArray(build)) {
+    ordered.locked_build = order_keys(build as Record<string, unknown>, BUILD_KEY_ORDER);
+  }
+  return JSON.stringify(ordered, null, 2);
+}
+
+export function behavior_label(value: number | undefined): string {
+  if (typeof value !== "number") {
+    return t("properties.behavior.store_default");
+  }
+  const key = BEHAVIOR_KEYS[value];
+  return key !== undefined ? t(key) : t("properties.behavior.unknown", { value });
+}
+
+export function find_record(
+  records: LockedAppRecord[] | null,
+  appid: AppId,
+): LockedAppRecord | null {
+  return records?.find((entry) => entry.appid === appid) ?? null;
+}
+
+function Value({ children }: { children: ReactNode }) {
+  return <span style={{ marginLeft: "5px" }}>{children}</span>;
+}
+
+function StatusValue({ color, children }: { color: string; children: ReactNode }) {
+  return <span style={{ fontWeight: 700, marginLeft: "5px", color }}>{children}</span>;
+}
+
+function Muted({ children }: { children: ReactNode }) {
+  return <span style={{ color: MUTED_COLOR, marginLeft: "5px" }}>{children}</span>;
+}
+
+function Row({ children }: { children: ReactNode }) {
+  return <div style={{ lineHeight: "20px" }}>{children}</div>;
+}
+
+function DepotSection({ record }: { record: LockedAppRecord | null }) {
+  const [expanded, set_expanded] = useState(false);
+  if (record === null) {
+    return (
+      <Row>
+        {t("properties.depots_label")} <Muted>{t("common.na")}</Muted>
+      </Row>
+    );
+  }
+  const entries = Object.entries(record.locked_build?.depots ?? {});
+  if (entries.length === 0) {
+    return <Row>{t("properties.depots_none")}</Row>;
+  }
+  return (
+    <>
+      <Row>
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={() => set_expanded((value) => !value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              set_expanded((value) => !value);
+            }
+          }}
+          style={{ cursor: "pointer" }}
+        >
+          {t("properties.depots", { count: entries.length })}&nbsp; {expanded ? "▾" : "▸"}
+        </span>
+      </Row>
+      {expanded
+        ? entries.map(([depot, manifest]) => (
+            <Row key={depot}>
+              {t("properties.depot", { depot })} <Value>{manifest}</Value>
+            </Row>
+          ))
+        : null}
+    </>
+  );
+}
+
+export function VerlockTabContent({
+  appid,
+  accent,
+  divider,
+  button_class,
+  parent,
+}: {
+  appid: AppId;
+  accent: string;
+  divider: string;
+  button_class: string;
+  parent?: EventTarget;
+}) {
+  const [record, set_record] = useState<LockedAppRecord | null>(null);
+  const [paths, set_paths] = useState<PathsResult | null>(null);
+  const [locked, set_locked] = useState<boolean>(() => is_locked(appid));
+  const [busy, set_busy] = useState(false);
+  const [clock, set_clock] = useState<ClockFormat>(() => current_clock_format());
+
+  useEffect(() => subscribe_clock_format(() => set_clock(current_clock_format())), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const reload = async (): Promise<void> => {
+      set_locked(is_locked(appid));
+      try {
+        const list = as_record_list(parse_json(await bridge.list_locked()));
+        if (cancelled) {
+          return;
+        }
+        set_record(find_record(list, appid));
+      } catch {
+        return;
+      }
+      try {
+        const fetched = parse_json(await bridge.get_paths(appid)) as PathsResult | undefined;
+        if (!cancelled) {
+          set_paths(fetched?.ok ? fetched : null);
+        }
+      } catch {
+        if (!cancelled) {
+          set_paths(null);
+        }
+      }
+    };
+    void reload();
+    void refresh_locked_ids();
+    const unsubscribe = subscribe_locked(() => {
+      void reload();
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [appid]);
+
+  const run = (task: () => Promise<void>): void => {
+    set_busy(true);
+    void task().finally(() => {
+      set_busy(false);
+    });
+  };
+
+  const show_content = async (target: "appmanifest" | "lock"): Promise<void> => {
+    const label = target === "lock" ? t("properties.lock_file") : t("properties.appmanifest");
+    try {
+      const fetched = parse_json(await bridge.read_file(appid, target)) as
+        | FileContentResult
+        | undefined;
+      if (fetched?.ok === true && typeof fetched.content === "string") {
+        const message = target === "lock" ? format_lock_text(fetched.content) : fetched.content;
+        const note =
+          target === "lock" && message !== fetched.content
+            ? t("properties.lock_format_note")
+            : undefined;
+        show_text_dialog(label, message, parent, note);
+        return;
+      }
+      const message = fetched !== undefined ? resolve_error(fetched) : t("error.read_failed");
+      log_error(`could not read the ${target} for app ${appid}: ${message}`);
+      show_failure_dialog(TAB_LABEL, message, parent);
+    } catch (caught) {
+      const message = format_error(caught);
+      log_error(`could not read the ${target} for app ${appid}: ${message}`);
+      show_failure_dialog(TAB_LABEL, message, parent);
+    }
+  };
+
+  const locked_time = locked && record ? format_time(record.locked_at, clock) : null;
+  const refreshed_time = locked && record ? format_time(record.refreshed_at, clock) : null;
+
+  const status = (time: string | null, not_yet: boolean): ReactNode => {
+    if (time !== null) {
+      return <StatusValue color={accent}>{time}</StatusValue>;
+    }
+    if (not_yet) {
+      return <StatusValue color={accent}>{t("common.not_yet")}</StatusValue>;
+    }
+    return <StatusValue color={MUTED_COLOR}>{t("common.na")}</StatusValue>;
+  };
+
+  const lock_path = paths?.lock;
+  const manifest_path = paths?.appmanifest;
+
+  return (
+    <div className="DialogContent_InnerWidth">
+      <DialogHeader>{TAB_LABEL}</DialogHeader>
+      <div className="DialogBody" style={{ fontSize: "14px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "8px",
+          }}
+        >
+          <span>
+            {t("properties.state")}{" "}
+            <span
+              style={{ fontWeight: 700, marginLeft: "5px", color: locked ? accent : undefined }}
+            >
+              {locked ? t("menu.state.locked") : t("menu.state.unlocked")}
+            </span>
+          </span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            {locked ? (
+              <>
+                <ActionButton
+                  button_class={button_class}
+                  disabled={busy}
+                  onClick={() => run(() => refresh_app(appid, parent))}
+                >
+                  {t("menu.refresh")}
+                </ActionButton>
+                <ActionButton
+                  button_class={button_class}
+                  disabled={busy}
+                  onClick={() => run(() => unlock_app(appid, parent))}
+                >
+                  {t("menu.unlock")}
+                </ActionButton>
+              </>
+            ) : (
+              <ActionButton
+                button_class={button_class}
+                disabled={busy}
+                onClick={() => run(() => lock_app(appid, parent))}
+              >
+                {t("menu.lock")}
+              </ActionButton>
+            )}
+          </div>
+        </div>
+        <Row>
+          {t("properties.locked_at")} {status(locked_time, false)}
+        </Row>
+        <Row>
+          {t("properties.refreshed_at")} {status(refreshed_time, locked_time !== null)}
+        </Row>
+        <div
+          style={{
+            flexShrink: 0,
+            marginTop: "20px",
+            paddingTop: "20px",
+            borderTop: `1px solid ${divider}`,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "8px",
+            }}
+          >
+            <div className="SettingsDialogSubHeader">{t("properties.lock_snapshot")}</div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              {lock_path !== undefined ? (
+                <ActionButton
+                  button_class={button_class}
+                  disabled={false}
+                  onClick={() => void show_content("lock")}
+                >
+                  {t("properties.lock_file")}
+                </ActionButton>
+              ) : null}
+              <ActionButton
+                button_class={button_class}
+                disabled={manifest_path === undefined}
+                onClick={() => void show_content("appmanifest")}
+              >
+                {t("properties.appmanifest")}
+              </ActionButton>
+            </div>
+          </div>
+          <Row>
+            {t("properties.app_id")} <Value>{record?.appid ?? appid}</Value>
+          </Row>
+          <Row>
+            {t("properties.build_id")}{" "}
+            {record ? (
+              <Value>{record.locked_build?.buildid ?? t("common.unknown")}</Value>
+            ) : (
+              <Muted>{t("common.na")}</Muted>
+            )}
+          </Row>
+          <DepotSection record={record} />
+          <Row>
+            {t("properties.auto_update")}{" "}
+            {record ? (
+              <Value>{behavior_label(record.auto_update_behavior)}</Value>
+            ) : (
+              <Muted>{t("common.na")}</Muted>
+            )}
+          </Row>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function outer_tabs(tabs: Element[]): Element[] {
+  return tabs.filter((tab) => !tab.parentElement?.closest("[role='tab']"));
+}
+
+function inject(document_ref: Document, appid: string): void {
+  if (document_ref.querySelector(`[${TAB_MARKER}]`)) {
+    return;
+  }
+
+  const tablist = document_ref.querySelector("[role='tablist']");
+  const general = document_ref.querySelector(PROPERTIES_CONTENT_SELECTOR);
+  const content_area = general?.parentElement ?? null;
+  const container = content_area?.parentElement ?? null;
+  const outers = outer_tabs([...document_ref.querySelectorAll("[role='tab']")]);
+  const template = outers.find((tab) => tab.getAttribute("aria-selected") === "false") ?? outers[0];
+  if (!tablist || !general || !content_area || !container || !template) {
+    log_warn(`could not add the app properties tab for app ${appid}: the dialog shape changed`);
+    return;
+  }
+
+  const prefix = general.id.slice(0, general.id.indexOf("/app/"));
+  const tab_id = `${prefix}/app/${appid}/properties/verlock`;
+  const content_id = `${tab_id}_Content`;
+
+  const active_tab = outers.find((tab) => tab.getAttribute("aria-selected") === "true");
+  const inactive_tab = outers.find((tab) => tab.getAttribute("aria-selected") === "false");
+  const active_marker =
+    active_tab && inactive_tab
+      ? [...active_tab.classList].find((name) => !inactive_tab.classList.contains(name))
+      : undefined;
+  let last_native_active: Element | null = active_tab ?? outers[0] ?? null;
+
+  const our_tab = template.cloneNode(true) as HTMLElement;
+  our_tab.removeAttribute("id");
+  our_tab.id = tab_id;
+  our_tab.setAttribute("aria-controls", content_id);
+  our_tab.setAttribute("aria-selected", "false");
+  our_tab.setAttribute(TAB_MARKER, "");
+  const nested = our_tab.querySelector("[role='tab']");
+  if (nested) {
+    nested.removeAttribute("id");
+    nested.removeAttribute("role");
+    nested.removeAttribute("aria-selected");
+    nested.removeAttribute("aria-controls");
+    nested.textContent = TAB_LABEL;
+  } else {
+    our_tab.textContent = TAB_LABEL;
+  }
+
+  const our_area = content_area.cloneNode(false) as HTMLElement;
+  our_area.removeAttribute("id");
+  our_area.style.display = "none";
+  const our_page = document_ref.createElement("div");
+  our_page.id = content_id;
+  our_page.className = general.className;
+  our_page.setAttribute("role", "tabpanel");
+  our_page.setAttribute("aria-labelledby", tab_id);
+  our_area.appendChild(our_page);
+
+  tablist.appendChild(our_tab);
+  container.appendChild(our_area);
+
+  const native_area = (): HTMLElement | null => {
+    for (const child of container.children) {
+      if (child !== our_area && !child.contains(tablist)) {
+        return child as HTMLElement;
+      }
+    }
+    return null;
+  };
+
+  const set_active = (active: boolean): void => {
+    if (active_marker !== undefined) {
+      for (const tab of outers) {
+        tab.classList.remove(active_marker);
+      }
+      our_tab.classList.remove(active_marker);
+      if (active) {
+        our_tab.classList.add(active_marker);
+      } else if (last_native_active !== null) {
+        last_native_active.classList.add(active_marker);
+      }
+    }
+    our_tab.setAttribute("aria-selected", active ? "true" : "false");
+    const native = native_area();
+    if (native) {
+      native.style.display = active ? "none" : "";
+    }
+    our_area.style.display = active ? "" : "none";
+  };
+
+  let refresh_content: () => void;
+
+  our_tab.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    refresh_content();
+    set_active(true);
+  });
+
+  tablist.addEventListener(
+    "click",
+    (event) => {
+      const target = event.target as Element | null;
+      if (target === null || our_tab.contains(target)) {
+        return;
+      }
+      const native = outers.find((tab) => tab.contains(target));
+      if (native !== undefined) {
+        last_native_active = native;
+        set_active(false);
+      }
+    },
+    true,
+  );
+
+  if (active_marker !== undefined) {
+    const marker = active_marker;
+    const observer = new MutationObserver(() => {
+      if (our_tab.getAttribute("aria-selected") !== "true") {
+        return;
+      }
+      if (outers.some((tab) => tab.classList.contains(marker))) {
+        set_active(false);
+      }
+    });
+    observer.observe(tablist, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "aria-selected"],
+    });
+  }
+
+  let button_class = read_button_class(container, our_page);
+  const root = createRoot(our_page);
+  roots.push(root);
+  refresh_content = () => {
+    button_class = read_button_class(container, our_page);
+    root.render(
+      <VerlockTabContent
+        appid={appid}
+        accent={accent_color(document_ref)}
+        divider={divider_color(document_ref)}
+        button_class={button_class}
+        parent={document_ref.defaultView ?? undefined}
+      />,
+    );
+  };
+  refresh_content();
+  log_info(`added the app properties tab for app ${appid}`);
+
+  const button_observer = new MutationObserver(() => {
+    const sampled = native_button_class(container, our_page);
+    if (sampled !== undefined && sampled !== button_class) {
+      refresh_content();
+    }
+  });
+  button_observer.observe(container, { subtree: true, childList: true });
+}
+
+export function install_properties_patch(): () => void {
+  const add_hook = Millennium.AddWindowCreateHook;
+  if (typeof add_hook !== "function") {
+    log_warn("the app properties tab is unavailable: AddWindowCreateHook is missing");
+    return (): void => {};
+  }
+
+  add_hook((popup: unknown) => {
+    const document_ref = (popup as { m_popup?: { document?: Document } } | null)?.m_popup?.document;
+    if (!document_ref) {
+      return;
+    }
+    void (async () => {
+      try {
+        const matches = await Millennium.findElement(
+          document_ref,
+          PROPERTIES_CONTENT_SELECTOR,
+          DIALOG_TIMEOUT_MS,
+        );
+        const general = matches[0];
+        if (!general) {
+          return;
+        }
+        const appid = APPID_PATTERN.exec(general.id)?.[1];
+        if (appid !== undefined) {
+          inject(document_ref, appid);
+        }
+      } catch {
+        return;
+      }
+    })();
+  });
+
+  return (): void => {
+    for (const root of roots.splice(0)) {
+      try {
+        root.unmount();
+      } catch (error) {
+        log_error(`could not unmount the app properties tab: ${String(error)}`);
+      }
+    }
+  };
+}

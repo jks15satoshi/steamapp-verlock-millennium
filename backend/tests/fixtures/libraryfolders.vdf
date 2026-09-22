@@ -1,0 +1,31 @@
+"libraryfolders"
+{
+	"0"
+	{
+		"path"		"/steam"
+		"label"		""
+		"apps"
+		{
+			"440"		"12345"
+			"570"		"67890"
+		}
+	}
+	"1"
+	{
+		"path"		"/library1"
+		"label"		""
+		"apps"
+		{
+			"730"		"24680"
+		}
+	}
+	"2"
+	{
+		"path"		"/library2"
+		"label"		""
+		"apps"
+		{
+			"440"		"12345"
+		}
+	}
+}

@@ -1,0 +1,2 @@
+] app_info_print 440
+Connectivity state changed: 2

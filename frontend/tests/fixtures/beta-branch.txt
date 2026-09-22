@@ -1,0 +1,39 @@
+] app_info_print 730
+AppID : 730, change number : 3000000/0, token 0, last change : Wed Nov 01 15:07:00 2017
+"730"
+{
+	"appid"		"730"
+	"common"
+	{
+		"name"		"Counter-Strike 2"
+		"type"		"Game"
+	}
+	"depots"
+	{
+		"731"
+		{
+			"name"		"Counter-Strike Client"
+			"systemdefined"		"1"
+			"manifests"
+			{
+				"public"		"3000000000000000001"
+			}
+			"maxsize"		"100"
+		}
+		"branches"
+		{
+			"public"
+			{
+				"buildid"		"31000000"
+				"timeupdated"	"1800000000"
+			}
+			"beta"
+			{
+				"buildid"		"30000000"
+				"description"	"public beta"
+				"timeupdated"	"1800000000"
+			}
+		}
+	}
+}
+Connectivity state changed: 2

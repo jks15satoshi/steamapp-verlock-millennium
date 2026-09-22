@@ -1,0 +1,9 @@
+return {
+    default = {
+        lpath = "./.rocks/share/lua/5.1/?.lua;./.rocks/share/lua/5.1/?/init.lua;./backend/?.lua;./backend/?/init.lua;./backend/tests/?.lua;./backend/tests/?/init.lua",
+        cpath = "./.rocks/lib/lua/5.1/?.so",
+        pattern = "_spec%.lua$",
+        recursive = true,
+        ROOT = { "backend/tests" },
+    },
+}

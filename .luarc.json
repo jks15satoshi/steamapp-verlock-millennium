@@ -1,0 +1,10 @@
+{
+  "workspace": {
+    "library": [
+      ".millennium/lsp/lua-types"
+    ]
+  },
+  "runtime": {
+    "version": "LuaJIT"
+  }
+}

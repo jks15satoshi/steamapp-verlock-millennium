@@ -1,0 +1,155 @@
+import type { AppId, CaptureResult, CaptureSet, RequiredAppsResult } from "./index";
+import * as bridge from "./bridge";
+import { log_error, log_info, log_warn } from "./log";
+import { delay, NUMERIC_APPID_PATTERN, parse_json } from "./shared";
+
+const CAPTURE_TIME_LIMIT_MS = 2000;
+const CAPTURE_SET_TIME_LIMIT_MS = 60000;
+const CAPTURE_SAMPLE_INTERVAL_MS = 100;
+
+function build_app_info_print_command(appid: AppId): string | null {
+  if (!NUMERIC_APPID_PATTERN.test(appid)) {
+    return null;
+  }
+  return `app_info_print ${appid}`;
+}
+
+function has_app_block(dump: string, appid: AppId): boolean {
+  return dump.includes(`"${appid}"`) && dump.includes('"depots"');
+}
+
+function as_app_list(value: unknown): AppId[] | null {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry));
+  }
+  if (
+    Boolean(value) &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value as Record<string, unknown>).length === 0
+  ) {
+    return [];
+  }
+  return null;
+}
+
+export async function capture_build_info(appid: AppId): Promise<CaptureResult> {
+  const command = build_app_info_print_command(appid);
+  if (command === null) {
+    log_warn(`refused to capture build info for a non-numeric appid: ${appid}`);
+    return {
+      ok: false,
+      code: "invalid_appid",
+      error: `Refusing to build a console command for a non-numeric appid: ${appid}`,
+    };
+  }
+
+  const console_api = SteamClient?.Console;
+  if (
+    typeof console_api?.RegisterForSpewOutput !== "function" ||
+    typeof console_api?.ExecCommand !== "function"
+  ) {
+    log_error(`capture failed for app ${appid}: Steam console is unavailable`);
+    return { ok: false, code: "console_unavailable", error: "Steam console is unavailable" };
+  }
+
+  let captured = "";
+  const handle = console_api.RegisterForSpewOutput((output) => {
+    captured += output.spew;
+  });
+
+  try {
+    captured = "";
+    console_api.ExecCommand(command);
+
+    const started_at = Date.now();
+    while (Date.now() - started_at < CAPTURE_TIME_LIMIT_MS) {
+      if (has_app_block(captured, appid)) {
+        break;
+      }
+      await delay(CAPTURE_SAMPLE_INTERVAL_MS);
+    }
+
+    if (!has_app_block(captured, appid)) {
+      log_error(`capture failed for app ${appid}: the client returned no app info`);
+      return { ok: false, code: "capture_timeout", error: "the client returned no app info" };
+    }
+
+    log_info(`captured build info for app ${appid}`);
+    return { ok: true, appid, dump: captured };
+  } finally {
+    handle.unregister();
+  }
+}
+
+// RegisterForSpewOutput exposes one shared spew stream, so captures run one at
+// a time through this queue; a failed capture must not block the next one.
+let capture_queue: Promise<void> = Promise.resolve();
+
+export function capture_build_info_set(appid: AppId): Promise<CaptureSet> {
+  const result = capture_queue.then(() => run_capture_build_info_set(appid));
+  capture_queue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
+async function run_capture_build_info_set(appid: AppId): Promise<CaptureSet> {
+  const base = await capture_build_info(appid);
+  if (!base.ok) {
+    return { ok: false, code: base.code, error: base.error };
+  }
+
+  const dumps: Record<AppId, string> = { [appid]: base.dump };
+  let required: AppId[];
+  try {
+    const result = parse_json(await bridge.get_required_apps(appid, base.dump)) as
+      | RequiredAppsResult
+      | undefined;
+    const apps = result?.ok === true ? as_app_list(result.apps) : null;
+    if (apps === null) {
+      return {
+        ok: false,
+        code: "invalid_response",
+        error: result?.error ?? "the backend returned an invalid required-apps response",
+      };
+    }
+    required = apps;
+  } catch (error) {
+    return {
+      ok: false,
+      code: "invalid_response",
+      error: `could not determine the required apps: ${String(error)}`,
+    };
+  }
+
+  const started_at = Date.now();
+  for (const dlc_appid of required) {
+    if (Date.now() - started_at > CAPTURE_SET_TIME_LIMIT_MS) {
+      return {
+        ok: false,
+        code: "capture_timeout",
+        error: "the build info capture exceeded its time budget",
+      };
+    }
+    const captured = await capture_build_info(dlc_appid);
+    if (!captured.ok) {
+      return { ok: false, code: captured.code, error: captured.error };
+    }
+    dumps[dlc_appid] = captured.dump;
+  }
+  return { ok: true, dumps };
+}
+
+export async function capture_then_refresh(appid: AppId): Promise<void> {
+  const captured = await capture_build_info_set(appid);
+  if (!captured.ok) {
+    return;
+  }
+  try {
+    await bridge.refresh_app(appid, captured.dumps);
+  } catch {
+    return;
+  }
+}

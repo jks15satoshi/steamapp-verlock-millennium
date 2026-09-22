@@ -1,0 +1,43 @@
+] app_info_print 440
+AppID : 440, change number : 1234567/0, token 0, last change : Wed Oct 25 15:07:00 2017
+"440"
+{
+	"appid"		"440"
+	"common"
+	{
+		"name"		"Team Fortress 2"
+		"type"		"Game"
+	}
+	"depots"
+	{
+		"441"
+		{
+			"name"		"TF2 Client"
+			"systemdefined"		"1"
+			"manifests"
+			{
+				"public"		"7588696787324571854"
+			}
+			"maxsize"		"100"
+		}
+		"442"
+		{
+			"name"		"TF2 Client server shared"
+			"systemdefined"		"1"
+			"manifests"
+			{
+				"public"		"3704041027226853666"
+			}
+			"maxsize"		"200"
+		}
+		"branches"
+		{
+			"public"
+			{
+				"buildid"		"12345678"
+				"timeupdated"	"1700000000"
+			}
+		}
+	}
+}
+Connectivity state changed: 2
