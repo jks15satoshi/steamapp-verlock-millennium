@@ -16,6 +16,7 @@
     "lint:toml": "tombi lint --offline .",
     "format": "oxfmt frontend && stylua . && bun run fmt:toml",
     "fmt:toml": "tombi format --offline .",
+    "check:refs": "bun .github/scripts/verify-references.ts",
     "check:toml": "tombi format --check --offline .",
     "spell": "cspell . .agents",
     "setup:lua": "bash scripts/setup-luarocks.sh"

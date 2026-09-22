@@ -25,6 +25,9 @@ jobs:
       - name: Markdownlint
         run: markdownlint-cli2 "**/*.md"
 
+      - name: Reference integrity
+        run: bun run check:refs
+
   static:
     name: Static checks
     runs-on: ubuntu-latest

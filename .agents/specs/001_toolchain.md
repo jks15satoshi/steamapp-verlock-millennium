@@ -59,11 +59,15 @@ Three `oxlint` rules are off because the plugin's Steam-bound code would violate
 
 EditorConfig fixes line endings, indentation, and charset per file type. markdownlint-cli2 checks the repository Markdown, including the spec corpus, while the corpus's content still follows [Spec 0](000_metaspec.md). The corpus renders a list item's explanation on its own line with two trailing spaces (a hard line break), so `MD009` is set to `br_spaces: 2` and every other form of trailing whitespace stays forbidden. `tombi` formats and lints TOML. `cspell` checks spelling across the repository. `markdownlint-cli2`, `cspell`, and `tombi` are pinned by `mise`.
 
+### Reference Integrity
+
+`bun run check:refs` runs `.github/scripts/verify-references.ts`, which checks every relative link and heading anchor in the spec and skill corpus. The check scans the Markdown under `.agents/specs/` and `.agents/skills/`, ignores an external target and a link inside a code span or a fenced block, resolves a relative target against its containing file, and resolves an `#anchor` against the target file's headings with GitHub's anchor rules. A missing target file or an unresolved anchor fails the check. The check covers the relative-link and anchor form only: a backticked reference to a path or a symbol, and a reference a prose sentence states without a link, stay under review.
+
 ### Git Hooks and Continuous Integration
 
 lefthook installs a `pre-commit` hook that runs the formatters, the linters, and the type checks on staged files, and it blocks the change when a check fails.
 
-GitHub Actions runs the `verification` workflow, whose jobs run the full check set on an Ubuntu runner and the test suites from [Spec 5](005_testing-strategy.md) on a Windows and an Ubuntu runner. A `git diff --exit-code` step after `bun run prepare` fails when Starlight's output differs from the committed `.luarc.json`, `tsconfig.json`, and `package.json`. The two-runner matrix covers the platform-specific path and read-only behavior the plugin depends on.
+GitHub Actions runs the `verification` workflow, whose jobs run the full check set on an Ubuntu runner and the test suites from [Spec 5](005_testing-strategy.md) on a Windows and an Ubuntu runner. Its `docs` job runs the spell check, markdownlint, and `bun run check:refs` ([Reference Integrity](#reference-integrity)). A `git diff --exit-code` step after `bun run prepare` fails when Starlight's output differs from the committed `.luarc.json`, `tsconfig.json`, and `package.json`. The two-runner matrix covers the platform-specific path and read-only behavior the plugin depends on.
 
 GitHub Actions also runs the `spec-status` workflow, which executes `.github/scripts/verify-spec-status.ts` and fails a ready-for-review pull request that contains an `active` `feature` spec ([Spec 0](000_metaspec.md#statuses)); `master`'s branch protection requires the workflow's check before a merge.
 
