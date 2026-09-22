@@ -1,6 +1,6 @@
 ---
 name: spec-prose-style
-description: Reviews or writes prose in Spec documents under .agents/specs/; advisory style guidance for clarity, tone, and structure, subordinate to the Prose Rules in Spec 0.
+description: Reviews or writes prose in Spec documents under .agents/specs/; advisory style guidance for clarity, tone, structure, and writing for a human reader, subordinate to the Prose Rules in Spec 0.
 ---
 
 # Spec Prose Style
@@ -25,10 +25,23 @@ Apply this skill to the body text of Spec documents under `.agents/specs/`. This
 - **Prefer an honest gap to a plausible guess.** A rejection reason the decision did not establish is fabrication even when it sounds convincing; [Alternative Provenance](../../specs/000_metaspec.md#alternative-provenance) owns the wording for the gap.
 - **Reserve emphasis for the clause that changes behavior.** Emphasis on every other clause leaves nothing standing out.
 - **Use a table for a set of parallel items and a paragraph for a chain of reasoning.** A table flattens reasoning that a reader must follow in order.
+- **Put a list item's explanation on its own line.** End the lead, whether a backticked identifier or a bold alternative name, with two trailing spaces, and place the explanation on the next indented line, dropping the em dash.
+
+## Human-Readable Prose
+
+[Spec 0](../../specs/000_metaspec.md#prose-rules) owns the normative rules for substance, claim fidelity, and plain statement. The advice below keeps spec prose reading like a person wrote it for one reader.
+
+- **Use as many items as the meaning needs.** Give three examples only when the meaning has three parts; otherwise merge them or develop the strongest one.
+- **Vary sentence openings.** Merge consecutive sentences that share their subject and verb shape.
+- **Connect clauses with a period, comma, colon, or parentheses.** Reserve the dash for a deliberate choice; the corpus uses em dashes at its own rate.
+- **Choose the plain word** over model-worn vocabulary such as "delve", "testament", "landscape", "showcase", "pivotal", "meticulous", "vibrant", and "enhance". A formal word outside that list is fine.
+- **Let the heading carry the point.** Start a section with its content, not a sentence that repeats the heading.
+- **Describe the current behavior**, not the version it replaced; change history belongs to change logs and release notes.
+- **Keep headings in Title Case** ([Title Format](../../specs/000_metaspec.md#title-format) owns the rule) and use no emojis or decorative arrows.
 
 ## Workflow
 
 1. Read the [Spec 0 Prose Rules](../../specs/000_metaspec.md#prose-rules) before editing.
 2. Draft the change.
-3. Apply the Style Advice above.
+3. Apply the Style Advice and Human-Readable Prose sections above.
 4. Re-read the result against Spec 0 and the surrounding Specs, and drop any advice that made a sentence less clear.

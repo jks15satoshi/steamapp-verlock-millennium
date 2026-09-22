@@ -17,7 +17,13 @@ The plugin spans a Lua backend, a TypeScript/TSX frontend, and a compiled plugin
 
 ### Plugin Build System
 
-The plugin build uses Starlight, Millennium's plugin compiler. Starlight reads `millennium.toml` and compiles the Lua backend, the TSX frontend, and the declared resources into one installable plugin. `bun run build` runs `starlight pack`; `[compiler].output_path = "auto"` installs the build into the detected Millennium installation. `bun run dev` runs `starlight watch` for rebuilds during development. `bun run prepare` runs `starlight lsp`, which generates the `.millennium/` type stubs the frontend imports. Starlight owns `.luarc.json`, `tsconfig.json`, and `package.json`: on every `lsp`, `pack`, and `watch` run it rewrites each file through `serde_json`, whose pretty printer expands every array and omits the final newline. The project commits those files in that form and excludes them from `oxfmt`, so `prepare`, `build`, and `dev` leave the working tree unchanged. `millennium.toml` is the single plugin manifest; the project does not use the legacy `plugin.json`.
+The plugin build uses Starlight, Millennium's plugin compiler. Starlight reads `millennium.toml` and compiles the Lua backend, the TSX frontend, and the declared resources into one installable plugin.
+
+`bun run build` runs `starlight pack`; `[compiler].output_path = "auto"` installs the build into the detected Millennium installation. `bun run dev` runs `starlight watch` for rebuilds during development. `bun run prepare` runs `starlight lsp`, which generates the `.millennium/` type stubs the frontend imports.
+
+Starlight owns `.luarc.json`, `tsconfig.json`, and `package.json`: on every `lsp`, `pack`, and `watch` run it rewrites each file through `serde_json`, whose pretty printer expands every array and omits the final newline. The project commits those files in that form and excludes them from `oxfmt`, so `prepare`, `build`, and `dev` leave the working tree unchanged.
+
+`millennium.toml` is the single plugin manifest; the project does not use the legacy `plugin.json`.
 
 ### Package Manager
 
@@ -29,7 +35,11 @@ The backend is Lua under `backend/`. It runs on Millennium's LuaJIT host and has
 
 ### Tool Version Pinning
 
-mise pins the runtime and repository-level tools: `bun`, `node`, `lua`, `luajit`, `stylua`, `lua-language-server`, `cspell`, `markdownlint-cli2`, and `tombi`. `mise.toml` declares the tools, `mise.lock` is committed, and `mise.local.toml` carries machine-local overrides and stays untracked. Continuous integration provisions these pinned versions with `mise`; a local contributor may use `mise` or install the same versions by hand. The package manager pins the JavaScript and TypeScript tools — `@steambrew/starlight`, `typescript`, `oxlint`, `oxlint-tsgolint`, `oxfmt`, and `lefthook` — through `bun.lock`. The Lua development tools `luacheck`, `busted`, and `luacov` come from LuaRocks, provisioned by the committed `scripts/setup-luarocks.sh` and `scripts/setup-luarocks.ps1`, which pin LuaRocks `3.13.0`, and by the dev rockspec.
+mise pins the runtime and repository-level tools: `bun`, `node`, `lua`, `luajit`, `stylua`, `lua-language-server`, `cspell`, `markdownlint-cli2`, and `tombi`. `mise.toml` declares the tools, `mise.lock` is committed, and `mise.local.toml` carries machine-local overrides and stays untracked. Continuous integration provisions these pinned versions with `mise`; a local contributor may use `mise` or install the same versions by hand.
+
+The package manager pins the JavaScript and TypeScript tools — `@steambrew/starlight`, `typescript`, `oxlint`, `oxlint-tsgolint`, `oxfmt`, and `lefthook` — through `bun.lock`.
+
+The Lua development tools `luacheck`, `busted`, and `luacov` come from LuaRocks, provisioned by the committed `scripts/setup-luarocks.sh` and `scripts/setup-luarocks.ps1`, which pin LuaRocks `3.13.0`, and by the dev rockspec.
 
 ### Frontend Code Quality
 
@@ -47,11 +57,17 @@ Three `oxlint` rules are off because the plugin's Steam-bound code would violate
 
 ### Repository Quality
 
-EditorConfig fixes line endings, indentation, and charset per file type. markdownlint-cli2 checks the repository Markdown, including the spec corpus, while the corpus's content still follows [Spec 0](000_metaspec.md). `tombi` formats and lints TOML. `cspell` checks spelling across the repository. `markdownlint-cli2`, `cspell`, and `tombi` are pinned by `mise`.
+EditorConfig fixes line endings, indentation, and charset per file type. markdownlint-cli2 checks the repository Markdown, including the spec corpus, while the corpus's content still follows [Spec 0](000_metaspec.md). The corpus renders a list item's explanation on its own line with two trailing spaces (a hard line break), so `MD009` is set to `br_spaces: 2` and every other form of trailing whitespace stays forbidden. `tombi` formats and lints TOML. `cspell` checks spelling across the repository. `markdownlint-cli2`, `cspell`, and `tombi` are pinned by `mise`.
 
 ### Git Hooks and Continuous Integration
 
-lefthook installs a `pre-commit` hook that runs the formatters, the linters, and the type checks on staged files, and it blocks the change when a check fails. GitHub Actions runs the `verification` workflow, whose jobs run the full check set on an Ubuntu runner and the test suites from [Spec 5](005_testing-strategy.md) on a Windows and an Ubuntu runner. A `git diff --exit-code` step after `bun run prepare` fails when Starlight's output differs from the committed `.luarc.json`, `tsconfig.json`, and `package.json`. The two-runner matrix covers the platform-specific path and read-only behavior the plugin depends on. GitHub Actions also runs the `spec-status` workflow, which executes `.github/scripts/verify-spec-status.ts` and fails a ready-for-review pull request that contains an `active` `feature` spec ([Spec 0](000_metaspec.md#statuses)); `master`'s branch protection requires the workflow's check before a merge. GitHub Actions also runs the `release` workflow on a version tag, and it calls the `verification` workflow through `workflow_call`; [Spec 9](009_release-and-distribution.md) owns the release workflow's mechanics.
+lefthook installs a `pre-commit` hook that runs the formatters, the linters, and the type checks on staged files, and it blocks the change when a check fails.
+
+GitHub Actions runs the `verification` workflow, whose jobs run the full check set on an Ubuntu runner and the test suites from [Spec 5](005_testing-strategy.md) on a Windows and an Ubuntu runner. A `git diff --exit-code` step after `bun run prepare` fails when Starlight's output differs from the committed `.luarc.json`, `tsconfig.json`, and `package.json`. The two-runner matrix covers the platform-specific path and read-only behavior the plugin depends on.
+
+GitHub Actions also runs the `spec-status` workflow, which executes `.github/scripts/verify-spec-status.ts` and fails a ready-for-review pull request that contains an `active` `feature` spec ([Spec 0](000_metaspec.md#statuses)); `master`'s branch protection requires the workflow's check before a merge.
+
+GitHub Actions also runs the `release` workflow on a version tag, and it calls the `verification` workflow through `workflow_call`; [Spec 9](009_release-and-distribution.md) owns the release workflow's mechanics.
 
 ## Alternatives Considered
 

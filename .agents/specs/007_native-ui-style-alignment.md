@@ -7,13 +7,19 @@ type: informational
 
 ## Summary
 
-This spec records how the plugin's injected UI matches the Steam desktop client's native dialog styling: the constraints the client imposes, the method the plugin uses to derive the styling at run time, and the values the method measured. The plugin reuses Valve's own components and class names where they are stable, and it samples the accent color and the button class name from the live client, with a cached value and a fallback, where the client keeps the styling in a hashed class. [Spec 4](004_app-version-lock.md) owns the user interface that applies the method, and [Spec 5](005_testing-strategy.md) owns its tests.
+This spec records how the plugin's injected UI matches the Steam desktop client's native dialog styling: the constraints the client imposes, the method the plugin uses to derive the styling at run time, and the values the method measured.
+
+The plugin reuses Valve's own components and class names where they are stable, and it samples the accent color and the button class name from the live client, with a cached value and a fallback, where the client keeps the styling in a hashed class.
+
+[Spec 4](004_app-version-lock.md) owns the user interface that applies the method, and [Spec 5](005_testing-strategy.md) owns its tests.
 
 ## Motivation
 
 The plugin injects the `Steam App Verlock` tab into the app Properties dialog, an undocumented client internal whose DOM and CSS the plugin does not control. A plain HTML control inside that dialog reads as foreign: the wrong title size, button padding, and text colors, and a misaligned content inset.
 
-Valve publishes brand guidelines and store-asset specifications, but no design system, component specification, or token set for the desktop client's internal UI. The client's CSS uses stable class names such as `DialogHeader`, `DialogBody`, and `DialogContent_InnerWidth` for part of the layout, and hashed CSS-module class names — which carry a control's padding and width — for the rest, and it is likely to hard-code colors. The theming documentation and community themes confirm that the client rarely exposes color variables and that class names can change across client versions.
+Valve publishes brand guidelines and store-asset specifications, but no design system, component specification, or token set for the desktop client's internal UI.
+
+The client's CSS uses stable class names such as `DialogHeader`, `DialogBody`, and `DialogContent_InnerWidth` for part of the layout, and hashed CSS-module class names — which carry a control's padding and width — for the rest, and it is likely to hard-code colors. The theming documentation and community themes confirm that the client rarely exposes color variables and that class names can change across client versions.
 
 A stylesheet the plugin authors by hand therefore cannot match the client reliably; the plugin derives the styling from the client at run time instead.
 
@@ -35,10 +41,14 @@ The plugin aligns with the native styling in three steps.
 
 The Properties content page nests three levels before the rows:
 
-- `DialogContent _DialogLayout` — the page; `display: flex`, `flex: 3 1 0%`, `padding: 24px 0 0 24px`.
-- `DialogContent_InnerWidth` — the width wrapper; `display: flex`, `flex: 1 1 0%`, the full content width.
-- `DialogHeader` — the page title.
-- `DialogBody` — the content body; `display: flex`, `flex: 1 1 0%`, `margin: 10px 0 0`, `padding: 0 12px 24px 0`.
+- `DialogContent _DialogLayout`  
+  the page; `display: flex`, `flex: 3 1 0%`, `padding: 24px 0 0 24px`.
+- `DialogContent_InnerWidth`  
+  the width wrapper; `display: flex`, `flex: 1 1 0%`, the full content width.
+- `DialogHeader`  
+  the page title.
+- `DialogBody`  
+  the content body; `display: flex`, `flex: 1 1 0%`, `margin: 10px 0 0`, `padding: 0 12px 24px 0`.
 
 Each dialog button renders as `button.<hash> DialogButton _DialogLayout Secondary Focusable`, where the leading hashed class carries the `padding` and the `width`.
 
@@ -94,11 +104,29 @@ The recorded values are the client's values at the time of measurement; they are
 
 ### Application
 
-`frontend/properties.tsx` applies the method. Its tab content renders `DialogContent_InnerWidth`, `DialogHeader`, and `DialogBody`, and its rows use the measured font size and line height. The accent color comes from `accent_color`, which samples the color of the largest blue text in the dialog and falls back to `#1a9fff`. The `State` value and the lock and refresh status values use the measured value style — `font-weight` `700` and the accent color — while the static values, the app id, the locked build id, the depot manifests, and the auto-update behavior, render in the body text color at the body weight, with no `font-weight` override, and an absent status value renders a gray `N/A` at `rgb(139, 146, 154)`, the measured label color. The static section's `Lock Snapshot` heading reuses the stable `SettingsDialogSubHeader` class, and its divider color comes from `divider_color`, which samples the `border-top` color of a native one-sided divider and falls back to `rgba(59, 63, 72, 0.5)`. The action buttons render as a plain `button` whose class name comes from `read_button_class`, which samples the full class name of a native dialog button from the dialog's content root, accepts only a class that carries `Secondary` and not `Primary`, caches it in `localStorage` under `steamapp-verlock.button_class`, and falls back to the recorded class constant. A mutation observer watches that content root and re-samples the class when a native button appears; scoping the sampler and the observer to the content root and rejecting a primary class keep a modal's buttons from changing the tab's button style. `frontend/notify.tsx` builds its failure and file content dialogs from the SDK's `ConfirmModal`, and its plain-HTML fallback from `DialogHeader`, so the dialogs inherit the native dialog styling without a hand-authored stylesheet. The file content box uses the recorded text-box values above as a constant, because the reference box lives in the System Information window and carries only hashed classes the plugin cannot author. The content dialog hides the modal's `Cancel` button after it renders and does not pass `closeModal`, so its `Copy` button (the OK button) keeps the dialog open; `Close` and the escape key dismiss it, and React state toggles the `Copy` label to `Copied`.
+`frontend/properties.tsx` applies the method. Its tab content renders `DialogContent_InnerWidth`, `DialogHeader`, and `DialogBody`, and its rows use the measured font size and line height.
 
-`frontend/native.tsx` hosts the sampling helpers the two surfaces share — `accent_color`, `divider_color`, `native_button_class`, `read_button_class`, the `ActionButton` component, and their fallback constants — and `frontend/properties.tsx` imports them from there. `frontend/settings.tsx` applies the method to the plugin's settings panel: its section headings reuse the stable `SettingsDialogSubHeader` class, its section dividers reuse `divider_color`, its checkbox controls are the SDK's `DialogCheckbox` component, and its buttons render through the shared `ActionButton` with a class sampled once when the panel mounts, backed by the same cache and fallback. The locked-apps list replicates the look of the client's DLC table — the install list in the Properties dialog — through recorded constants in `frontend/settings.tsx`, following the text-box precedent, because the reference table renders in the Properties dialog's document while the settings panel renders in Millennium's settings page. The probe measured the table's container, header cells, and row cells, and the constants record those values: the list sits on a `rgb(35, 38, 46)` container under a `rgb(61, 68, 80)` header band, and the header cells reuse the measured `13px`, `500`, `rgb(139, 146, 154)` type at `10px 8px` padding. The panel's buttons render at their native full width in the sidebar, so paired actions split the row in half. The panel's layout budget is the width of Millennium's own settings page; the plugin measures that width only as a design-time value and records no native constant for it.
+The accent color comes from `accent_color`, which samples the color of the largest blue text in the dialog and falls back to `#1a9fff`. The `State` value and the lock and refresh status values use the measured value style — `font-weight` `700` and the accent color — while the static values, the app id, the locked build id, the depot manifests, and the auto-update behavior, render in the body text color at the body weight, with no `font-weight` override, and an absent status value renders a gray `N/A` at `rgb(139, 146, 154)`, the measured label color.
 
-`frontend/gamepage.tsx` applies the method to the library game page badge. The badge renders its own flex structure and samples the computed `color`, `font-size`, `font-weight`, `letter-spacing`, `line-height`, and `text-transform` of the page's `PLAY TIME` label and value, and the pixel `width` and `height`, the computed `color`, and the `opacity` of its icon, through `sample_badge_style`. The icon's `color` comes from the native icon svg rather than the label, so the badge icon matches the row's other icons instead of the label's brighter tint; the badge draws an outline lock to match the row's line icons. `merge_style` merges each sampled field over the fallback constants in `FALLBACK_BADGE_STYLE`, so a field the sample lacks keeps the recorded value. The badge does not reuse the cell's hashed layout class, because that class carries the cell's own size and wrap behavior, which misplaces an appended sibling on a play bar that carries more cells; it copies the sampled values only.
+The static section's `Lock Snapshot` heading reuses the stable `SettingsDialogSubHeader` class, and its divider color comes from `divider_color`, which samples the `border-top` color of a native one-sided divider and falls back to `rgba(59, 63, 72, 0.5)`. The action buttons render as a plain `button` whose class name comes from `read_button_class`, which samples the full class name of a native dialog button from the dialog's content root, accepts only a class that carries `Secondary` and not `Primary`, caches it in `localStorage` under `steamapp-verlock.button_class`, and falls back to the recorded class constant.
+
+A mutation observer watches that content root and re-samples the class when a native button appears; scoping the sampler and the observer to the content root and rejecting a primary class keep a modal's buttons from changing the tab's button style.
+
+`frontend/notify.tsx` builds its failure and file content dialogs from the SDK's `ConfirmModal`, and its plain-HTML fallback from `DialogHeader`, so the dialogs inherit the native dialog styling without a hand-authored stylesheet. The file content box uses the recorded text-box values above as a constant, because the reference box lives in the System Information window and carries only hashed classes the plugin cannot author. The content dialog hides the modal's `Cancel` button after it renders and does not pass `closeModal`, so its `Copy` button (the OK button) keeps the dialog open; `Close` and the escape key dismiss it, and React state toggles the `Copy` label to `Copied`.
+
+`frontend/native.tsx` hosts the sampling helpers the two surfaces share — `accent_color`, `divider_color`, `native_button_class`, `read_button_class`, the `ActionButton` component, and their fallback constants — and `frontend/properties.tsx` imports them from there.
+
+`frontend/settings.tsx` applies the method to the plugin's settings panel: its section headings reuse the stable `SettingsDialogSubHeader` class, its section dividers reuse `divider_color`, its checkbox controls are the SDK's `DialogCheckbox` component, and its buttons render through the shared `ActionButton` with a class sampled once when the panel mounts, backed by the same cache and fallback.
+
+The locked-apps list replicates the look of the client's DLC table — the install list in the Properties dialog — through recorded constants in `frontend/settings.tsx`, following the text-box precedent, because the reference table renders in the Properties dialog's document while the settings panel renders in Millennium's settings page. The probe measured the table's container, header cells, and row cells, and the constants record those values: the list sits on a `rgb(35, 38, 46)` container under a `rgb(61, 68, 80)` header band, and the header cells reuse the measured `13px`, `500`, `rgb(139, 146, 154)` type at `10px 8px` padding.
+
+The panel's buttons render at their native full width in the sidebar, so paired actions split the row in half. The panel's layout budget is the width of Millennium's own settings page; the plugin measures that width only as a design-time value and records no native constant for it.
+
+`frontend/gamepage.tsx` applies the method to the library game page badge. The badge renders its own flex structure and samples the computed `color`, `font-size`, `font-weight`, `letter-spacing`, `line-height`, and `text-transform` of the page's `PLAY TIME` label and value, and the pixel `width` and `height`, the computed `color`, and the `opacity` of its icon, through `sample_badge_style`.
+
+The icon's `color` comes from the native icon svg rather than the label, so the badge icon matches the row's other icons instead of the label's brighter tint; the badge draws an outline lock to match the row's line icons. `merge_style` merges each sampled field over the fallback constants in `FALLBACK_BADGE_STYLE`, so a field the sample lacks keeps the recorded value.
+
+The badge does not reuse the cell's hashed layout class, because that class carries the cell's own size and wrap behavior, which misplaces an appended sibling on a play bar that carries more cells; it copies the sampled values only.
 
 ## Risks
 
@@ -109,9 +137,15 @@ The recorded values are the client's values at the time of measurement; they are
 
 ## Alternatives Considered
 
-- **Plain HTML with hand-authored styles** — rejected: the styles cannot match the client, and they drift with it.
-- **Hardcoding every measured value** — rejected: the button's `padding` and `width` live in a hashed class the plugin cannot author, and the accent color follows the client theme.
-- **Using only the SDK components without the native body structure** — rejected: a missing `DialogBody` loses the right inset and the vertical spacing.
-- **Cloning a native DOM subtree as a template** — rejected: the client renders the subtree through React, so a clone couples the plugin to the rendered content and is invalidated on the next render.
-- **Sampling at run time without a cache or a fallback** — rejected: a page with no native dialog button renders the wrong button on a first run.
-- **Sampling the DLC table's classes across windows** — rejected: the reference table renders in the Properties dialog's document and the settings panel renders in Millennium's settings page, so a cross-window sample couples the panel to a tab that may not be mounted, for values the recorded constants already carry.
+- **Plain HTML with hand-authored styles**  
+  rejected: the styles cannot match the client, and they drift with it.
+- **Hardcoding every measured value**  
+  rejected: the button's `padding` and `width` live in a hashed class the plugin cannot author, and the accent color follows the client theme.
+- **Using only the SDK components without the native body structure**  
+  rejected: a missing `DialogBody` loses the right inset and the vertical spacing.
+- **Cloning a native DOM subtree as a template**  
+  rejected: the client renders the subtree through React, so a clone couples the plugin to the rendered content and is invalidated on the next render.
+- **Sampling at run time without a cache or a fallback**  
+  rejected: a page with no native dialog button renders the wrong button on a first run.
+- **Sampling the DLC table's classes across windows**  
+  rejected: the reference table renders in the Properties dialog's document and the settings panel renders in Millennium's settings page, so a cross-window sample couples the panel to a tab that may not be mounted, for values the recorded constants already carry.

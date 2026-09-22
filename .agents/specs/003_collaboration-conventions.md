@@ -7,11 +7,15 @@ type: process
 
 ## Summary
 
-This spec fixes how a change enters and lands in `Steam App Verlock`: its commit message, its branch, the issue that requests it, and the pull request that delivers it. It binds the maintainer — the person or agent responsible for project decisions. It also fixes which document owns which part of the convention, and it states the conventions as recommendations, with one gated exception: the `feature` spec status.
+This spec fixes how a change enters and lands in `Steam App Verlock`: its commit message, its branch, the issue that requests it, and the pull request that delivers it. It binds the maintainer — the person or agent responsible for project decisions.
+
+It also fixes which document owns which part of the convention, and it states the conventions as recommendations, with one gated exception: the `feature` spec status.
 
 ## Motivation
 
-Two kinds of maintainer make changes to `Steam App Verlock`: a human, and an agent that acts for one. Both commit, open issues, and open pull requests. Without one convention the history reads inconsistently, an issue arrives without the information a reviewer needs, and no reader can tell which change is ready to merge. One written convention, recorded in one home and applied by review, keeps the surface uniform and the review predictable.
+Two kinds of maintainer make changes to `Steam App Verlock`: a human, and an agent that acts for one. Both commit, open issues, and open pull requests.
+
+Without one convention the history reads inconsistently, an issue arrives without the information a reviewer needs, and no reader can tell which change is ready to merge. One written convention, recorded in one home and applied by review, keeps the surface uniform and the review predictable.
 
 ## Design
 
@@ -105,12 +109,18 @@ A pull request carries an `active` `feature` spec only while it is a draft ([Spe
 
 ### Enforcement
 
-This spec's conventions are recommendations, with one gate: the `spec-status` check on a pull request's `feature` spec status (see [Pull Requests](#pull-requests)). A stale `feature` spec `status` is a lifecycle fact review catches late, so it earns a check; every other convention here stays under review. The repository runs no other mechanical gate on a commit message, a branch name, an issue, or a pull request. [Spec 1](001_toolchain.md) owns the gate mechanics — the `pre-commit` hook, the `verification` workflow, and the `spec-status` workflow — which check code formatting, lint, types, tests, and the `feature` spec status.
+This spec's conventions are recommendations, with one gate: the `spec-status` check on a pull request's `feature` spec status (see [Pull Requests](#pull-requests)). A stale `feature` spec `status` is a lifecycle fact review catches late, so it earns a check; every other convention here stays under review. The repository runs no other mechanical gate on a commit message, a branch name, an issue, or a pull request.
+
+[Spec 1](001_toolchain.md) owns the gate mechanics — the `pre-commit` hook, the `verification` workflow, and the `spec-status` workflow — which check code formatting, lint, types, tests, and the `feature` spec status.
 
 ## Alternatives Considered
 
-- **Native GitHub Issue Types** — rejected: GitHub exposes Issue Types to organization-owned repositories, and this repository belongs to a user account, so the taxonomy cannot be relied on; the repository uses default labels instead.
+- **Native GitHub Issue Types**  
+  rejected: GitHub exposes Issue Types to organization-owned repositories, and this repository belongs to a user account, so the taxonomy cannot be relied on; the repository uses default labels instead.
 - **A custom `kind/*` and `area/*` taxonomy now** — deferred: for this project's size the default labels are sufficient.
-- **A mandatory issue reference in the commit** — rejected: the pull request owns the closing reference.
-- **Keeping `CONTRIBUTING.md` strictly navigation-only** — rejected: a contributor arrives without a runnable quickstart and must assemble the steps from four documents; a bounded onboarding guide that restates commands and defers to this spec keeps one rule home without that cost.
-- **Keeping a mechanical format gate** — rejected: the owner controls every merge and the history is short, so review is the cheaper enforcement; a pull request title gate would also force English titles and contradict the multilingual allowance.
+- **A mandatory issue reference in the commit**  
+  rejected: the pull request owns the closing reference.
+- **Keeping `CONTRIBUTING.md` strictly navigation-only**  
+  rejected: a contributor arrives without a runnable quickstart and must assemble the steps from four documents; a bounded onboarding guide that restates commands and defers to this spec keeps one rule home without that cost.
+- **Keeping a mechanical format gate**  
+  rejected: the owner controls every merge and the history is short, so review is the cheaper enforcement; a pull request title gate would also force English titles and contradict the multilingual allowance.

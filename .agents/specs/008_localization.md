@@ -7,7 +7,11 @@ type: feature
 
 ## Summary
 
-This spec defines how `Steam App Verlock` localizes its user-facing text: the catalog files that map a message key to a display string, how the plugin selects a catalog from the running Steam client's language, the fallback rules when a language or a key is absent, and the backend error codes the frontend turns into localized messages. The plugin supports English and Simplified Chinese; every other Steam language falls back to English. [Spec 4](004_app-version-lock.md) owns the operations and the user interface that show the text, and [Spec 5](005_testing-strategy.md) owns the tests.
+This spec defines how `Steam App Verlock` localizes its user-facing text: the catalog files that map a message key to a display string, how the plugin selects a catalog from the running Steam client's language, the fallback rules when a language or a key is absent, and the backend error codes the frontend turns into localized messages.
+
+The plugin supports English and Simplified Chinese; every other Steam language falls back to English.
+
+[Spec 4](004_app-version-lock.md) owns the operations and the user interface that show the text, and [Spec 5](005_testing-strategy.md) owns the tests.
 
 ## Motivation
 
@@ -61,13 +65,19 @@ The plugin implements no plural rules. A message that embeds a count is phrased 
 
 ### Frontend Wiring
 
-`frontend/index.tsx` calls `init_i18n()` when the plugin loads, and the settings panel calls `refresh_locale()` when it mounts, so a language change shows after the panel is reopened. `frontend/menu.tsx`, `frontend/settings.tsx`, `frontend/properties.tsx`, `frontend/notify.tsx`, and `frontend/actions.ts` replace every user-visible literal and every assembled status string with a `t(...)` call. `frontend/gamepage.tsx` replaces the badge's `Last refreshed` label with a `t("gamepage.last_refreshed")` call; the formatted timestamp under it is produced by `frontend/time.ts` and is not a message. A failure message the frontend assembles from a value, such as an app id, passes the value as an interpolation parameter instead of concatenating it.
+`frontend/index.tsx` calls `init_i18n()` when the plugin loads, and the settings panel calls `refresh_locale()` when it mounts, so a language change shows after the panel is reopened.
+
+`frontend/menu.tsx`, `frontend/settings.tsx`, `frontend/properties.tsx`, `frontend/notify.tsx`, and `frontend/actions.ts` replace every user-visible literal and every assembled status string with a `t(...)` call. `frontend/gamepage.tsx` replaces the badge's `Last refreshed` label with a `t("gamepage.last_refreshed")` call; the formatted timestamp under it is produced by `frontend/time.ts` and is not a message.
+
+A failure message the frontend assembles from a value, such as an app id, passes the value as an interpolation parameter instead of concatenating it.
 
 `frontend/settings.tsx` formats a timestamp with `format_client_time` and passes a language tag for the selected catalog — `en` for English and `zh-CN` for Simplified Chinese — so the date follows the same language as the surrounding text. The group label `Steam App Verlock` and the properties tab label of the same text stay untranslated.
 
 ### Backend Error Codes
 
-Every backend operation reports a failure as the `Ack` envelope of [Spec 4](004_app-version-lock.md#shared-types), which carries an `error` string and an optional `code`. This spec requires a stable `code` for every failure the settings panel can display. A `code` is a lowercase `snake_case` identifier from the closed set below; the `error` string stays a developer diagnostic and is never displayed when its code has a translation.
+Every backend operation reports a failure as the `Ack` envelope of [Spec 4](004_app-version-lock.md#shared-types), which carries an `error` string and an optional `code`. This spec requires a stable `code` for every failure the settings panel can display.
+
+A `code` is a lowercase `snake_case` identifier from the closed set below; the `error` string stays a developer diagnostic and is never displayed when its code has a translation.
 
 | Code | Condition |
 |---|---|
@@ -111,7 +121,9 @@ A code names the failure, not the operation that hit it. `not_installed` therefo
 
 ### Scope
 
-This spec covers the plugin's user-facing text: the library context menu, the settings panel, the app Properties tab, the library game page badge, the failure and content dialogs, the operation toasts, and the failure messages the surfaces display. It excludes the plugin's log messages, which are developer diagnostics and stay in English under [Spec 6](006_logging.md); the plugin manifest's `name` and `description`; the group label `Steam App Verlock`; and the repository's Markdown, which the bilingual `README.md` and `README.zh-CN.md` already cover.
+This spec covers the plugin's user-facing text: the library context menu, the settings panel, the app Properties tab, the library game page badge, the failure and content dialogs, the operation toasts, and the failure messages the surfaces display.
+
+It excludes the plugin's log messages, which are developer diagnostics and stay in English under [Spec 6](006_logging.md); the plugin manifest's `name` and `description`; the group label `Steam App Verlock`; and the repository's Markdown, which the bilingual `README.md` and `README.zh-CN.md` already cover.
 
 ## Implementation Plan
 
@@ -153,14 +165,22 @@ The plugin adds three frontend files and changes the files below. The frontend e
 
 `frontend/i18n.ts`
 
-- `init_i18n(): Promise<void>` — resolve the Steam client's language through `SteamClient.Settings.GetCurrentLanguage` and select the matching catalog; resolve English on an unknown language, a rejected call, or an absent `Settings` object, and do nothing on a later call.
-- `refresh_locale(): Promise<void>` — re-resolve the client's language and select the matching catalog; keep the current catalog when the call is rejected or returns an unknown language, so a transient failure never demotes a translated user to English.
-- `t(key: MessageKey, params?: Record<string, string | number>): string` — resolve one message key through the selected catalog, the English catalog, and the key itself, then interpolate the given parameters.
-- `resolve_error(result: Ack): string` — resolve a failed `Ack` to a localized message through its `code`, its `error`, and `t("error.unknown")`, in that order.
-- `current_locale(): string` — internal/test interface; return the selected catalog's language short name.
-- `current_locale_tag(): string` — internal/test interface; return the `Intl` language tag for the selected catalog (`en` or `zh-CN`).
-- `set_locale(language: string): void` — internal/test interface; select a catalog by language short name, resolving an unknown name to English.
-- `MessageKey` — the union of the source catalog's keys, derived from `english.json`.
+- `init_i18n(): Promise<void>`  
+  resolve the Steam client's language through `SteamClient.Settings.GetCurrentLanguage` and select the matching catalog; resolve English on an unknown language, a rejected call, or an absent `Settings` object, and do nothing on a later call.
+- `refresh_locale(): Promise<void>`  
+  re-resolve the client's language and select the matching catalog; keep the current catalog when the call is rejected or returns an unknown language, so a transient failure never demotes a translated user to English.
+- `t(key: MessageKey, params?: Record<string, string | number>): string`  
+  resolve one message key through the selected catalog, the English catalog, and the key itself, then interpolate the given parameters.
+- `resolve_error(result: Ack): string`  
+  resolve a failed `Ack` to a localized message through its `code`, its `error`, and `t("error.unknown")`, in that order.
+- `current_locale(): string`  
+  internal/test interface; return the selected catalog's language short name.
+- `current_locale_tag(): string`  
+  internal/test interface; return the `Intl` language tag for the selected catalog (`en` or `zh-CN`).
+- `set_locale(language: string): void`  
+  internal/test interface; select a catalog by language short name, resolving an unknown name to English.
+- `MessageKey`  
+  the union of the source catalog's keys, derived from `english.json`.
 
 ## Risks
 
@@ -173,8 +193,13 @@ The plugin adds three frontend files and changes the files below. The frontend e
 
 ## Alternatives Considered
 
-- **`i18next` or `react-i18next`** — rejected: the plugin carries a few dozen strings and no plural or date rules beyond `toLocaleString`; a small module with JSON catalogs keeps the dependency tree empty and follows the custom locale manager Millennium itself uses.
-- **Map the English `error` strings in the frontend** — rejected: it couples the frontend to exact backend wording, so a reworded backend message silently loses its translation; a stable `code` survives a wording change.
-- **Return already-localized text from the backend** — rejected: the backend has no language and no catalog, and reaching the frontend's selected language from Lua would couple the backend to the UI layer.
-- **Support every Steam language now** — deferred: only English and Simplified Chinese have an author who can maintain them, and an unmaintained catalog shows English through the fallback; a later catalog is an additive change under this spec.
-- **Re-render the menu when the language changes without reopening it** — rejected: Millennium's own locale manager reads the language once at startup, and a language change reloads the Steam UI, so a subscription adds a moving part for a case the client already handles.
+- **`i18next` or `react-i18next`**  
+  rejected: the plugin carries a few dozen strings and no plural or date rules beyond `toLocaleString`; a small module with JSON catalogs keeps the dependency tree empty and follows the custom locale manager Millennium itself uses.
+- **Map the English `error` strings in the frontend**  
+  rejected: it couples the frontend to exact backend wording, so a reworded backend message silently loses its translation; a stable `code` survives a wording change.
+- **Return already-localized text from the backend**  
+  rejected: the backend has no language and no catalog, and reaching the frontend's selected language from Lua would couple the backend to the UI layer.
+- **Support every Steam language now**  
+  deferred: only English and Simplified Chinese have an author who can maintain them, and an unmaintained catalog shows English through the fallback; a later catalog is an additive change under this spec.
+- **Re-render the menu when the language changes without reopening it**  
+  rejected: Millennium's own locale manager reads the language once at startup, and a language change reloads the Steam UI, so a subscription adds a moving part for a case the client already handles.
