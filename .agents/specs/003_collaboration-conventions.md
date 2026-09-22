@@ -89,9 +89,11 @@ A branch name should be `<type>/<slug>`. The `<type>` should be one value from t
 
 ### Issues
 
-An issue should use one of three forms: `Bug`, `Feature`, or `Task`. The `Bug` form asks for a summary, reproducible steps, the current behavior, the expected behavior, and the environment. The `Feature` form asks for the motivation and the expected behavior. The `Task` form asks for a summary and the deliverables. An issue title should be a plain description with no type prefix.
+An issue should use one of three forms: `Bug`, `Feature`, or `Task`. The `Bug` form asks for the reproduction, the current behavior, the expected behavior, and the environment. The `Feature` form asks for the motivation and the expected behavior. The `Task` form asks for a summary and the deliverables. An issue title should be a plain description with no type prefix.
 
-The repository's default labels classify an issue: a `Bug` carries `bug`, a `Feature` carries `enhancement`, and a `Task` carries no label at this stage. The repository keeps the default labels at this stage; the custom taxonomy is deferred (see [Alternatives Considered](#alternatives-considered)).
+Each form may carry an optional `Related` section that links a related issue or pull request as `Related #<issue>` or `Refs #<issue>`.
+
+The repository's default labels classify an issue: a `Bug` carries `bug`, a `Feature` carries `enhancement`, and a `Task` carries no label. The custom taxonomy is deferred (see [Alternatives Considered](#alternatives-considered)).
 
 ### Pull Requests
 
@@ -125,3 +127,7 @@ This spec's conventions are recommendations, with one gate: the `spec-status` ch
   Rejected: a contributor arrives without a runnable quickstart and must assemble the steps from four documents; a bounded onboarding guide that restates commands and defers to this spec keeps one rule home without that cost.
 - **Keeping a mechanical format gate**  
   Rejected: the owner controls every merge and the history is short, so review is the cheaper enforcement; a pull request title gate would also force English titles and contradict the multilingual allowance.
+- **Adopting the common-devx issue and pull request conventions**  
+  Source: the `issue-creation`, `pull-merge-request-creation`, and `commit-message-creation` skills in [KemingHe/common-devx](https://github.com/KemingHe/common-devx). The optional `Related` issue section is adopted. Rejected: a `type(scope):` issue title prefix, because the issue title stays a plain description and the default label already names the type; an `Impact` section and a `Notes` section on a pull request, because `Changes` already states the public-interface change and the behavior change; a `Proposed Solution` section and an `Alternatives Considered` section on a feature issue, because those decisions belong to the spec's `## Design` and `## Alternatives Considered`; and a 50-character title cap, because the header rule declines to set a length limit.
+- **The `Summary` section of the `Bug` issue form**  
+  Rejected: it restates `Current Behavior`; the affected party moves into `Current Behavior`.

@@ -6,9 +6,9 @@ labels: [bug]
 
 <!-- markdownlint-disable MD041 -->
 
-## Summary
+## Related
 
-<!-- What went wrong, and who or what is affected. -->
+<!-- Optional. Link a related issue or pull request as `Related #<issue>` or `Refs #<issue>`; delete this section when empty. -->
 
 ## Reproduction
 
@@ -16,7 +16,7 @@ labels: [bug]
 
 ## Current Behavior
 
-<!-- The actual result, with the error, log, or screenshot. -->
+<!-- The actual result, with the error, log, or screenshot, and who or what is affected. -->
 
 ## Expected Behavior
 
