@@ -167,6 +167,8 @@ Steam App Verlock 默认的数据存储目录为：
 
 Copyright © 2026 Satoshi Jek。本项目基于 [MIT 协议](LICENSE) 授权。
 
+第三方声明在 [CREDITS](CREDITS) 文件中列出。
+
 本项目的实现方式涉及操作/模拟 Steam 客户端内部文件，严格意义上可能涉嫌违反[《Steam 订户协议》](https://store.steampowered.com/subscriber_agreement/)。使用本项目即表示你已了解上述风险，并愿意自行承担由此产生的一切后果。
 
 本项目与 Valve 无任何关联。
