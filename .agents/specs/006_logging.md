@@ -1,5 +1,5 @@
 ---
-status: active
+status: implemented
 type: feature
 ---
 
@@ -15,7 +15,7 @@ The plugin appends every record to one file that it owns, and it also passes the
 
 ## Motivation
 
-The plugin performs background work — build-info capture, refresh, reapply, and Restore All — that a user never sees directly, and a failure leaves no record once the session ends. The frontend's `console.*` output lives only in the Steam UI console.
+The plugin performs background work — build-info capture, refresh, reapply, and Restore All — that a user never sees directly. Without a persistent record, a failure leaves no trace once the session ends, and the frontend's `console.*` output lives only in the Steam UI console.
 
 Millennium's Lua host buffers a plugin's `logger` output for the in-app log viewer ([`plugin_logger::collect_logs`, `src/system/logger.cc`](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/system/logger.cc)), but it persists nothing for a `.star` plugin.
 
@@ -59,22 +59,22 @@ The bridge method `append_log` carries a frontend record to the backend. Its pay
 
 A log message never contains a token, a credential, or the contents of a captured build-info dump. It carries identifiers such as an app id and an appmanifest path, and short outcome descriptions. Logging is best-effort: a failed directory creation or append is ignored, a rejected frontend relay is swallowed, and no logging failure changes the result of the operation that emitted the record.
 
-## Implementation Plan
+## Module Inventory
 
-The plugin adds `backend/log.lua` and `frontend/log.ts`, and changes `backend/main.lua`, `frontend/bridge.ts`, and the test files below. The operations that emit records — the lock, refresh, and reapply paths in `backend/lock.lua`, the capture path in `frontend/console.ts`, and the rest of [Spec 4](004_app-version-lock.md)'s behavior — are owned by Spec 4 and wire into these helpers in a later change. This spec delivers the mechanism and the relay only.
+The plugin ships `backend/log.lua` and `frontend/log.ts`. The operations that emit records — the lock, refresh, and reapply paths in `backend/lock.lua`, the capture path in `frontend/console.ts`, and the rest of [Spec 4](004_app-version-lock.md)'s behavior — are owned by Spec 4 and call these helpers.
 
 | File | Role |
 |---|---|
-| `backend/log.lua` | New; backend logging module: log file, formatting, directory creation, viewer relay |
-| `frontend/log.ts` | New; frontend logging helper: console output and relay |
-| `backend/main.lua` | Add the `append_log` handler and FFI wrapper; require `log` |
-| `frontend/bridge.ts` | Add the `append_log` method |
-| `backend/tests/log_spec.lua` | New; `log.lua` unit tests |
-| `backend/tests/support/init.lua` | Add `log` to `BACKEND_MODULES`; record logger calls in `stub_logger` |
-| `backend/tests/main_spec.lua` | Add `append_log` to the bridge list and its validation cases |
-| `frontend/tests/log.test.ts` | New; `log.ts` unit tests |
-| `frontend/tests/contract.test.ts` | Add `append_log` and update the method count |
-| `.agents/specs/005_testing-strategy.md` | Update the contract count, the unit-test list, and the doubles |
+| `backend/log.lua` | Backend logging module: log file, formatting, directory creation, viewer relay |
+| `frontend/log.ts` | Frontend logging helper: console output and relay |
+| `backend/main.lua` | The `append_log` handler and FFI wrapper; requires `log` |
+| `frontend/bridge.ts` | The `append_log` method |
+| `backend/tests/log_spec.lua` | `log.lua` unit tests |
+| `backend/tests/support/init.lua` | `log` in `BACKEND_MODULES`; `stub_logger` records logger calls |
+| `backend/tests/main_spec.lua` | `append_log` in the bridge list and its validation cases |
+| `frontend/tests/log.test.ts` | `log.ts` unit tests |
+| `frontend/tests/contract.test.ts` | `append_log` and the method count |
+| `.agents/specs/005_testing-strategy.md` | The contract count, the unit-test list, and the doubles |
 
 ### Function List
 

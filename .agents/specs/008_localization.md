@@ -1,5 +1,5 @@
 ---
-status: active
+status: implemented
 type: feature
 ---
 
@@ -15,7 +15,7 @@ The plugin supports English and Simplified Chinese; every other Steam language f
 
 ## Motivation
 
-The plugin hardcodes its user-facing text in English. A Simplified Chinese user — the audience of the project's `README.zh-CN.md` — reads an English library context menu, an English settings panel, and English failure messages, even though the Steam client already carries the user's language. A localized plugin follows the client's language instead of asking the user to choose one.
+The Steam client already carries the user's language, so the plugin's user-facing text follows it instead of asking the user to choose one. A Simplified Chinese user — the audience of the project's `README.zh-CN.md` — would otherwise read an English library context menu, an English settings panel, and English failure messages.
 
 Two kinds of text reach the user. The frontend owns the menu and the settings panel's labels, buttons, and status messages. The backend owns the failure text of the lock, refresh, unlock, reapply, Restore All, and data-root operations, which the frontend displays verbatim in its status area. Localizing only the frontend leaves half the user-visible text in English, so the design covers both kinds.
 
@@ -125,39 +125,39 @@ This spec covers the plugin's user-facing text: the library context menu, the se
 
 It excludes the plugin's log messages, which are developer diagnostics and stay in English under [Spec 6](006_logging.md); the plugin manifest's `name` and `description`; the group label `Steam App Verlock`; and the repository's Markdown, which the bilingual `README.md` and `README.zh-CN.md` already cover.
 
-## Implementation Plan
+## Module Inventory
 
-The plugin adds three frontend files and changes the files below. The frontend error paths in `console.ts` and `watch.ts` gain a `code` on each failure they return, and the backend modules gain a `code` on each failure the settings panel can display. The behavior those failures guard is owned by [Spec 4](004_app-version-lock.md) and does not change.
+The plugin ships three frontend files and the files below. The frontend error paths in `console.ts` and `watch.ts` carry a `code` on each failure they return, and the backend modules carry a `code` on each failure the settings panel can display. The behavior those failures guard is owned by [Spec 4](004_app-version-lock.md) and does not change.
 
 | File | Role |
 |---|---|
-| `frontend/locales/english.json` | New; source catalog and fallback |
-| `frontend/locales/schinese.json` | New; Simplified Chinese catalog |
-| `frontend/i18n.ts` | New; language selection, `t`, error resolution |
-| `frontend/index.tsx` | Call `init_i18n()` when the plugin loads |
-| `frontend/menu.tsx` | Replace every literal with `t(...)` |
-| `frontend/settings.tsx` | Replace every literal and status string with `t(...)`; call `refresh_locale()` on mount; format dates with `current_locale_tag()` |
-| `frontend/gamepage.tsx` | Replace the badge's `Last refreshed` label with `t("gamepage.last_refreshed")` |
-| `frontend/properties.tsx` | Replace every label and behavior name with `t(...)` |
-| `frontend/notify.tsx` | Replace the dialog controls and fallback text with `t(...)` |
-| `frontend/actions.ts` | Replace the operation titles, success toasts, and rollback warnings with `t(...)` |
-| `frontend/console.ts` | Carry a `code` on each capture failure |
-| `frontend/watch.ts` | Carry a `code` on each unlock and restore failure |
-| `backend/main.lua` | Carry a `code` on each user-visible failure |
-| `backend/lock.lua` | Carry a `code` on each user-visible failure |
-| `backend/state.lua` | Carry a `code` on a record read or write failure |
-| `backend/paths.lua` | Carry a `code` on a path validation or discovery failure |
-| `backend/migrate.lua` | Carry a `code` on each migration failure |
-| `backend/buildinfo.lua` | Carry a `code` on each dump parse or validation failure |
-| `backend/acf.lua` | Carry a `code` on each appmanifest read or write failure |
-| `frontend/tests/i18n.test.ts` | New; `i18n.ts` unit tests |
-| `frontend/tests/harness.ts` | Add the `Settings.GetCurrentLanguage` fake |
-| `frontend/tests/contract.test.ts` | Assert catalog key parity and error-code coverage |
-| `backend/tests/*_spec.lua` | Assert the `code` on each covered failure |
-| `.agents/specs/004_app-version-lock.md` | Update the `Ack` code facts |
-| `.agents/specs/005_testing-strategy.md` | Add the `i18n.ts` unit test and the parity test |
-| `.cspell.json` | Add the new domain words |
-| `CONTRIBUTING.md` | Point its Where to Read More section at the specs directory |
+| `frontend/locales/english.json` | Source catalog and fallback |
+| `frontend/locales/schinese.json` | Simplified Chinese catalog |
+| `frontend/i18n.ts` | Language selection, `t`, error resolution |
+| `frontend/index.tsx` | Calls `init_i18n()` when the plugin loads |
+| `frontend/menu.tsx` | Replaces every literal with `t(...)` |
+| `frontend/settings.tsx` | Replaces every literal and status string with `t(...)`; calls `refresh_locale()` on mount; formats dates with `current_locale_tag()` |
+| `frontend/gamepage.tsx` | Replaces the badge's `Last refreshed` label with `t("gamepage.last_refreshed")` |
+| `frontend/properties.tsx` | Replaces every label and behavior name with `t(...)` |
+| `frontend/notify.tsx` | Replaces the dialog controls and fallback text with `t(...)` |
+| `frontend/actions.ts` | Replaces the operation titles, success toasts, and rollback warnings with `t(...)` |
+| `frontend/console.ts` | Carries a `code` on each capture failure |
+| `frontend/watch.ts` | Carries a `code` on each unlock and restore failure |
+| `backend/main.lua` | Carries a `code` on each user-visible failure |
+| `backend/lock.lua` | Carries a `code` on each user-visible failure |
+| `backend/state.lua` | Carries a `code` on a record read or write failure |
+| `backend/paths.lua` | Carries a `code` on a path validation or discovery failure |
+| `backend/migrate.lua` | Carries a `code` on each migration failure |
+| `backend/buildinfo.lua` | Carries a `code` on each dump parse or validation failure |
+| `backend/acf.lua` | Carries a `code` on each appmanifest read or write failure |
+| `frontend/tests/i18n.test.ts` | `i18n.ts` unit tests |
+| `frontend/tests/harness.ts` | The `Settings.GetCurrentLanguage` fake |
+| `frontend/tests/contract.test.ts` | Asserts catalog key parity and error-code coverage |
+| `backend/tests/*_spec.lua` | Asserts the `code` on each covered failure |
+| `.agents/specs/004_app-version-lock.md` | The `Ack` code facts |
+| `.agents/specs/005_testing-strategy.md` | The `i18n.ts` unit test and the parity test |
+| `.cspell.json` | The new domain words |
+| `CONTRIBUTING.md` | Its Where to Read More section points at the specs directory |
 
 ### Function List
 

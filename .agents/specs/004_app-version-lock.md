@@ -1,5 +1,5 @@
 ---
-status: active
+status: implemented
 type: feature
 ---
 
@@ -416,9 +416,9 @@ A lock record is one JSON file, `<data_root>/locks/<appid>.lock`:
 | `locked_build` | `BuildInfo` (see [Shared Types](#shared-types)) | The `buildid` and the installed depots' manifests written into the appmanifest; a captured depot the appmanifest does not install is absent. |
 | `original` | `string` | The pre-lock appmanifest text, stored verbatim. It must be non-empty, or the backend treats the record as invalid on load. |
 
-## Implementation Plan
+## Module Inventory
 
-The plugin adds these files. The file layout follows the toolchain in [Spec 1](001_toolchain.md).
+The plugin ships these files. The file layout follows the toolchain in [Spec 1](001_toolchain.md).
 
 | File | Role |
 |---|---|

@@ -26,7 +26,7 @@ The strategy has four layers.
 
 ### Unit Tests
 
-Backend unit tests run under busted and cover each module in [Spec 4](004_app-version-lock.md#implementation-plan) and the `log.lua` module from [Spec 6](006_logging.md).
+Backend unit tests run under busted and cover each module in [Spec 4](004_app-version-lock.md#module-inventory) and the `log.lua` module from [Spec 6](006_logging.md).
 
 - `vdf.lua`  
   `parse` and `serialize` round-trip a table, `parse` returns an error on malformed text, and the codec preserves quoting, escaping, comments, and nested objects.
