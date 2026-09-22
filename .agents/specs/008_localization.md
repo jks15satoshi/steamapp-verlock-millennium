@@ -157,7 +157,7 @@ The plugin adds three frontend files and changes the files below. The frontend e
 | `.agents/specs/004_app-version-lock.md` | Update the `Ack` code facts |
 | `.agents/specs/005_testing-strategy.md` | Add the `i18n.ts` unit test and the parity test |
 | `.cspell.json` | Add the new domain words |
-| `CONTRIBUTING.md` | List this spec under Where to Read More |
+| `CONTRIBUTING.md` | Point its Where to Read More section at the specs directory |
 
 ### Function List
 

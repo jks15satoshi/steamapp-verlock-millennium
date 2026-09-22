@@ -161,7 +161,7 @@ Steam App Verlock 默认的数据存储目录为：
 
 首先感谢你的支持。我们欢迎任何形式的贡献，包括但不限于提交 bug 报告、提出功能请求、撰写文档、提交代码等。
 
-如需贡献代码，请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，了解项目的贡献流程与规范。
+如需贡献代码，请先阅读 [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)，了解项目的贡献流程与规范。
 
 ## 许可协议与免责声明
 

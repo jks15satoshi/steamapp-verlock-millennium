@@ -1,5 +1,7 @@
 # Contributing
 
+**English** | [简体中文](CONTRIBUTING.zh-CN.md)
+
 Thanks for helping `Steam App Verlock`, a Millennium plugin that locks Steam apps to their installed builds.
 
 This guide gets a human contributor from a fresh clone to a merged pull request. It summarizes the flow; [Spec 3](.agents/specs/003_collaboration-conventions.md) owns the actual rules and wins if the two disagree.
@@ -82,12 +84,4 @@ Open an issue with the matching form: `Bug`, `Feature`, or `Task`. The forms ask
 
 ## Where to Read More
 
-- [Spec 0](.agents/specs/000_metaspec.md) — the spec process.
-- [Spec 1](.agents/specs/001_toolchain.md) — the toolchain and the checks.
-- [Spec 3](.agents/specs/003_collaboration-conventions.md) — commit, branch, issue, and pull request rules.
-- [Spec 4](.agents/specs/004_app-version-lock.md) — the plugin's behavior.
-- [Spec 5](.agents/specs/005_testing-strategy.md) — the test organization.
-- [Spec 6](.agents/specs/006_logging.md) — the logging mechanism.
-- [Spec 7](.agents/specs/007_native-ui-style-alignment.md) — matching the client's native styling.
-- [Spec 8](.agents/specs/008_localization.md) — the localization catalogs and error codes.
-- [Spec 9](.agents/specs/009_release-and-distribution.md) — the release and distribution process.
+The [specs directory](.agents/specs/) holds the project's decisions. [Spec 3](.agents/specs/003_collaboration-conventions.md) owns the contribution rules, and [Spec 0](.agents/specs/000_metaspec.md) describes the spec process.
