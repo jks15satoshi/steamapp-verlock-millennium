@@ -136,6 +136,8 @@ The frontend records:
   The plugin's shared date and time inputs; `hour12` is `false` when the client's 24-hour clock setting is on and `undefined` when it is off or unread.
 - `ClientTimeOptions = { current_year_short?: boolean }`  
   The date options `format_client_time` takes; `current_year_short` omits the year for the current year, and its absence keeps the year.
+- `FormatTimeOptions = ClientTimeOptions & { locale?: string; fallback?: string }`  
+  The options `format_time` takes; `locale` overrides the clock format's locale and `fallback` is returned when the value renders nothing.
 - `LockedAppRecord = { version: number; appid: AppId; name: string; manifest_path: string; locked_at: number; refreshed_at?: number; auto_update_behavior?: number; locked_build: BuildInfo; original: string }`  
   The persisted locked-app record.
 - `DataRoots = { data_root: string; is_default: boolean }`  
@@ -438,6 +440,7 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 | `frontend/watch.ts` | App event watch and reapply triggers |
 | `frontend/actions.ts` | Shared `Lock`, `Refresh`, and `Unlock` flows used by the menu and the Properties tab |
 | `frontend/errors.ts` | Error-value normalization for the failure dialog and its log record |
+| `frontend/shared.ts` | Shared helpers: JSON parsing, acknowledgement guard, numeric appid pattern, and delay |
 | `frontend/notify.tsx` | Failure dialog, warning toast, and success toast |
 | `frontend/menu.tsx` | Library context menu, also opened from the app page's settings button |
 | `frontend/settings.tsx` | Settings panel |
@@ -490,6 +493,10 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 
 - `read(path: string) -> state: table?, err: string?`  
   Read an appmanifest into a table.
+- `body_of(state_table: table) -> table`  
+  Internal/test interface; return the appmanifest body, the `AppState` table when present and the table itself otherwise.
+- `atomic_write(path: string, text: string, opts?: table) -> ok: boolean, err: string?`  
+  Internal/test interface; write `text` through a temporary file and a rename, removing the temporary file on failure, and fall back to `opts.write_error` / `opts.replace_error` when the underlying call reports no error.
 - `set(state: table, key: string, value: string) -> void`  
   Set one field in the appmanifest table.
 - `write(path: string, state: table) -> ok: boolean, err: string?`  
@@ -529,6 +536,8 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 
 `backend/paths.lua`
 
+- `normalize(path: string?) -> string?`  
+  Internal/test interface; normalize a path's separators to forward slashes and strip trailing slashes.
 - `resolve() -> DataRoots`  
   Resolve the data root directory.
 - `defaults() -> DataRoots`  
@@ -556,6 +565,17 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 
 - `format_error(error: unknown): string`  
   Normalize an `Error`, string, object, or empty value into the text shown in both the failure dialog and its log record.
+
+`frontend/shared.ts`
+
+- `parse_json(raw: unknown): unknown`  
+  Decode a JSON string, returning `undefined` when it does not parse and the value unchanged when it is not a string.
+- `is_ack(value: unknown): value is Ack`  
+  Report whether a value is an object carrying a boolean `ok`.
+- `NUMERIC_APPID_PATTERN: RegExp`  
+  The pattern every console command's app id is validated against.
+- `delay(ms: number): Promise<void>`  
+  Resolve after the given milliseconds.
 
 `frontend/locked.ts`
 
@@ -668,6 +688,8 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
   Internal/test interface; the current language and 24-hour clock inputs.
 - `format_client_time(value: number | undefined, format: ClockFormat, options?: ClientTimeOptions, now?: Date): string | undefined`  
   Internal/test interface; render a Unix timestamp as the client language's short date and time, include the year unless `current_year_short` omits it for the current year, or return `undefined` when the value is absent or non-positive; `now` is a test seam for the current-year check.
+- `format_time(value: number | undefined, format: ClockFormat, options?: FormatTimeOptions): string | undefined`  
+  Render a Unix timestamp through `format_client_time`, overriding the format's locale and returning `options.fallback` when nothing renders; the Properties tab and the settings panel share it.
 
 ## Risks
 

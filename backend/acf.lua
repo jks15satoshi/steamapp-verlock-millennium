@@ -16,6 +16,32 @@ local function read(path)
     return parsed
 end
 
+---@param state_table table
+---@return table
+local function body_of(state_table)
+    return state_table.AppState or state_table
+end
+
+---@param path string
+---@param text string
+---@param opts table|nil
+---@return boolean, string|nil
+local function atomic_write(path, text, opts)
+    opts = opts or {}
+    local temporary = path .. "." .. tostring(utils.uuid()) .. ".tmp"
+    local written, write_err = utils.write_file(temporary, text)
+    if not written then
+        fs.remove(temporary)
+        return false, write_err or opts.write_error
+    end
+    local renamed, rename_err = fs.rename(temporary, path)
+    if not renamed then
+        fs.remove(temporary)
+        return false, rename_err or opts.replace_error
+    end
+    return true
+end
+
 ---@param state table
 ---@param key string
 ---@param value string
@@ -36,22 +62,20 @@ end
 ---@return boolean, string|nil, string|nil
 local function write(path, state)
     local text = vdf.serialize(state)
-    local temporary = path .. "." .. tostring(utils.uuid()) .. ".tmp"
-    local written, write_err = utils.write_file(temporary, text)
+    local written, write_err = atomic_write(path, text, {
+        write_error = "failed to write appmanifest",
+        replace_error = "failed to replace appmanifest",
+    })
     if not written then
-        fs.remove(temporary)
-        return false, write_err or "failed to write appmanifest", "manifest_write_failed"
-    end
-    local renamed, rename_err = fs.rename(temporary, path)
-    if not renamed then
-        fs.remove(temporary)
-        return false, rename_err or "failed to replace appmanifest", "manifest_write_failed"
+        return false, write_err, "manifest_write_failed"
     end
     return true
 end
 
 return {
     read = read,
+    body_of = body_of,
+    atomic_write = atomic_write,
     set = set,
     write = write,
 }

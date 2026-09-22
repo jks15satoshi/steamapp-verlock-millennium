@@ -10,19 +10,6 @@ local migrate = require("migrate")
 local log = require("log")
 local clock = require("clock")
 
----@param path string|nil
----@return string|nil
-local function normalize(path)
-    if type(path) ~= "string" then
-        return path
-    end
-    local normalized = path:gsub("\\", "/")
-    if normalized == "/" then
-        return normalized
-    end
-    return (normalized:gsub("/+$", ""))
-end
-
 ---@param appid any
 ---@return boolean
 local function is_numeric_appid(appid)
@@ -40,7 +27,7 @@ local function resolve_branch(appid)
     if state_table == nil then
         return "public"
     end
-    local body = state_table.AppState or state_table
+    local body = acf.body_of(state_table)
     if type(body.BetaKey) == "string" and body.BetaKey ~= "" then
         return body.BetaKey
     end
@@ -61,7 +48,7 @@ local MAX_READ = 512 * 1024
 ---@param appid string
 ---@param target string
 ---@return string|nil, string|nil
-local function resolve_target(appid, target)
+local function resolve_read_file_path(appid, target)
     local record = state.read(appid)
     if target == "lock" then
         if record == nil then
@@ -251,7 +238,7 @@ handlers.read_file = function(payload)
     if target ~= "appmanifest" and target ~= "lock" then
         return { ok = false, code = "invalid_target", error = "a valid target is required" }
     end
-    local path, path_err, path_code = resolve_target(appid, target)
+    local path, path_err, path_code = resolve_read_file_path(appid, target)
     if path == nil then
         return { ok = false, code = path_code, error = path_err }
     end
@@ -287,7 +274,7 @@ handlers.set_data_root = function(payload)
             }
         end
         local result
-        if normalize(default_root) == normalize(roots.data_root) then
+        if paths.normalize(default_root) == paths.normalize(roots.data_root) then
             result = { ok = true, data_root = default_root }
         else
             result = migrate.move(roots.data_root, default_root)

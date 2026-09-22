@@ -12,6 +12,7 @@ import {
 } from "./time";
 import * as bridge from "./bridge";
 import { t } from "./i18n";
+import { parse_json } from "./shared";
 
 const APPID_PATTERN = /\/app\/(\d+)/;
 const PLAY_TIME_LABEL = /^(play\s*time|playtime|游戏时间|遊戲時間|总时数|總時數)$/i;
@@ -131,17 +132,6 @@ export function merge_style(sampled: SampledBadgeStyle | null, fallback: BadgeSt
     value: { ...fallback.value, ...sampled.value },
     icon: { ...fallback.icon, ...sampled.icon },
   };
-}
-
-function parse_json(raw: unknown): unknown {
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return undefined;
-    }
-  }
-  return raw;
 }
 
 function current_path(doc: Document): string {

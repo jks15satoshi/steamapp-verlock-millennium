@@ -2,6 +2,7 @@ local fs = require("fs")
 local utils = require("utils")
 local json = require("json")
 local paths = require("paths")
+local acf = require("acf")
 
 ---@class LockedAppRecord
 ---@field version integer
@@ -126,17 +127,13 @@ local function write(record)
         return false, create_err or "the lock directory cannot be created", "record_persist_failed"
     end
     local target = path(record.appid)
-    local temporary = target .. "." .. tostring(utils.uuid()) .. ".tmp"
     local encoded = json.encode(record)
-    local written, write_err = utils.write_file(temporary, encoded)
+    local written, write_err = acf.atomic_write(target, encoded, {
+        write_error = "failed to write the lock record",
+        replace_error = "failed to replace the lock record",
+    })
     if not written then
-        fs.remove(temporary)
-        return false, write_err or "failed to write the lock record", "record_persist_failed"
-    end
-    local renamed, rename_err = fs.rename(temporary, target)
-    if not renamed then
-        fs.remove(temporary)
-        return false, rename_err or "failed to replace the lock record", "record_persist_failed"
+        return false, write_err, "record_persist_failed"
     end
     return true
 end

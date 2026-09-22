@@ -1,4 +1,5 @@
 import * as bridge from "./bridge";
+import { parse_json } from "./shared";
 
 export type ClockFormat = {
   locale: string;
@@ -7,6 +8,11 @@ export type ClockFormat = {
 
 export type ClientTimeOptions = {
   current_year_short?: boolean;
+};
+
+export type FormatTimeOptions = ClientTimeOptions & {
+  locale?: string;
+  fallback?: string;
 };
 
 type SteamClientGlobals = {
@@ -30,17 +36,6 @@ function notify(): void {
   for (const listener of listeners) {
     listener();
   }
-}
-
-function parse_json(raw: unknown): unknown {
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return undefined;
-    }
-  }
-  return raw;
 }
 
 function set_clock_format(partial: Partial<ClockFormat>): void {
@@ -142,4 +137,18 @@ export function format_client_time(
     ...(format.hour12 === undefined ? {} : { hour12: format.hour12 }),
   };
   return format_date(format.locale, formatter_options, date);
+}
+
+export function format_time(
+  value: number | undefined,
+  format: ClockFormat,
+  options: FormatTimeOptions = {},
+): string | undefined {
+  const { locale, fallback, ...client_options } = options;
+  const formatted = format_client_time(
+    value,
+    locale === undefined ? format : { ...format, locale },
+    client_options,
+  );
+  return formatted ?? fallback;
 }

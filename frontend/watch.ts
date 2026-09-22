@@ -1,16 +1,16 @@
 import type { ELaunchSource, Unregisterable } from "millennium";
-import type { Ack, AppId, RestoreResult, UnlockResult } from "./index";
+import type { AppId, RestoreResult, UnlockResult } from "./index";
 import * as bridge from "./bridge";
 import { capture_build_info_set } from "./console";
 import { as_record_list } from "./locked";
 import { t } from "./i18n";
 import { log_error, log_warn } from "./log";
 import { report_warning } from "./notify";
+import { delay, is_ack, NUMERIC_APPID_PATTERN, parse_json } from "./shared";
 
 const BACKSTOP_INTERVAL_MS = 3600000;
 const SYNC_RETRY_ATTEMPTS = 5;
 const SYNC_RETRY_DELAY_MS = 1000;
-const NUMERIC_APPID_PATTERN = /^[0-9]+$/;
 
 const watched = new Set<AppId>();
 const app_handles = new Map<AppId, Unregisterable[]>();
@@ -22,29 +22,8 @@ let global_handles: Unregisterable[] = [];
 let backstop_started = false;
 let backstop_timer: ReturnType<typeof setInterval> | null = null;
 
-function parse_json(raw: unknown): unknown {
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return undefined;
-    }
-  }
-  return raw;
-}
-
-function is_ack(value: unknown): value is Ack {
-  return Boolean(value) && typeof value === "object" && typeof (value as Ack).ok === "boolean";
-}
-
 function is_unregisterable(value: unknown): value is Unregisterable {
   return Boolean(value) && typeof (value as Unregisterable).unregister === "function";
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
 }
 
 function track(handle: unknown): void {

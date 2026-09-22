@@ -53,7 +53,7 @@ end
 ---@param message string
 ---@return void
 local function write(source, level, message)
-    if LEVELS[level] ~= true then
+    if not LEVELS[level] then
         return
     end
     ensure_directory()

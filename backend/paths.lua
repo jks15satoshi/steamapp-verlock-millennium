@@ -227,7 +227,7 @@ local function resolve_manifest(appid, cached)
         if name == ("appmanifest_" .. tostring(appid) .. ".acf") and fs.is_file(cached) then
             local state = acf.read(cached)
             if state ~= nil then
-                local body = state.AppState or state
+                local body = acf.body_of(state)
                 if tostring(body.appid) == tostring(appid) then
                     return cached
                 end
@@ -238,6 +238,7 @@ local function resolve_manifest(appid, cached)
 end
 
 return {
+    normalize = normalize,
     resolve = resolve,
     defaults = defaults,
     validate = validate,

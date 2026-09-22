@@ -1,5 +1,5 @@
 import { EAppAutoUpdateBehavior } from "millennium";
-import type { Ack, AppId, UnlockResult } from "./index";
+import type { AppId, UnlockResult } from "./index";
 import { capture_build_info_set } from "./console";
 import {
   app_name,
@@ -12,21 +12,7 @@ import { mark_locked, mark_unlocked } from "./locked";
 import * as bridge from "./bridge";
 import { resolve_error, t } from "./i18n";
 import { format_error, report_failure, report_success, show_failure_dialog } from "./notify";
-
-function parse_json(raw: unknown): unknown {
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return undefined;
-    }
-  }
-  return raw;
-}
-
-function is_ack(value: unknown): value is Ack {
-  return Boolean(value) && typeof value === "object" && typeof (value as Ack).ok === "boolean";
-}
+import { is_ack, parse_json } from "./shared";
 
 export async function lock_app(appid: AppId, parent?: EventTarget): Promise<void> {
   const title = t("actions.lock_failed", { appid });

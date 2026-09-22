@@ -35,6 +35,13 @@ const BODY_STYLE: CSSProperties = {
 let active: ReturnType<typeof millennium.showModal> | null = null;
 let copy_timer: ReturnType<typeof setTimeout> | null = null;
 
+function clear_copy_timer(): void {
+  if (copy_timer !== null) {
+    clearTimeout(copy_timer);
+    copy_timer = null;
+  }
+}
+
 function fallback_copy(text: string): void {
   try {
     const area = document.createElement("textarea");
@@ -194,22 +201,12 @@ function DialogHost({
     hide_cancel(parent, t("dialog.cancel"));
   }, [parent, copied]);
 
-  useEffect(
-    () => () => {
-      if (copy_timer !== null) {
-        clearTimeout(copy_timer);
-        copy_timer = null;
-      }
-    },
-    [],
-  );
+  useEffect(() => clear_copy_timer, []);
 
   const copy = (): void => {
     copy_text(message);
     set_copied(true);
-    if (copy_timer !== null) {
-      clearTimeout(copy_timer);
-    }
+    clear_copy_timer();
     copy_timer = setTimeout(() => {
       copy_timer = null;
       set_copied(false);
@@ -251,10 +248,7 @@ function open_dialog(
     active.Close();
     active = null;
   }
-  if (copy_timer !== null) {
-    clearTimeout(copy_timer);
-    copy_timer = null;
-  }
+  clear_copy_timer();
 
   const modal_parent = parent ?? default_parent();
   active = millennium.showModal(
@@ -265,10 +259,7 @@ function open_dialog(
       copy_label={copy_label}
       parent={modal_parent}
       on_close={() => {
-        if (copy_timer !== null) {
-          clearTimeout(copy_timer);
-          copy_timer = null;
-        }
+        clear_copy_timer();
         active?.Close();
         active = null;
       }}
@@ -276,10 +267,7 @@ function open_dialog(
     modal_parent,
     {
       fnOnClose: () => {
-        if (copy_timer !== null) {
-          clearTimeout(copy_timer);
-          copy_timer = null;
-        }
+        clear_copy_timer();
         active = null;
       },
     },

@@ -8,7 +8,12 @@ import * as bridge from "./bridge";
 import { resolve_error, t } from "./i18n";
 import { log_error, log_info, log_warn } from "./log";
 import { format_error, show_failure_dialog, show_text_dialog } from "./notify";
-import { current_clock_format, format_client_time, subscribe_clock_format } from "./time";
+import { parse_json } from "./shared";
+import {
+  current_clock_format,
+  format_time as format_time_value,
+  subscribe_clock_format,
+} from "./time";
 import type { ClockFormat } from "./time";
 import {
   accent_color,
@@ -36,19 +41,8 @@ const BEHAVIOR_KEYS: Record<
 
 const roots: Root[] = [];
 
-function parse_json(raw: unknown): unknown {
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return undefined;
-    }
-  }
-  return raw;
-}
-
 export function format_time(value: number | undefined, format: ClockFormat): string | null {
-  return format_client_time(value, format) ?? null;
+  return format_time_value(value, format) ?? null;
 }
 
 const RECORD_KEY_ORDER = [

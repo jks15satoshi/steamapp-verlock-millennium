@@ -1,6 +1,6 @@
 import { DialogCheckbox, Spinner, TextField } from "millennium";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import type { Ack, AppId, DataRoots, LockedAppRecord, MigrateResult } from "./index";
+import type { AppId, DataRoots, LockedAppRecord, MigrateResult } from "./index";
 import { capture_build_info_set } from "./console";
 import { app_name, reapply_all, unwatch_all_then_restore, unwatch_then_unlock } from "./watch";
 import { as_record_list, sync_locked_ids } from "./locked";
@@ -8,7 +8,8 @@ import * as bridge from "./bridge";
 import { log_error, log_warn } from "./log";
 import { current_locale_tag, refresh_locale, resolve_error, t } from "./i18n";
 import { format_error, report_failure, report_success, show_failure_dialog } from "./notify";
-import { current_clock_format, format_client_time, subscribe_clock_format } from "./time";
+import { is_ack, parse_json } from "./shared";
+import { current_clock_format, format_time, subscribe_clock_format } from "./time";
 import type { ClockFormat } from "./time";
 import {
   ActionButton,
@@ -77,27 +78,6 @@ function SectionHeader({ children }: { children: string }) {
 
 function SectionDivider({ color }: { color: string }) {
   return <div style={{ borderTop: `1px solid ${color}`, margin: "6px 0" }} />;
-}
-
-function parse_json(raw: unknown): unknown {
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return undefined;
-    }
-  }
-  return raw;
-}
-
-function is_ack(value: unknown): value is Ack {
-  return Boolean(value) && typeof value === "object" && typeof (value as Ack).ok === "boolean";
-}
-
-function format_time(value: number | undefined, format: ClockFormat): string {
-  return (
-    format_client_time(value, { ...format, locale: current_locale_tag() }) ?? t("common.never")
-  );
 }
 
 function is_installed(appid: AppId): boolean {
@@ -380,10 +360,18 @@ export default function SettingsPanel() {
                   </div>
                   <div style={{ ...MUTED_TEXT_STYLE, lineHeight: "20px" }}>
                     <div>
-                      {t("settings.locked_at")} {format_time(record.locked_at, clock)}
+                      {t("settings.locked_at")}{" "}
+                      {format_time(record.locked_at, clock, {
+                        locale: current_locale_tag(),
+                        fallback: t("common.never"),
+                      })}
                     </div>
                     <div>
-                      {t("settings.refreshed_at")} {format_time(record.refreshed_at, clock)}
+                      {t("settings.refreshed_at")}{" "}
+                      {format_time(record.refreshed_at, clock, {
+                        locale: current_locale_tag(),
+                        fallback: t("common.never"),
+                      })}
                     </div>
                     <div>
                       {t("settings.installed")} {installed ? t("common.yes") : t("common.no")}

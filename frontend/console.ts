@@ -1,28 +1,11 @@
 import type { AppId, CaptureResult, CaptureSet, RequiredAppsResult } from "./index";
 import * as bridge from "./bridge";
 import { log_error, log_info, log_warn } from "./log";
+import { delay, NUMERIC_APPID_PATTERN, parse_json } from "./shared";
 
 const CAPTURE_TIME_LIMIT_MS = 2000;
 const CAPTURE_SET_TIME_LIMIT_MS = 60000;
 const CAPTURE_SAMPLE_INTERVAL_MS = 100;
-const NUMERIC_APPID_PATTERN = /^[0-9]+$/;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function parse_json(raw: unknown): unknown {
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return undefined;
-    }
-  }
-  return raw;
-}
 
 function build_app_info_print_command(appid: AppId): string | null {
   if (!NUMERIC_APPID_PATTERN.test(appid)) {

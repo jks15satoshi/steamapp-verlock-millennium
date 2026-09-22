@@ -1,4 +1,3 @@
-local fs = require("fs")
 local utils = require("utils")
 local acf = require("acf")
 local state = require("state")
@@ -50,12 +49,6 @@ local function lockable(flags)
     return value == 4 or value == 6
 end
 
----@param state_table table
----@return table
-local function body_of(state_table)
-    return state_table.AppState or state_table
-end
-
 -- The record describes the installed depots only. The captured `BuildInfo` can
 -- carry depots the appmanifest does not list — the base PICS lists other
 -- platforms, and a DLC app's PICS lists its other language depots — so the
@@ -64,7 +57,7 @@ end
 ---@param info BuildInfo
 ---@return table<string, string>
 local function installed_depots(state_table, info)
-    local body = body_of(state_table)
+    local body = acf.body_of(state_table)
     local depots = body.InstalledDepots
     local result = {}
     if type(depots) ~= "table" then
@@ -100,7 +93,7 @@ end
 ---@param info BuildInfo
 ---@return void
 local function apply_spoof(state_table, info)
-    local body = body_of(state_table)
+    local body = acf.body_of(state_table)
     body.StateFlags = "4"
     body.TargetBuildID = "0"
     body.buildid = tostring(info.buildid)
@@ -135,7 +128,7 @@ end
 ---@param info BuildInfo
 ---@return boolean
 local function matches_spoof(state_table, info)
-    local body = body_of(state_table)
+    local body = acf.body_of(state_table)
     if tostring(body.buildid) ~= tostring(info.buildid) then
         return false
     end
@@ -184,16 +177,12 @@ local function write_original(path, text)
     if type(text) ~= "string" or text == "" then
         return false, "the lock record has no original appmanifest"
     end
-    local temporary = path .. "." .. tostring(utils.uuid()) .. ".tmp"
-    local written, write_err = utils.write_file(temporary, text)
+    local written, write_err = acf.atomic_write(path, text, {
+        write_error = "failed to write the appmanifest",
+        replace_error = "failed to replace the appmanifest",
+    })
     if not written then
-        fs.remove(temporary)
-        return false, write_err or "failed to write the appmanifest"
-    end
-    local renamed, rename_err = fs.rename(temporary, path)
-    if not renamed then
-        fs.remove(temporary)
-        return false, rename_err or "failed to replace the appmanifest"
+        return false, write_err
     end
     return true
 end
@@ -238,7 +227,7 @@ local function required_apps(appid, info)
     if state_table == nil then
         return nil, "cannot parse the appmanifest", "cannot_parse_manifest"
     end
-    local body = body_of(state_table)
+    local body = acf.body_of(state_table)
     local depots = body.InstalledDepots
     if type(depots) ~= "table" then
         return {}
@@ -279,6 +268,24 @@ local function end_app(appid)
 end
 
 ---@param appid string
+---@param operation string
+---@param fn function
+---@param ... any
+---@return table
+local function with_app_lock(appid, operation, fn, ...)
+    if not begin_app(appid) then
+        return { ok = false, code = "operation_in_progress", error = "another operation is in progress for this app" }
+    end
+    local ok, result = pcall(fn, appid, ...)
+    end_app(appid)
+    if not ok then
+        log.error(operation .. " failed for app " .. appid .. ": " .. tostring(result))
+        return { ok = false, error = tostring(result) }
+    end
+    return result
+end
+
+---@param appid string
 ---@param info BuildInfo
 ---@param auto_update_behavior integer|nil
 ---@return LockResult
@@ -307,7 +314,7 @@ local function do_lock(appid, info, auto_update_behavior)
         log.error("lock failed for app " .. appid .. ": cannot parse the appmanifest")
         return { ok = false, code = "cannot_parse_manifest", error = "cannot parse the appmanifest" }
     end
-    local body = body_of(state_table)
+    local body = acf.body_of(state_table)
     if not lockable(body.StateFlags) then
         log.warn("refused to lock app " .. appid .. ": the app is not fully installed")
         return { ok = false, code = "not_fully_installed", error = "the app is not fully installed" }
@@ -345,16 +352,7 @@ end
 ---@param auto_update_behavior integer|nil
 ---@return LockResult
 local function lock(appid, info, auto_update_behavior)
-    if not begin_app(appid) then
-        return { ok = false, code = "operation_in_progress", error = "another operation is in progress for this app" }
-    end
-    local ok, result = pcall(do_lock, appid, info, auto_update_behavior)
-    end_app(appid)
-    if not ok then
-        log.error("lock failed for app " .. appid .. ": " .. tostring(result))
-        return { ok = false, error = tostring(result) }
-    end
-    return result
+    return with_app_lock(appid, "lock", do_lock, info, auto_update_behavior)
 end
 
 ---@param appid string
@@ -413,16 +411,7 @@ end
 ---@param info BuildInfo
 ---@return RefreshResult
 local function refresh(appid, info)
-    if not begin_app(appid) then
-        return { ok = false, code = "operation_in_progress", error = "another operation is in progress for this app" }
-    end
-    local ok, result = pcall(do_refresh, appid, info)
-    end_app(appid)
-    if not ok then
-        log.error("refresh failed for app " .. appid .. ": " .. tostring(result))
-        return { ok = false, error = tostring(result) }
-    end
-    return result
+    return with_app_lock(appid, "refresh", do_refresh, info)
 end
 
 ---@param appid string
@@ -456,16 +445,7 @@ end
 ---@param appid string
 ---@return UnlockResult
 local function unlock(appid)
-    if not begin_app(appid) then
-        return { ok = false, code = "operation_in_progress", error = "another operation is in progress for this app" }
-    end
-    local ok, result = pcall(do_unlock, appid)
-    end_app(appid)
-    if not ok then
-        log.error("unlock failed for app " .. appid .. ": " .. tostring(result))
-        return { ok = false, error = tostring(result) }
-    end
-    return result
+    return with_app_lock(appid, "unlock", do_unlock)
 end
 
 ---@param appid string

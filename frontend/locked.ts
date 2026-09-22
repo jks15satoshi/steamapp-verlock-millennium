@@ -1,5 +1,6 @@
 import type { AppId, LockedAppRecord } from "./index";
 import * as bridge from "./bridge";
+import { parse_json } from "./shared";
 
 const LOCKED_CACHE_TTL_MS = 1000;
 
@@ -7,17 +8,6 @@ let locked_ids = new Set<AppId>();
 let loaded_at = 0;
 let pending: Promise<void> | null = null;
 const listeners = new Set<() => void>();
-
-function parse_json(raw: unknown): unknown {
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return undefined;
-    }
-  }
-  return raw;
-}
 
 function notify(): void {
   for (const listener of listeners) {
