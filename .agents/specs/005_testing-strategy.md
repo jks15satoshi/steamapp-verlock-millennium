@@ -45,7 +45,7 @@ Backend unit tests run under busted and cover each module in [Spec 4](004_app-ve
 - `lock.lua`  
   `lock` accepts only a `StateFlags` value of `4` or `6`, writes the update-state invariant, including equalizing the download counters, and keeps only the installed depots in the record's `locked_build`; `reapply` rewrites only when a field of the update-state invariant differs, never adds or removes a depot, ignores a recorded depot the appmanifest does not install while trimming it from a legacy record, and keeps an ignored appmanifest depot and its nested fields when a mismatch does force a rewrite; a foreign `TargetBuildID` forces a rewrite while a `TargetBuildID` equal to the `buildid` does not; `required_apps` returns the distinct `dlcappid` values whose installed depot the base `BuildInfo` omits and an empty list when every depot is covered; re-applies for one app are serialized; `restore_all` keeps a record whose appmanifest write fails and drops a record whose app is no longer installed; a completed `lock`, `refresh`, `unlock`, `reapply`, or migration writes an `info` record, a refusal writes a `warn` record, and a read, parse, or write failure writes an `error` record.
 - `main.lua`  
-  the dispatch table exposes every bridge method name, returns each handler's result as-is, and turns a raised error into an `Ack` error envelope; an unknown method returns an error; `read_file` returns the resolved file's text and rejects an invalid target or a file larger than the display limit.
+  The dispatch table exposes every bridge method name, returns each handler's result as-is, and turns a raised error into an `Ack` error envelope; an unknown method returns an error; `read_file` returns the resolved file's text and rejects an invalid target or a file larger than the display limit.
 - `log.lua`  
   `info`, `warn`, and `error` append one record at their level with the `backend` source to the log file and pass it to the host `logger`, and `persist` does the same for the given level and source; a record carries a UTC timestamp, a `[<source>]` tag, and a trailing newline; `path` resolves the file under `MILLENNIUM__LOGS_PATH`; the module creates the directory once through `fs.create_directories`, skips the write when the variable is absent, ignores a failed append, and never raises.
 
@@ -56,7 +56,7 @@ Frontend unit tests run under Bun test.
 - `errors.ts`  
   `format_error` normalizes an `Error`, a string, an object, and an empty value, and falls back to the base object form for an unstringifiable value.
 - `notify.tsx`  
-  the failure dialog and the warning toast depend on the host's `showModal` and `toaster`, so they stay on the manual checklist.
+  The failure dialog and the warning toast depend on the host's `showModal` and `toaster`, so they stay on the manual checklist.
 - `watch.ts`  
   `watch_app` and `unwatch_app` register and release the Steam callbacks; the action handler cancels the action, re-applies, and re-issues it, and re-applies then lets the action proceed when the cancel fails; the backstop timer captures and refreshes a watched app and stops after `unwatch_app`; `unwatch_then_unlock` and `unwatch_all_then_restore` stop watching before they unlock or restore, and re-watch on failure — `unwatch_then_unlock` re-watches the app when the call fails, and `unwatch_all_then_restore` re-watches the records the result lists under `failed`, or every given app when the call itself fails; `read_auto_update_behavior` reads the app details store and falls back to the app overview store, and `apply_auto_update_behavior` writes the app's auto-update setting; `unwatch_then_unlock` reports `auto_update_restored` and `unwatch_all_then_restore` records `auto_update_failed` when a behavior write fails; a `list_locked` response of `{}` counts as an empty record list; a `not_installed` reapply, a failed action cancel, and a failed behavior restore each relay a `warn` record, and a failed backend call relays an `error` record.
 - `locked.ts`  
@@ -137,4 +137,4 @@ The `tests` job runs on a Windows and an Ubuntu runner and runs both test suites
 ## Alternatives Considered
 
 - **A `deps` parameter on each backend function instead of `package.loaded` mocking**  
-  rejected: it changes the function signatures [Spec 4](004_app-version-lock.md#backend-functions) fixes, which are frozen; replacing the filesystem module in `package.loaded` keeps the production interface unchanged.
+  Rejected: it changes the function signatures [Spec 4](004_app-version-lock.md#backend-functions) fixes, which are frozen; replacing the filesystem module in `package.loaded` keeps the production interface unchanged.

@@ -42,13 +42,13 @@ The plugin aligns with the native styling in three steps.
 The Properties content page nests three levels before the rows:
 
 - `DialogContent _DialogLayout`  
-  the page; `display: flex`, `flex: 3 1 0%`, `padding: 24px 0 0 24px`.
+  The page; `display: flex`, `flex: 3 1 0%`, `padding: 24px 0 0 24px`.
 - `DialogContent_InnerWidth`  
-  the width wrapper; `display: flex`, `flex: 1 1 0%`, the full content width.
+  The width wrapper; `display: flex`, `flex: 1 1 0%`, the full content width.
 - `DialogHeader`  
-  the page title.
+  The page title.
 - `DialogBody`  
-  the content body; `display: flex`, `flex: 1 1 0%`, `margin: 10px 0 0`, `padding: 0 12px 24px 0`.
+  The content body; `display: flex`, `flex: 1 1 0%`, `margin: 10px 0 0`, `padding: 0 12px 24px 0`.
 
 Each dialog button renders as `button.<hash> DialogButton _DialogLayout Secondary Focusable`, where the leading hashed class carries the `padding` and the `width`.
 
@@ -130,22 +130,26 @@ The badge does not reuse the cell's hashed layout class, because that class carr
 
 ## Risks
 
-- A client update can rename or drop a hashed class, so the cached button class stops matching — prevention: the plugin re-samples the class whenever a native dialog button appears, and the fallback keeps a first run styled.
-- A client update or a theme change can move a measured value, so the layout drifts — prevention: the layout uses the client's own classes where they exist, and this spec records the probe method for a re-measurement.
-- `localStorage` can be unavailable or cleared, so the cached button class is lost — prevention: the recorded class constant is the fallback, and the class is re-sampled from a native button.
-- No official Valve design specification exists for the client's internal UI, so the method cannot cite an authority — the recorded values document the client state the method targets.
+- A client update can rename or drop a hashed class, so the cached button class stops matching  
+  Prevention: the plugin re-samples the class whenever a native dialog button appears, and the fallback keeps a first run styled.
+- A client update or a theme change can move a measured value, so the layout drifts  
+  Prevention: the layout uses the client's own classes where they exist, and this spec records the probe method for a re-measurement.
+- `localStorage` can be unavailable or cleared, so the cached button class is lost  
+  Prevention: the recorded class constant is the fallback, and the class is re-sampled from a native button.
+- No official Valve design specification exists for the client's internal UI, so the method cannot cite an authority  
+  The recorded values document the client state the method targets.
 
 ## Alternatives Considered
 
 - **Plain HTML with hand-authored styles**  
-  rejected: the styles cannot match the client, and they drift with it.
+  Rejected: the styles cannot match the client, and they drift with it.
 - **Hardcoding every measured value**  
-  rejected: the button's `padding` and `width` live in a hashed class the plugin cannot author, and the accent color follows the client theme.
+  Rejected: the button's `padding` and `width` live in a hashed class the plugin cannot author, and the accent color follows the client theme.
 - **Using only the SDK components without the native body structure**  
-  rejected: a missing `DialogBody` loses the right inset and the vertical spacing.
+  Rejected: a missing `DialogBody` loses the right inset and the vertical spacing.
 - **Cloning a native DOM subtree as a template**  
-  rejected: the client renders the subtree through React, so a clone couples the plugin to the rendered content and is invalidated on the next render.
+  Rejected: the client renders the subtree through React, so a clone couples the plugin to the rendered content and is invalidated on the next render.
 - **Sampling at run time without a cache or a fallback**  
-  rejected: a page with no native dialog button renders the wrong button on a first run.
+  Rejected: a page with no native dialog button renders the wrong button on a first run.
 - **Sampling the DLC table's classes across windows**  
-  rejected: the reference table renders in the Properties dialog's document and the settings panel renders in Millennium's settings page, so a cross-window sample couples the panel to a tab that may not be mounted, for values the recorded constants already carry.
+  Rejected: the reference table renders in the Properties dialog's document and the settings panel renders in Millennium's settings page, so a cross-window sample couples the panel to a tab that may not be mounted, for values the recorded constants already carry.

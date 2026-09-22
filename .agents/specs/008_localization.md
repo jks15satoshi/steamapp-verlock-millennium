@@ -166,40 +166,46 @@ The plugin adds three frontend files and changes the files below. The frontend e
 `frontend/i18n.ts`
 
 - `init_i18n(): Promise<void>`  
-  resolve the Steam client's language through `SteamClient.Settings.GetCurrentLanguage` and select the matching catalog; resolve English on an unknown language, a rejected call, or an absent `Settings` object, and do nothing on a later call.
+  Resolve the Steam client's language through `SteamClient.Settings.GetCurrentLanguage` and select the matching catalog; resolve English on an unknown language, a rejected call, or an absent `Settings` object, and do nothing on a later call.
 - `refresh_locale(): Promise<void>`  
-  re-resolve the client's language and select the matching catalog; keep the current catalog when the call is rejected or returns an unknown language, so a transient failure never demotes a translated user to English.
+  Re-resolve the client's language and select the matching catalog; keep the current catalog when the call is rejected or returns an unknown language, so a transient failure never demotes a translated user to English.
 - `t(key: MessageKey, params?: Record<string, string | number>): string`  
-  resolve one message key through the selected catalog, the English catalog, and the key itself, then interpolate the given parameters.
+  Resolve one message key through the selected catalog, the English catalog, and the key itself, then interpolate the given parameters.
 - `resolve_error(result: Ack): string`  
-  resolve a failed `Ack` to a localized message through its `code`, its `error`, and `t("error.unknown")`, in that order.
+  Resolve a failed `Ack` to a localized message through its `code`, its `error`, and `t("error.unknown")`, in that order.
 - `current_locale(): string`  
-  internal/test interface; return the selected catalog's language short name.
+  Internal/test interface; return the selected catalog's language short name.
 - `current_locale_tag(): string`  
-  internal/test interface; return the `Intl` language tag for the selected catalog (`en` or `zh-CN`).
+  Internal/test interface; return the `Intl` language tag for the selected catalog (`en` or `zh-CN`).
 - `set_locale(language: string): void`  
-  internal/test interface; select a catalog by language short name, resolving an unknown name to English.
+  Internal/test interface; select a catalog by language short name, resolving an unknown name to English.
 - `MessageKey`  
-  the union of the source catalog's keys, derived from `english.json`.
+  The union of the source catalog's keys, derived from `english.json`.
 
 ## Risks
 
-- A backend failure that reaches the settings panel without a `code` shows its English `error` text — prevention: the code set above covers every displayable failure, and [Spec 5](005_testing-strategy.md) owns a test that refuses a code absent from the catalogs.
-- A message key present in one catalog but not the other shows the English string through the fallback — prevention: the parity test refuses a key that only one file carries.
-- A new frontend string that omits a `t(...)` call stays English — prevention: the `MessageKey` type catches a missing key only at a call site that uses one, so reviewers check the two UI files against the catalogs.
-- A Steam client update can change or remove `GetCurrentLanguage` — prevention: a missing or rejected call resolves English before any lookup.
-- A language change while Steam runs can leave the already-rendered menu in the previous language until the menu is reopened — prevention: the settings panel re-resolves the language when it mounts, and the Steam client reloads the UI on a language change.
-- A translation can lag the English string after the English catalog changes — prevention: parity is enforced on the key set, not on the text, so a translated value is correct in the sense of being present; a reviewer refreshes a stale value when the English text changes meaning.
+- A backend failure that reaches the settings panel without a `code` shows its English `error` text  
+  Prevention: the code set above covers every displayable failure, and [Spec 5](005_testing-strategy.md) owns a test that refuses a code absent from the catalogs.
+- A message key present in one catalog but not the other shows the English string through the fallback  
+  Prevention: the parity test refuses a key that only one file carries.
+- A new frontend string that omits a `t(...)` call stays English  
+  Prevention: the `MessageKey` type catches a missing key only at a call site that uses one, so reviewers check the two UI files against the catalogs.
+- A Steam client update can change or remove `GetCurrentLanguage`  
+  Prevention: a missing or rejected call resolves English before any lookup.
+- A language change while Steam runs can leave the already-rendered menu in the previous language until the menu is reopened  
+  Prevention: the settings panel re-resolves the language when it mounts, and the Steam client reloads the UI on a language change.
+- A translation can lag the English string after the English catalog changes  
+  Prevention: parity is enforced on the key set, not on the text, so a translated value is correct in the sense of being present; a reviewer refreshes a stale value when the English text changes meaning.
 
 ## Alternatives Considered
 
 - **`i18next` or `react-i18next`**  
-  rejected: the plugin carries a few dozen strings and no plural or date rules beyond `toLocaleString`; a small module with JSON catalogs keeps the dependency tree empty and follows the custom locale manager Millennium itself uses.
+  Rejected: the plugin carries a few dozen strings and no plural or date rules beyond `toLocaleString`; a small module with JSON catalogs keeps the dependency tree empty and follows the custom locale manager Millennium itself uses.
 - **Map the English `error` strings in the frontend**  
-  rejected: it couples the frontend to exact backend wording, so a reworded backend message silently loses its translation; a stable `code` survives a wording change.
+  Rejected: it couples the frontend to exact backend wording, so a reworded backend message silently loses its translation; a stable `code` survives a wording change.
 - **Return already-localized text from the backend**  
-  rejected: the backend has no language and no catalog, and reaching the frontend's selected language from Lua would couple the backend to the UI layer.
+  Rejected: the backend has no language and no catalog, and reaching the frontend's selected language from Lua would couple the backend to the UI layer.
 - **Support every Steam language now**  
-  deferred: only English and Simplified Chinese have an author who can maintain them, and an unmaintained catalog shows English through the fallback; a later catalog is an additive change under this spec.
+  Deferred: only English and Simplified Chinese have an author who can maintain them, and an unmaintained catalog shows English through the fallback; a later catalog is an additive change under this spec.
 - **Re-render the menu when the language changes without reopening it**  
-  rejected: Millennium's own locale manager reads the language once at startup, and a language change reloads the Steam UI, so a subscription adds a moving part for a case the client already handles.
+  Rejected: Millennium's own locale manager reads the language once at startup, and a language change reloads the Steam UI, so a subscription adds a moving part for a case the client already handles.

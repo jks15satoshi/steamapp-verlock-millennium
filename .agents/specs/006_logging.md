@@ -83,49 +83,54 @@ The plugin adds `backend/log.lua` and `frontend/log.ts`, and changes `backend/ma
 `backend/log.lua`
 
 - `info(message: string) -> void`  
-  write one `info` record with source `backend`.
+  Write one `info` record with source `backend`.
 - `warn(message: string) -> void`  
-  write one `warn` record with source `backend`.
+  Write one `warn` record with source `backend`.
 - `error(message: string) -> void`  
-  write one `error` record with source `backend`.
+  Write one `error` record with source `backend`.
 - `persist(source: string, level: string, message: string) -> void`  
-  write one record at `level` with `source`; the relay entry point.
+  Write one record at `level` with `source`; the relay entry point.
 - `path() -> string?`  
-  internal/test interface; the log file's absolute path, or `nil` when `MILLENNIUM__LOGS_PATH` is absent.
+  Internal/test interface; the log file's absolute path, or `nil` when `MILLENNIUM__LOGS_PATH` is absent.
 - `ensure_directory() -> void`  
-  internal/test interface; create `MILLENNIUM__LOGS_PATH` once, ignoring a missing variable or a failed creation.
+  Internal/test interface; create `MILLENNIUM__LOGS_PATH` once, ignoring a missing variable or a failed creation.
 
 #### Frontend
 
 `frontend/log.ts`
 
 - `log_info(message: string): void`  
-  write the console line and relay an `info` record.
+  Write the console line and relay an `info` record.
 - `log_warn(message: string): void`  
-  write the console line and relay a `warn` record.
+  Write the console line and relay a `warn` record.
 - `log_error(message: string): void`  
-  write the console line and relay an `error` record.
+  Write the console line and relay an `error` record.
 
 #### Bridge
 
 frontend to backend (`backend` FFI bridge)
 
 - `append_log(payload: { level: string; message: string }): Promise<Ack>`  
-  write one frontend record through the backend logger.
+  Write one frontend record through the backend logger.
 
 ## Risks
 
-- The log file has no rotation or size cap, so it grows for the life of the installation — no preventive measure currently exists; the maintainer observes the growth after release before a cap or a rotation is added.
-- The host marks a `.star` plugin's logger viewer-only, so the file is the only persistent record; a host version that also writes a file would add a second one — prevention: the plugin's file name `steamapp-verlock.log` differs from the host's `<plugin>_log.log` name ([`logger.cc`](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/system/logger.cc)).
-- The viewer depends on the host `logger`; if its v2 behavior changes, the viewer can lose backend records — prevention: the file is independent of the viewer.
-- A log record can carry an appmanifest path into a file that outlives the session — prevention: no record carries a token, a credential, or the contents of a build-info dump.
-- A read-only or full filesystem can make directory creation or the append fail — prevention: every logging step is best-effort and never changes the emitting operation's result.
+- The log file has no rotation or size cap, so it grows for the life of the installation  
+  No preventive measure currently exists; the maintainer observes the growth after release before a cap or a rotation is added.
+- The host marks a `.star` plugin's logger viewer-only, so the file is the only persistent record; a host version that also writes a file would add a second one  
+  Prevention: the plugin's file name `steamapp-verlock.log` differs from the host's `<plugin>_log.log` name ([`logger.cc`](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/system/logger.cc)).
+- The viewer depends on the host `logger`; if its v2 behavior changes, the viewer can lose backend records  
+  Prevention: the file is independent of the viewer.
+- A log record can carry an appmanifest path into a file that outlives the session  
+  Prevention: no record carries a token, a credential, or the contents of a build-info dump.
+- A read-only or full filesystem can make directory creation or the append fail  
+  Prevention: every logging step is best-effort and never changes the emitting operation's result.
 
 ## Alternatives Considered
 
 - **Rely on the host logger alone**  
-  rejected: a `.star` plugin's host logger keeps records in the viewer buffer only, so nothing survives a restart.
+  Rejected: a `.star` plugin's host logger keeps records in the viewer buffer only, so nothing survives a restart.
 - **Both the host file and a plugin-owned file**  
-  rejected: it yields two files wherever the host writes one, and every backend record appears twice.
+  Rejected: it yields two files wherever the host writes one, and every backend record appears twice.
 - **Cap and rotate the file now**  
-  deferred: a cap and a rotation are added only when observed growth justifies them.
+  Deferred: a cap and a rotation are added only when observed growth justifies them.

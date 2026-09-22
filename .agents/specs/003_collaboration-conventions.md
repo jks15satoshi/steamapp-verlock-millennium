@@ -116,11 +116,12 @@ This spec's conventions are recommendations, with one gate: the `spec-status` ch
 ## Alternatives Considered
 
 - **Native GitHub Issue Types**  
-  rejected: GitHub exposes Issue Types to organization-owned repositories, and this repository belongs to a user account, so the taxonomy cannot be relied on; the repository uses default labels instead.
-- **A custom `kind/*` and `area/*` taxonomy now** — deferred: for this project's size the default labels are sufficient.
+  Rejected: GitHub exposes Issue Types to organization-owned repositories, and this repository belongs to a user account, so the taxonomy cannot be relied on; the repository uses default labels instead.
+- **A custom `kind/*` and `area/*` taxonomy now**  
+  Deferred: for this project's size the default labels are sufficient.
 - **A mandatory issue reference in the commit**  
-  rejected: the pull request owns the closing reference.
+  Rejected: the pull request owns the closing reference.
 - **Keeping `CONTRIBUTING.md` strictly navigation-only**  
-  rejected: a contributor arrives without a runnable quickstart and must assemble the steps from four documents; a bounded onboarding guide that restates commands and defers to this spec keeps one rule home without that cost.
+  Rejected: a contributor arrives without a runnable quickstart and must assemble the steps from four documents; a bounded onboarding guide that restates commands and defers to this spec keeps one rule home without that cost.
 - **Keeping a mechanical format gate**  
-  rejected: the owner controls every merge and the history is short, so review is the cheaper enforcement; a pull request title gate would also force English titles and contradict the multilingual allowance.
+  Rejected: the owner controls every merge and the history is short, so review is the cheaper enforcement; a pull request title gate would also force English titles and contradict the multilingual allowance.

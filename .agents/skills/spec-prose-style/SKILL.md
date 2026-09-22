@@ -25,7 +25,7 @@ Apply this skill to the body text of Spec documents under `.agents/specs/`. This
 - **Prefer an honest gap to a plausible guess.** A rejection reason the decision did not establish is fabrication even when it sounds convincing; [Alternative Provenance](../../specs/000_metaspec.md#alternative-provenance) owns the wording for the gap.
 - **Reserve emphasis for the clause that changes behavior.** Emphasis on every other clause leaves nothing standing out.
 - **Use a table for a set of parallel items and a paragraph for a chain of reasoning.** A table flattens reasoning that a reader must follow in order.
-- **Put a list item's explanation on its own line.** End the lead, whether a backticked identifier or a bold alternative name, with two trailing spaces, and place the explanation on the next indented line, dropping the em dash.
+- **Put a list item's explanation on its own line.** End the lead with two trailing spaces, drop the em dash, and place the explanation on the next indented line, capitalizing its first letter unless it opens with code.
 
 ## Human-Readable Prose
 

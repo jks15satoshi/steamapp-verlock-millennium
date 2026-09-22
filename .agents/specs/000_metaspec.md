@@ -265,56 +265,56 @@ References between specs use relative Markdown links whose link text includes th
 Shorthand used below: **DSH** — the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), an open-source agent harness whose document-management approach and convention rules are selectively borrowed; **PEP** — the [Python Enhancement Proposals](https://peps.python.org/), whose proposal format and writing structure are borrowed.
 
 - **Path-encoded metadata (DSH-style)**  
-  status and class as folders with a `Status:` line instead of frontmatter. Rejected: specs are numbered, flat, and frontmatter-driven — one metadata source, trivially parsable, with no file moves when status changes.
+  Status and class as folders with a `Status:` line instead of frontmatter. Rejected: specs are numbered, flat, and frontmatter-driven — one metadata source, trivially parsable, with no file moves when status changes.
 - **RFC 822-style preamble (PEP-style)**  
-  rejected: YAML frontmatter is more machine-friendly.
+  Rejected: YAML frontmatter is more machine-friendly.
 - **Component tags in metadata**  
-  rejected: the type already carries the classification signal, and dropping tags keeps the metadata minimal for a small spec inventory.
+  Rejected: the type already carries the classification signal, and dropping tags keeps the metadata minimal for a small spec inventory.
 - **Release-and-reuse numbering**  
-  the rule this spec once adopted: delete non-retained rejected specs, release their numbers, and allow reuse by explicit choice. Rejected: a released number that is never reused makes the deletion meaningless; keeping every rejected spec preserves its rationale and forces strict issuance (see [Rejected Specs](#rejected-specs)).
+  The rule this spec once adopted: delete non-retained rejected specs, release their numbers, and allow reuse by explicit choice. Rejected: a released number that is never reused makes the deletion meaningless; keeping every rejected spec preserves its rationale and forces strict issuance (see [Rejected Specs](#rejected-specs)).
 - **Absolute number immutability**  
-  the rule this spec once adopted: a spec's number never changes from creation. Rejected: before commit a spec is a locally visible draft only, so renumbering it to match the actual order is acceptable, and the commit boundary alone keeps committed numbers stable.
+  The rule this spec once adopted: a spec's number never changes from creation. Rejected: before commit a spec is a locally visible draft only, so renumbering it to match the actual order is acceptable, and the commit boundary alone keeps committed numbers stable.
 - **Two-type or four-type value sets**  
-  two types (folding `informational` into `process`) lose the "record only, no action" signal; four types (adding `bug-fix`) add a category whose boundary `feature` already covers.
+  Two types (folding `informational` into `process`) lose the "record only, no action" signal; four types (adding `bug-fix`) add a category whose boundary `feature` already covers.
 - **Structured relationship metadata**  
-  a `related` frontmatter key marking loosely related specs, a fixed "Related Specs" skeleton section, or a `depends-on` key with cascade rules (no cycles, update-on-supersede, revisit-on-rejection). Rejected: relationship metadata carries no lifecycle consequence and degenerates into an unmaintained link pile. Dependents of a spec are derivable by searching the corpus, and narrative links in body prose carry the rationale with less upkeep and keep the skeleton light.
+  A `related` frontmatter key marking loosely related specs, a fixed "Related Specs" skeleton section, or a `depends-on` key with cascade rules (no cycles, update-on-supersede, revisit-on-rejection). Rejected: relationship metadata carries no lifecycle consequence and degenerates into an unmaintained link pile. Dependents of a spec are derivable by searching the corpus, and narrative links in body prose carry the rationale with less upkeep and keep the skeleton light.
 - **A list-valued `superseded-by` key**  
-  naming several successors when a spec is split. Rejected: one successor key plus narrative cross-references covers the split case without complicating the metadata schema.
+  Naming several successors when a spec is split. Rejected: one successor key plus narrative cross-references covers the split case without complicating the metadata schema.
 - **Status name `final`**  
-  the status for "fully implemented and committed" was first named `final` and renamed to `implemented`. Rejected `final`: it reads as finished-and-frozen, which conflicts with the factual-currency contract (the decision freezes while recorded facts stay current); `implemented` states shipped reality and matches the DSH lifecycle vocabulary.
+  The status for "fully implemented and committed" was first named `final` and renamed to `implemented`. Rejected `final`: it reads as finished-and-frozen, which conflicts with the factual-currency contract (the decision freezes while recorded facts stay current); `implemented` states shipped reality and matches the DSH lifecycle vocabulary.
 - **Splitting `active` into `draft` and `accepted`**  
-  rejected: the timing rule (see [When to Create a Spec](#when-to-create-a-spec)) already covers both create-first and create-with-implementation work, and splitting one status into two adds a transition to police without changing any obligation.
+  Rejected: the timing rule (see [When to Create a Spec](#when-to-create-a-spec)) already covers both create-first and create-with-implementation work, and splitting one status into two adds a transition to police without changing any obligation.
 - **Frozen `implemented` content (PEP-style)**  
-  rejected: frozen content lets recorded facts rot silently as code moves on; the adopted contract freezes the decision while keeping recorded facts current (see [Statuses](#statuses)).
+  Rejected: frozen content lets recorded facts rot silently as code moves on; the adopted contract freezes the decision while keeping recorded facts current (see [Statuses](#statuses)).
 - **Strict explain-before-reference with no obviousness exception**  
-  rejected: forcing a definition for ordinary words and universal industry terms buries prose in noise; the exception is bounded by a concrete two-case test, so it cannot swallow the rule.
+  Rejected: forcing a definition for ordinary words and universal industry terms buries prose in noise; the exception is bounded by a concrete two-case test, so it cannot swallow the rule.
 - **Leaving "obvious" undefined**  
-  rejected: an undefined exception is a loophole that swallows the rule.
+  Rejected: an undefined exception is a loophole that swallows the rule.
 - **A separate prose-rules spec**  
-  rejected: the corpus's prose rules live with its other rules in this spec; a second meta document splits one rulebook and forces every author to consult two documents.
+  Rejected: the corpus's prose rules live with its other rules in this spec; a second meta document splits one rulebook and forces every author to consult two documents.
 - **Full Markdown latitude**  
-  raw HTML, footnotes, and deeper list nesting. Rejected: anything beyond the basic constructs defeats simple mechanical parsing and muddies line-oriented diffs, for expressiveness the corpus does not need (see [Plain Markdown](#plain-markdown)).
+  Raw HTML, footnotes, and deeper list nesting. Rejected: anything beyond the basic constructs defeats simple mechanical parsing and muddies line-oriented diffs, for expressiveness the corpus does not need (see [Plain Markdown](#plain-markdown)).
 - **Auto-promoting an unselected option in a recommendation prompt**  
-  rejected: an option's presence in a prompt does not establish that the decision weighed it or why it lost; recording it with a guessed reason fabricates a comparison (see [Alternative Provenance](#alternative-provenance)).
+  Rejected: an option's presence in a prompt does not establish that the decision weighed it or why it lost; recording it with a guessed reason fabricates a comparison (see [Alternative Provenance](#alternative-provenance)).
 - **Requiring a non-empty `## Alternatives Considered`**  
-  rejected: it forces the author to invent content for a mandatory section; the fixed "no alternative" sentence records the gap itself.
+  Rejected: it forces the author to invent content for a mandatory section; the fixed "no alternative" sentence records the gap itself.
 - **DSH-style HTML comment markers for an unrecorded alternative**  
-  rejected: the [Plain Markdown](#plain-markdown) rule forbids raw HTML, and a fixed plain-text sentence carries the same meaning.
+  Rejected: the [Plain Markdown](#plain-markdown) rule forbids raw HTML, and a fixed plain-text sentence carries the same meaning.
 - **Leaving "genuine" undefined**  
-  rejected: an undefined qualifier is a loophole that swallows the rule, the same defect as the rejected undefined "obvious".
+  Rejected: an undefined qualifier is a loophole that swallows the rule, the same defect as the rejected undefined "obvious".
 - **One spec per layer for a layered feature**  
-  rejected: the layers implement one topic, so a split multiplies permanent numbers and turns a single decision into cross-Spec links; [Layered Feature Specs](#layered-feature-specs) keeps one spec and gives each layer a section.
+  Rejected: the layers implement one topic, so a split multiplies permanent numbers and turns a single decision into cross-Spec links; [Layered Feature Specs](#layered-feature-specs) keeps one spec and gives each layer a section.
 - **Author discretion over a layered spec's layout**  
-  the rule this spec once implied. Rejected: without a fixed axis, a long feature spec interleaves its layers paragraph by paragraph, and the reader must reconstruct which layer owns each statement.
+  The rule this spec once implied. Rejected: without a fixed axis, a long feature spec interleaves its layers paragraph by paragraph, and the reader must reconstruct which layer owns each statement.
 - **A per-operation layer template inside `## Design`**  
-  a `Backend`/`Frontend` pair of paragraphs under every operation. Rejected: it repeats the cross-layer seam at each operation and still leaves layer internals without one home.
+  A `Backend`/`Frontend` pair of paragraphs under every operation. Rejected: it repeats the cross-layer seam at each operation and still leaves layer internals without one home.
 - **The interface inventory in the layer design sections**  
-  the layout where each layer's function list sits in its layer section. Rejected: the design mechanism then restates method definitions the implementation plan already owns, and the design grows a code inventory that [Feature Narrative](#feature-narrative) assigns to the implementation plan.
+  The layout where each layer's function list sits in its layer section. Rejected: the design mechanism then restates method definitions the implementation plan already owns, and the design grows a code inventory that [Feature Narrative](#feature-narrative) assigns to the implementation plan.
 - **The [Humanizer](https://github.com/blader/humanizer) skill's full pattern catalog as spec rules**  
-  importing all 25 patterns, including its word lists, dash ban, and formatting rules. Rejected: it bloats the decision corpus and turns advisory style into obligations, so the pattern-level guidance lives in the `spec-prose-style` skill instead (see [Prose Rules](#prose-rules)).
+  Importing all 25 patterns, including its word lists, dash ban, and formatting rules. Rejected: it bloats the decision corpus and turns advisory style into obligations, so the pattern-level guidance lives in the `spec-prose-style` skill instead (see [Prose Rules](#prose-rules)).
 - **Anti-AI prose guidance in the skill only**  
-  rejected: the core obligations — every sentence adds information, no invented fact, plain statement — belong in the decision corpus, not in guidance a skill may omit.
+  Rejected: the core obligations — every sentence adds information, no invented fact, plain statement — belong in the decision corpus, not in guidance a skill may omit.
 - **Adopting the Humanizer em-dash ban**  
-  rejected: the spec corpus is the project's voice sample and uses em dashes, so only the principle against a dash as a universal connector is adopted and the existing dashes stay.
+  Rejected: the spec corpus is the project's voice sample and uses em dashes, so only the principle against a dash as a universal connector is adopted and the existing dashes stay.
 - **A separate project-wide writing-standard spec**  
-  rejected: the prose rules govern the spec corpus only (see [Prose Rules](#prose-rules)), so a second spec would either duplicate that scope or impose obligations on prose no decision covers.
+  Rejected: the prose rules govern the spec corpus only (see [Prose Rules](#prose-rules)), so a second spec would either duplicate that scope or impose obligations on prose no decision covers.

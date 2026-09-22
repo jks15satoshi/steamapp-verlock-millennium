@@ -113,77 +113,77 @@ The frontend records:
 ### Shared Types
 
 - `AppId = string`  
-  a Steam app id written as a numeric string.
+  A Steam app id written as a numeric string.
 - `Ack = { ok: boolean; error?: string; code?: string }`  
-  the result envelope for a backend operation that reports its outcome. A displayable failure carries a stable `code` from [Spec 8](008_localization.md#backend-error-codes) so the frontend can localize it; `error` stays a developer diagnostic.
+  The result envelope for a backend operation that reports its outcome. A displayable failure carries a stable `code` from [Spec 8](008_localization.md#backend-error-codes) so the frontend can localize it; `error` stays a developer diagnostic.
 - `LockResult = Ack & { record?: LockedAppRecord }`  
-  success carries the locked-app record.
+  Success carries the locked-app record.
 - `RefreshResult = Ack`  
-  the refresh result.
+  The refresh result.
 - `UnlockResult = Ack & { auto_update_behavior?: number; auto_update_restored?: boolean }`  
-  the unlock result; success carries the stored auto-update behavior when the record has one, and the frontend sets `auto_update_restored` to `false` when restoring that behavior failed (it is `true` when the behavior was written or the record carried no behavior).
+  The unlock result; success carries the stored auto-update behavior when the record has one, and the frontend sets `auto_update_restored` to `false` when restoring that behavior failed (it is `true` when the behavior was written or the record carried no behavior).
 - `CaptureResult = { ok: true; appid: AppId; dump: string } | { ok: false; error: string; code?: string }`  
-  success carries the captured dump; failure carries an error and, when a stable code exists, its [Spec 8](008_localization.md#backend-error-codes) code.
+  Success carries the captured dump; failure carries an error and, when a stable code exists, its [Spec 8](008_localization.md#backend-error-codes) code.
 - `CaptureSet = { ok: true; dumps: Record<AppId, string> } | { ok: false; error: string; code?: string }`  
-  success carries the base dump and each required DLC app's dump, keyed by app id; failure carries an error and, when a stable code exists, its [Spec 8](008_localization.md#backend-error-codes) code.
+  Success carries the base dump and each required DLC app's dump, keyed by app id; failure carries an error and, when a stable code exists, its [Spec 8](008_localization.md#backend-error-codes) code.
 - `RequiredAppsResult = Ack & { apps?: AppId[] }`  
-  the `get_required_apps` result; success carries the distinct `dlcappid` values whose installed depot the base `BuildInfo` omits.
+  The `get_required_apps` result; success carries the distinct `dlcappid` values whose installed depot the base `BuildInfo` omits.
 - `BuildInfo = { buildid: string; depots: Record<string, string> }`  
-  a captured or spoofed build state.
+  A captured or spoofed build state.
 - `BadgeStyle = { label: CSSProperties; value: CSSProperties; icon: { color: string; width: string; height: string; opacity: number } }`  
-  the game page badge's sampled label, value, and icon styles; `CSSProperties` is React's style type.
+  The game page badge's sampled label, value, and icon styles; `CSSProperties` is React's style type.
 - `ClockFormat = { locale: string; hour12: boolean | undefined }`  
-  the plugin's shared date and time inputs; `hour12` is `false` when the client's 24-hour clock setting is on and `undefined` when it is off or unread.
+  The plugin's shared date and time inputs; `hour12` is `false` when the client's 24-hour clock setting is on and `undefined` when it is off or unread.
 - `ClientTimeOptions = { current_year_short?: boolean }`  
-  the date options `format_client_time` takes; `current_year_short` omits the year for the current year, and its absence keeps the year.
+  The date options `format_client_time` takes; `current_year_short` omits the year for the current year, and its absence keeps the year.
 - `LockedAppRecord = { version: number; appid: AppId; name: string; manifest_path: string; locked_at: number; refreshed_at?: number; auto_update_behavior?: number; locked_build: BuildInfo; original: string }`  
-  the persisted locked-app record.
+  The persisted locked-app record.
 - `DataRoots = { data_root: string; is_default: boolean }`  
-  the resolved data root directory; `is_default` reports whether it resolved from the OS-conventional path (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
+  The resolved data root directory; `is_default` reports whether it resolved from the OS-conventional path (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
 - `MigrateResult = Ack & { data_root?: string; warning?: string; is_default?: boolean }`  
-  the migration result; success carries the new data root directory, `warning` carries a non-fatal cleanup failure, and `is_default` is `true` when an empty `set_data_root` reset the root to the OS-conventional default.
+  The migration result; success carries the new data root directory, `warning` carries a non-fatal cleanup failure, and `is_default` is `true` when an empty `set_data_root` reset the root to the OS-conventional default.
 - `PathsResult = Ack & { appmanifest?: string; lock?: string }`  
-  the resolved file paths for one app; `appmanifest` is the appmanifest path and `lock` is the lock record path, and a path that cannot be resolved is absent.
+  The resolved file paths for one app; `appmanifest` is the appmanifest path and `lock` is the lock record path, and a path that cannot be resolved is absent.
 - `FileContentResult = Ack & { content?: string }`  
-  the `read_file` result; success carries the file's text.
+  The `read_file` result; success carries the file's text.
 - `RestoreResult = Ack & { restored: number; failed: AppId[]; auto_update?: { appid: AppId; behavior: number }[]; auto_update_failed?: AppId[] }`  
-  the `Restore All` result; `restored` counts the apps put back, `failed` lists the ones left in place, a record dropped as no longer installed counts as neither, `auto_update` lists the auto-update behaviors the frontend restores, and the frontend sets `auto_update_failed` to the app ids whose behavior write failed.
+  The `Restore All` result; `restored` counts the apps put back, `failed` lists the ones left in place, a record dropped as no longer installed counts as neither, `auto_update` lists the auto-update behaviors the frontend restores, and the frontend sets `auto_update_failed` to the app ids whose behavior write failed.
 
 ### Frontend to Backend
 
 The frontend calls these methods through the `backend` FFI bridge:
 
 - `get_required_apps(payload: { appid: AppId; dump: string }): Promise<RequiredAppsResult>`  
-  parse the base dump and return the distinct `dlcappid` values whose installed depot the base `BuildInfo` omits; the frontend then captures each returned app.
+  Parse the base dump and return the distinct `dlcappid` values whose installed depot the base `BuildInfo` omits; the frontend then captures each returned app.
 - `lock_app(payload: { appid: AppId; dumps: Record<AppId, string>; auto_update_behavior?: number }): Promise<LockResult>`  
-  lock the app and store the app's current auto-update behavior; the backend builds each `BuildInfo` through `buildinfo.clean`, `buildinfo.parse`, and `buildinfo.validate`, merges them through `buildinfo.merge`, and then calls `lock.lua`'s `lock`.
+  Lock the app and store the app's current auto-update behavior; the backend builds each `BuildInfo` through `buildinfo.clean`, `buildinfo.parse`, and `buildinfo.validate`, merges them through `buildinfo.merge`, and then calls `lock.lua`'s `lock`.
 - `refresh_app(payload: { appid: AppId; dumps: Record<AppId, string> }): Promise<RefreshResult>`  
-  refresh a locked app; the backend merges the payload's dumps the same way and then calls `lock.lua`'s `refresh`.
+  Refresh a locked app; the backend merges the payload's dumps the same way and then calls `lock.lua`'s `refresh`.
 - `unlock_app(payload: { appid: AppId }): Promise<UnlockResult>`  
-  unlock the app; the result carries the stored `auto_update_behavior` when present.
+  Unlock the app; the result carries the stored `auto_update_behavior` when present.
 - `list_locked(): Promise<LockedAppRecord[] | Ack>`  
-  return the locked-app records for the UI directly; a migration in progress makes it return an error envelope instead of records.
+  Return the locked-app records for the UI directly; a migration in progress makes it return an error envelope instead of records.
 - `restore_all(): Promise<RestoreResult>`  
-  restore every locked app and delete the restored records.
+  Restore every locked app and delete the restored records.
 - `get_data_root(): Promise<DataRoots>`  
-  return the resolved data root directory directly.
+  Return the resolved data root directory directly.
 - `get_paths(payload: { appid: AppId }): Promise<PathsResult>`  
-  return the app's appmanifest path — from the lock record when one exists, otherwise from discovery — and the lock record path when a record exists.
+  Return the app's appmanifest path — from the lock record when one exists, otherwise from discovery — and the lock record path when a record exists.
 - `read_file(payload: { appid: AppId; target: "appmanifest" | "lock" }): Promise<FileContentResult>`  
-  resolve the target file and return its text for the tab's content dialog; a file larger than 512 KiB is refused.
+  Resolve the target file and return its text for the tab's content dialog; a file larger than 512 KiB is refused.
 - `set_data_root(payload: { path: string }): Promise<MigrateResult>`  
-  migrate the data root directory to `path`; an empty `path` resets to the OS-conventional default and clears the `data_root` config key (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
+  Migrate the data root directory to `path`; an empty `path` resets to the OS-conventional default and clears the `data_root` config key (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
 - `reapply_app(payload: { appid: AppId }): Promise<Ack>`  
-  reapply a locked app's spoof when its appmanifest no longer matches; return `code = "not_installed"` when the app is gone, and the other [Spec 8](008_localization.md#backend-error-codes) codes on a displayable failure.
+  Reapply a locked app's spoof when its appmanifest no longer matches; return `code = "not_installed"` when the app is gone, and the other [Spec 8](008_localization.md#backend-error-codes) codes on a displayable failure.
 - `get_clock_format(): Promise<Ack & { is_24h?: boolean }>`  
-  read the client's 24-hour clock preference from the Steam config; `is_24h` is absent when the preference cannot be read.
+  Read the client's 24-hour clock preference from the Steam config; `is_24h` is absent when the preference cannot be read.
 
 ### Backend to Frontend
 
 The backend calls this method through `millennium.call_frontend_method`:
 
 - `request_build_info(appid: AppId): void`  
-  ask the frontend to capture a dump; on success the frontend passes the dump to `refresh_app`.
+  Ask the frontend to capture a dump; on success the frontend passes the dump to `refresh_app`.
 
 ## Backend
 
@@ -450,294 +450,327 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 `backend/main.lua`
 
 - `on_load() -> void`  
-  initialize the feature and signal readiness to Millennium.
+  Initialize the feature and signal readiness to Millennium.
 - `on_frontend_loaded() -> void`  
-  run once the Steam UI has loaded; call `request_build_info` for every lock record.
+  Run once the Steam UI has loaded; call `request_build_info` for every lock record.
 - `on_unload() -> void`  
-  release resources when the plugin unloads.
+  Release resources when the plugin unloads.
 - `dispatch(name: string, payload: table) -> table`  
-  internal/test interface; route a bridge method name to its handler and return the handler's result as-is; a handler that raises an error returns an `Ack` error envelope.
+  Internal/test interface; route a bridge method name to its handler and return the handler's result as-is; a handler that raises an error returns an `Ack` error envelope.
 - `handlers`  
-  internal/test interface; the table that maps each bridge method name to its handler.
+  Internal/test interface; the table that maps each bridge method name to its handler.
 - `get_required_apps(payload: table) -> RequiredAppsResult`  
-  parse `payload.dump` against the app's branch, read the appmanifest's `InstalledDepots`, and return the distinct `dlcappid` values whose depot is absent from the parsed `BuildInfo`; use discovery for an app with no lock record.
+  Parse `payload.dump` against the app's branch, read the appmanifest's `InstalledDepots`, and return the distinct `dlcappid` values whose depot is absent from the parsed `BuildInfo`; use discovery for an app with no lock record.
 - `set_data_root(payload: table) -> MigrateResult`  
-  migrate the data root directory to `payload.path`; an empty path resets to the OS-conventional default (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
+  Migrate the data root directory to `payload.path`; an empty path resets to the OS-conventional default (see [Data Root Directory and Settings](#data-root-directory-and-settings)).
 - `clear_data_root_config() -> void`  
-  internal; clear the `data_root` config key through `config.delete`, or through `config.set("data_root", nil)` when `config.delete` is unavailable.
+  Internal; clear the `data_root` config key through `config.delete`, or through `config.set("data_root", nil)` when `config.delete` is unavailable.
 - `get_clock_format(payload: table) -> Ack & { is_24h?: boolean }`  
-  read the client's 24-hour clock preference; `is_24h` is absent when the preference cannot be read.
+  Read the client's 24-hour clock preference; `is_24h` is absent when the preference cannot be read.
 
 `backend/vdf.lua`
 
 - `parse(text: string) -> state: table?, err: string?`  
-  decode text VDF into a table; return an error when the text is malformed.
+  Decode text VDF into a table; return an error when the text is malformed.
 - `serialize(state: table) -> text: string`  
-  encode a table as text VDF.
+  Encode a table as text VDF.
 
 `backend/buildinfo.lua`
 
 - `clean(raw: string) -> text: string`  
-  return the numeric-keyed app block from a captured dump, stripping the command echo, any line prefix, missing newlines, and trailing console noise; return an empty string when no block is present.
+  Return the numeric-keyed app block from a captured dump, stripping the command echo, any line prefix, missing newlines, and trailing console noise; return an empty string when no block is present.
 - `parse(text: string, branch?: string) -> info: BuildInfo?, err: string?`  
-  read the `buildid` and the depot manifests from the cleaned dump against `branch`; the branch comes from the appmanifest's `BetaKey` and defaults to `public` when `BetaKey` is absent or empty, and both Lock and Refresh share this rule.
+  Read the `buildid` and the depot manifests from the cleaned dump against `branch`; the branch comes from the appmanifest's `BetaKey` and defaults to `public` when `BetaKey` is absent or empty, and both Lock and Refresh share this rule.
 - `validate(info: BuildInfo) -> ok: boolean, err: string?`  
-  reject a dump that fails strict validation.
+  Reject a dump that fails strict validation.
 - `merge(infos: BuildInfo[]) -> info: BuildInfo?, err: string?`  
-  take `buildid` from the first entry, which is the base app's `BuildInfo`, and return the union of every entry's `depots`, where the base's value wins a depot both it and a later entry carry.
+  Take `buildid` from the first entry, which is the base app's `BuildInfo`, and return the union of every entry's `depots`, where the base's value wins a depot both it and a later entry carry.
 
 `backend/acf.lua`
 
 - `read(path: string) -> state: table?, err: string?`  
-  read an appmanifest into a table.
+  Read an appmanifest into a table.
 - `set(state: table, key: string, value: string) -> void`  
-  set one field in the appmanifest table.
+  Set one field in the appmanifest table.
 - `write(path: string, state: table) -> ok: boolean, err: string?`  
-  write the table back through a temporary file and a rename.
+  Write the table back through a temporary file and a rename.
 
 `backend/lock.lua`
 
 - `lock(appid: AppId, info: BuildInfo, auto_update_behavior?: number) -> LockResult`  
-  record the current appmanifest's verbatim text in the record's `original` field, store `auto_update_behavior`, write the update-state invariant into the appmanifest, and store `info`'s `buildid` and its installed depot manifests in the record's `locked_build` field; the frontend starts watching the app after a successful lock.
+  Record the current appmanifest's verbatim text in the record's `original` field, store `auto_update_behavior`, write the update-state invariant into the appmanifest, and store `info`'s `buildid` and its installed depot manifests in the record's `locked_build` field; the frontend starts watching the app after a successful lock.
 - `refresh(appid: AppId, info: BuildInfo) -> RefreshResult`  
-  write the update-state invariant into the appmanifest and update `locked_build` and `refreshed_at`, restricting `locked_build`'s depots to the installed depots.
+  Write the update-state invariant into the appmanifest and update `locked_build` and `refreshed_at`, restricting `locked_build`'s depots to the installed depots.
 - `unlock(appid: AppId) -> UnlockResult`  
-  write the record's `original` back to the appmanifest and delete the record; the result carries the record's `auto_update_behavior` when present. The frontend owns the watch lifecycle.
+  Write the record's `original` back to the appmanifest and delete the record; the result carries the record's `auto_update_behavior` when present. The frontend owns the watch lifecycle.
 - `reapply(appid: AppId) -> Ack`  
-  rewrite the spoof when the appmanifest leaves the update-state invariant.
+  Rewrite the spoof when the appmanifest leaves the update-state invariant.
 - `required_apps(appid: AppId, info: BuildInfo) -> AppId[]?, err: string?`  
-  read the appmanifest — through `state.read` for a locked app, through discovery otherwise — and return the sorted distinct `dlcappid` values whose installed depot id is absent from `info.depots`; return an empty list when every installed depot is covered.
+  Read the appmanifest — through `state.read` for a locked app, through discovery otherwise — and return the sorted distinct `dlcappid` values whose installed depot id is absent from `info.depots`; return an empty list when every installed depot is covered.
 - `restore_all() -> RestoreResult`  
-  restore every recorded app and delete the restored records; the result carries the restored records' `auto_update_behavior` values.
+  Restore every recorded app and delete the restored records; the result carries the restored records' `auto_update_behavior` values.
 
 `backend/state.lua`
 
 - `list() -> records: LockedAppRecord[]?, err: string?`  
-  return every locked-app record; while a data root migration runs, return an error instead of records.
+  Return every locked-app record; while a data root migration runs, return an error instead of records.
 - `read(appid: AppId) -> record: LockedAppRecord?, err: string?`  
-  read one record.
+  Read one record.
 - `write(record: LockedAppRecord) -> ok: boolean, err: string?`  
-  add or update one record.
+  Add or update one record.
 - `remove(appid: AppId) -> void`  
-  drop one record.
+  Drop one record.
 - `path(appid: AppId) -> path: string`  
-  return one record's file path.
+  Return one record's file path.
 - `valid(record: table) -> ok: boolean`  
-  internal/test interface; report whether a decoded value is a valid `version` `1` lock record.
+  Internal/test interface; report whether a decoded value is a valid `version` `1` lock record.
 - `set_migrating(flag: boolean) -> void`  
-  internal/test interface; set the migration guard that makes `list` and `read` return an error and `write` and `remove` no-op.
+  Internal/test interface; set the migration guard that makes `list` and `read` return an error and `write` and `remove` no-op.
 
 `backend/paths.lua`
 
 - `resolve() -> DataRoots`  
-  resolve the data root directory.
+  Resolve the data root directory.
 - `defaults() -> DataRoots`  
-  return the OS-conventional data root directory.
+  Return the OS-conventional data root directory.
 - `validate(path: string) -> ok: boolean, err: string?`  
-  validate a candidate data root path.
+  Validate a candidate data root path.
 - `find_appmanifest(appid: AppId) -> path: string?, err: string?, code: string?`  
-  locate the appmanifest across the libraries, accepting both the object-style and the legacy string-style entries of `libraryfolders.vdf`.
+  Locate the appmanifest across the libraries, accepting both the object-style and the legacy string-style entries of `libraryfolders.vdf`.
 - `resolve_manifest(appid: AppId, cached: string) -> path: string?, err: string?, code: string?`  
-  validate the cached path, fall back to discovery, and return the resolved path.
+  Validate the cached path, fall back to discovery, and return the resolved path.
 
 `backend/migrate.lua`
 
 - `move(from: string, to: string) -> MigrateResult`  
-  migrate the lock data to a new root directory; a failure to delete the old `locks/` after the new root path is persisted is reported in the result's `warning`.
+  Migrate the lock data to a new root directory; a failure to delete the old `locks/` after the new root path is persisted is reported in the result's `warning`.
 
 `backend/clock.lua`
 
 - `is_24h() -> boolean?`  
-  read `b24HourClock` from the per-user `sharedconfig.vdf` under `MILLENNIUM__STEAM_PATH`, through the `UserRoamingConfigStore` path and the `UserLocalConfigStore` fallback, and return `nil` when the file or the value is absent.
+  Read `b24HourClock` from the per-user `sharedconfig.vdf` under `MILLENNIUM__STEAM_PATH`, through the `UserRoamingConfigStore` path and the `UserLocalConfigStore` fallback, and return `nil` when the file or the value is absent.
 
 ### Frontend Functions
 
 `frontend/errors.ts`
 
 - `format_error(error: unknown): string`  
-  normalize an `Error`, string, object, or empty value into the text shown in both the failure dialog and its log record.
+  Normalize an `Error`, string, object, or empty value into the text shown in both the failure dialog and its log record.
 
 `frontend/locked.ts`
 
 - `is_locked(appid: AppId): boolean`  
-  report whether an app id is in the local locked set.
+  Report whether an app id is in the local locked set.
 - `subscribe_locked(listener: () => void): () => void`  
-  subscribe to locked-set changes and return an unsubscribe function.
+  Subscribe to locked-set changes and return an unsubscribe function.
 - `as_record_list(value: unknown): LockedAppRecord[] | null`  
-  normalize a decoded backend response: an array stays, a keyless object without `ok` becomes an empty list, and anything else becomes `null` so a caller can tell an error envelope from an empty result.
+  Normalize a decoded backend response: an array stays, a keyless object without `ok` becomes an empty list, and anything else becomes `null` so a caller can tell an error envelope from an empty result.
 - `sync_locked_ids(records: unknown): void`  
-  replace the local locked set from a record list.
+  Replace the local locked set from a record list.
 - `refresh_locked_ids(force = false): Promise<void>`  
-  reload the local locked set from the backend within a cache TTL.
+  Reload the local locked set from the backend within a cache TTL.
 - `mark_locked(appid: AppId): void`  
-  add an app id to the local locked set and notify subscribers.
+  Add an app id to the local locked set and notify subscribers.
 - `mark_unlocked(appid: AppId): void`  
-  remove an app id from the local locked set and notify subscribers.
+  Remove an app id from the local locked set and notify subscribers.
 
 `frontend/console.ts`
 
 - `capture_build_info(appid: AppId): Promise<CaptureResult>`  
-  run `app_info_print` and sample the spew until the app block appears, then return the raw dump; a sample without the `depots` table is not a candidate, and a capture that never sees the app block fails.
+  Run `app_info_print` and sample the spew until the app block appears, then return the raw dump; a sample without the `depots` table is not a candidate, and a capture that never sees the app block fails.
 - `capture_build_info_set(appid: AppId): Promise<CaptureSet>`  
-  capture the base app, call the backend's `get_required_apps`, capture each returned app in turn, and return the dumps keyed by app id; the required list is an array, or the keyless object the backend's `cjson` encoder produces for an empty list, and any other value is an invalid response; a failed capture fails the set, and a set that exceeds the set time limit fails.
+  Capture the base app, call the backend's `get_required_apps`, capture each returned app in turn, and return the dumps keyed by app id; the required list is an array, or the keyless object the backend's `cjson` encoder produces for an empty list, and any other value is an invalid response; a failed capture fails the set, and a set that exceeds the set time limit fails.
 - `capture_then_refresh(appid: AppId): Promise<void>`  
-  call `capture_build_info_set` and, on success, pass the dumps to `refresh_app`; the background-refresh entry point.
+  Call `capture_build_info_set` and, on success, pass the dumps to `refresh_app`; the background-refresh entry point.
 
 `frontend/notify.tsx`
 
 - `show_failure_dialog(title: string, message: string, parent?: EventTarget): void`  
-  open the native failure modal, or replace the open one, with the message and a `Copy error` control; `parent` is the window the modal renders in, and an absent `parent` defaults to the current `window` so `showModal` never falls back to `findSP`.
+  Open the native failure modal, or replace the open one, with the message and a `Copy error` control; `parent` is the window the modal renders in, and an absent `parent` defaults to the current `window` so `showModal` never falls back to `findSP`.
 - `show_text_dialog(title: string, message: string, parent?: EventTarget, note?: string): void`  
-  open the file-content modal the same way; when `note` is present, render it as a small line above the text box, and `Copy` copies the text box alone.
+  Open the file-content modal the same way; when `note` is present, render it as a small line above the text box, and `Copy` copies the text box alone.
 - `report_failure(title: string, message: string, parent?: EventTarget): void`  
-  record the message at `error` and open the failure modal.
+  Record the message at `error` and open the failure modal.
 - `report_warning(message: string, title?: string): void`  
-  record the message at `warn` and show a toast.
+  Record the message at `warn` and show a toast.
 - `report_success(message: string, title?: string): void`  
-  show a transient success toast without a log record; a failed toast never changes the operation's result.
+  Show a transient success toast without a log record; a failed toast never changes the operation's result.
 
 `frontend/watch.ts`
 
 - `watch_app(appid: AppId): void`  
-  start watching one locked app and reapplying its spoof on a Steam write.
+  Start watching one locked app and reapplying its spoof on a Steam write.
 - `unwatch_app(appid: AppId): void`  
-  stop watching one app.
+  Stop watching one app.
 - `sync_watches(): Promise<void>`  
-  read every persisted lock record, start watching each app, and ensure the global handlers and backstop timer run; retry a failed or non-array `list_locked` read a bounded number of times, with the retry count and interval undecided (their home is constants in `frontend/watch.ts`; the current working values are 5 attempts and 1 second).
+  Read every persisted lock record, start watching each app, and ensure the global handlers and backstop timer run; retry a failed or non-array `list_locked` read a bounded number of times, with the retry count and interval undecided (their home is constants in `frontend/watch.ts`; the current working values are 5 attempts and 1 second).
 - `reapply_all(): Promise<void>`  
-  reapply every watched app's spoof and ensure the global handlers and backstop timer are running.
+  Reapply every watched app's spoof and ensure the global handlers and backstop timer are running.
 - `refresh_all(): Promise<void>`  
-  capture the base app and its required DLC apps for every watched app, pass each set of dumps to `refresh_app`, and ensure the global handlers and backstop timer are running; a capture that fails falls back to `reapply`. The backstop timer calls it.
+  Capture the base app and its required DLC apps for every watched app, pass each set of dumps to `refresh_app`, and ensure the global handlers and backstop timer are running; a capture that fails falls back to `reapply`. The backstop timer calls it.
 - `unwatch_all(): void`  
-  stop watching every app, unregister the handlers that expose `unregister`, neutralize the overview callback by clearing the watch set, and stop the backstop timer.
+  Stop watching every app, unregister the handlers that expose `unregister`, neutralize the overview callback by clearing the watch set, and stop the backstop timer.
 - `read_auto_update_behavior(appid: AppId): number | undefined`  
-  read the app's current `EAppAutoUpdateBehavior` from the app details store (`window.appDetailsStore.GetAppDetails`), with `GetAppData(...).details` and the app overview store as fallbacks.
+  Read the app's current `EAppAutoUpdateBehavior` from the app details store (`window.appDetailsStore.GetAppDetails`), with `GetAppData(...).details` and the app overview store as fallbacks.
 - `apply_auto_update_behavior(appid: AppId, behavior: number): boolean`  
-  write one auto-update behavior through `SetAppAutoUpdateBehavior` and report whether the write succeeded.
+  Write one auto-update behavior through `SetAppAutoUpdateBehavior` and report whether the write succeeded.
 - `app_name(appid: AppId, fallback?: string): string`  
-  return the app's `display_name` from the app store, otherwise a non-empty `fallback`, otherwise `app <appid>`; the settings panel passes the lock record's `name` as the fallback.
+  Return the app's `display_name` from the app store, otherwise a non-empty `fallback`, otherwise `app <appid>`; the settings panel passes the lock record's `name` as the fallback.
 - `unwatch_then_unlock(appid: AppId): Promise<UnlockResult>`  
-  stop watching the app, call `unlock_app`, re-watch the app when the call fails, restore the returned `auto_update_behavior`, and set the result's `auto_update_restored` from the restore outcome.
+  Stop watching the app, call `unlock_app`, re-watch the app when the call fails, restore the returned `auto_update_behavior`, and set the result's `auto_update_restored` from the restore outcome.
 - `unwatch_all_then_restore(appids: AppId[]): Promise<RestoreResult>`  
-  stop watching every app, call `restore_all`, re-watch the records the result lists under `failed` (or every given app when the call fails), restore the returned `auto_update` behaviors, and record the failed app ids in the result's `auto_update_failed`.
+  Stop watching every app, call `restore_all`, re-watch the records the result lists under `failed` (or every given app when the call fails), restore the returned `auto_update` behaviors, and record the failed app ids in the result's `auto_update_failed`.
 
 `frontend/actions.ts`
 
 - `lock_app(appid: AppId, parent?: EventTarget): Promise<void>`  
-  capture the build info set, read the current auto-update behavior, call the backend's `lock_app` with the dumps, set the behavior to `Launch`, start watching the app, and show a success toast; a failed behavior write rolls the lock back without a success toast, and `parent` is the modal window for its failure dialog.
+  Capture the build info set, read the current auto-update behavior, call the backend's `lock_app` with the dumps, set the behavior to `Launch`, start watching the app, and show a success toast; a failed behavior write rolls the lock back without a success toast, and `parent` is the modal window for its failure dialog.
 - `refresh_app(appid: AppId, parent?: EventTarget): Promise<void>`  
-  capture the build info set, call the backend's `refresh_app` with the dumps, mark the app locked again on success so a subscribing UI reloads its record, and show a success toast.
+  Capture the build info set, call the backend's `refresh_app` with the dumps, mark the app locked again on success so a subscribing UI reloads its record, and show a success toast.
 - `unlock_app(appid: AppId, parent?: EventTarget): Promise<void>`  
-  stop watching the app, call `unlock_app`, clear the local locked mark on success, and show a success toast unless the auto-update restore failed and only the warning toast shows.
+  Stop watching the app, call `unlock_app`, clear the local locked mark on success, and show a success toast unless the auto-update restore failed and only the warning toast shows.
 
 `frontend/properties.tsx`
 
 - `install_properties_patch(): () => void`  
-  install the App Properties hook and return a disposer; a missing `AddWindowCreateHook` or a changed dialog shape makes the tab a no-op.
+  Install the App Properties hook and return a disposer; a missing `AddWindowCreateHook` or a changed dialog shape makes the tab a no-op.
 - `VerlockTabContent({ appid }): JSX.Element`  
-  the tab content: the app's lock record, status, locked build, and actions.
+  The tab content: the app's lock record, status, locked build, and actions.
 - `format_time(value: number | undefined, format: ClockFormat): string | null`  
-  internal/test interface; render a Unix timestamp through `format_client_time`, or `null` when it is absent, so the tab chooses between `N/A` and `Not yet`.
+  Internal/test interface; render a Unix timestamp through `format_client_time`, or `null` when it is absent, so the tab chooses between `N/A` and `Not yet`.
 - `format_lock_text(content: string): string`  
-  internal/test interface; pretty-print a lock record's JSON at two spaces of indentation in the record's schema order, with the known top-level fields (`version`, `appid`, `name`, `manifest_path`, `locked_at`, `refreshed_at`, `auto_update_behavior`, `locked_build`, `original`) first and the `locked_build` fields (`buildid`, `depots`) ordered the same way, and any unknown field appended in key order; return the text unchanged when it does not parse as a JSON object or parses as an array.
+  Internal/test interface; pretty-print a lock record's JSON at two spaces of indentation in the record's schema order, with the known top-level fields (`version`, `appid`, `name`, `manifest_path`, `locked_at`, `refreshed_at`, `auto_update_behavior`, `locked_build`, `original`) first and the `locked_build` fields (`buildid`, `depots`) ordered the same way, and any unknown field appended in key order; return the text unchanged when it does not parse as a JSON object or parses as an array.
 - `behavior_label(value: number | undefined): string`  
-  internal/test interface; name an `EAppAutoUpdateBehavior` value.
+  Internal/test interface; name an `EAppAutoUpdateBehavior` value.
 - `find_record(records: LockedAppRecord[] | null, appid: AppId): LockedAppRecord | null`  
-  internal/test interface; select the record for one app id.
+  Internal/test interface; select the record for one app id.
 
 `frontend/gamepage.tsx`
 
 - `install_gamepage_patch(): () => void`  
-  resolve the main window document, watch it for game pages, and return a disposer that stops the watcher and removes the badge.
+  Resolve the main window document, watch it for game pages, and return a disposer that stops the watcher and removes the badge.
 - `LockBadge({ appid, style }): ReactNode`  
-  the game page badge: subscribe to the locked set and the clock format, read the record's refresh time, and render the lock icon, the `Last refreshed` label, and the refresh time, or nothing while the app is not locked.
+  The game page badge: subscribe to the locked set and the clock format, read the record's refresh time, and render the lock icon, the `Last refreshed` label, and the refresh time, or nothing while the app is not locked.
 - `appid_from_path(path: string): AppId | undefined`  
-  internal/test interface; read the app id from a `/app/<appid>` path.
+  Internal/test interface; read the app id from a `/app/<appid>` path.
 - `appid_from_image_src(src: string): AppId | undefined`  
-  internal/test interface; read the app id from a `library_hero` image URL.
+  Internal/test interface; read the app id from a `library_hero` image URL.
 - `merge_style(sampled: Partial<BadgeStyle> | null, fallback: BadgeStyle): BadgeStyle`  
-  internal/test interface; merge a sampled style over the fallback field by field.
+  Internal/test interface; merge a sampled style over the fallback field by field.
 
 `frontend/time.ts`
 
 - `install_clock_format(): void`  
-  read `SteamClient.Settings.GetCurrentLanguage` and register the `SteamClient.FriendSettings` clock callback once.
+  Read `SteamClient.Settings.GetCurrentLanguage` and register the `SteamClient.FriendSettings` clock callback once.
 - `subscribe_clock_format(listener: () => void): () => void`  
-  subscribe to clock-format changes and return an unsubscribe function.
+  Subscribe to clock-format changes and return an unsubscribe function.
 - `current_clock_format(): ClockFormat`  
-  internal/test interface; the current language and 24-hour clock inputs.
+  Internal/test interface; the current language and 24-hour clock inputs.
 - `format_client_time(value: number | undefined, format: ClockFormat, options?: ClientTimeOptions, now?: Date): string | undefined`  
-  internal/test interface; render a Unix timestamp as the client language's short date and time, include the year unless `current_year_short` omits it for the current year, or return `undefined` when the value is absent or non-positive; `now` is a test seam for the current-year check.
+  Internal/test interface; render a Unix timestamp as the client language's short date and time, include the year unless `current_year_short` omits it for the current year, or return `undefined` when the value is absent or non-positive; `now` is a test seam for the current-year check.
 
 ## Risks
 
-- `SteamClient.Console` is an undocumented client API, and a Steam client update can change or remove it — prevention: console access is confined to `frontend/console.ts`, and a missing console method returns a runtime `CaptureResult` error before any lock record is written.
-- The client's cached PICS can lag the server, so the lock mirrors a build the client has not yet replaced — prevention: the lock's effect is defined against the client's own cache, the same source the client compares against, and the backstop refresh plus the client's own PICS refresh bound the lag.
-- The client's PICS cache can lack the app block, so the capture never sees it — prevention: the capture fails with an error and the frontend aborts without locking, and a later Refresh retries.
-- The base app's PICS can omit an installed DLC depot, so a spoof built from the base dump alone leaves that depot at its stale manifest and Steam queues a manifest download — prevention: `get_required_apps` names the owning apps, the frontend captures each one, and the backend merges the depot maps before it writes.
-- A capture set grows with the installed DLC count and can exceed the time budget — prevention: the set time limit aborts the capture, and the frontend aborts without calling `lock_app` or `refresh_app`.
-- The spoof can inject a PICS-only depot into `InstalledDepots`, so Steam treats an uninstalled depot as installed — prevention: the appmanifest write overwrites only a depot the appmanifest already lists, and the record keeps only the installed depots.
-- The requested branch can differ from the branch the captured dump carries, so the parser reads the wrong `buildid` or depot manifests — prevention: the branch comes from the appmanifest's `BetaKey` and defaults to `public`, and the parser falls back to `public` branch data when the requested branch is absent.
-- A launch or update action can begin between Steam's rewrite of the appmanifest and the reapply, so an update can still start — prevention: an update action interception cancels the action, reapplies, and re-issues the launch, a launch action passes through only after an opportunistic reapply, and the backstop interval bounds how long a lost spoof survives.
-- An in-flight reapply can race `Unlock` or `Restore All` and rewrite an appmanifest for a record that was just removed — prevention: reapply re-reads the record before it writes and aborts when the record is gone, and per-app write operations are serialized.
-- The captured console spew can be truncated or interleaved with unrelated output, so the dump fails to parse — prevention: `buildinfo.clean` extracts the numeric-keyed app block, strict validation rejects a malformed dump before any value reaches the appmanifest, and a failed capture aborts the operation.
-- The app's original auto-update value can be unreadable, so the feature would lose the ability to restore it — prevention: a failed read aborts the lock before any record or appmanifest change, so the stored value is never missing.
-- Restoring an app's auto-update behavior can fail after the lock record is deleted, so the setting stays at `Launch` with no record to retry from — prevention: the restore is best-effort; `Unlock` and `Restore All` do not roll back a deleted record. The settings panel surfaces the failure through the unlock result's `auto_update_restored` and the restore result's `auto_update_failed`; the library context menu's `Unlock` keeps the `Launch` setting without a warning.
-- The app event APIs are undocumented client internals and can change across client versions, so a missed event leaves only the backstop interval — prevention: the resume hook, the settings panel, and the library context menu each reapply opportunistically.
-- Cancelling a game action and pausing an update are reported unreliable — prevention: the handler reapplies and lets the action proceed when the cancel fails, so the lock degrades instead of blocking the user.
-- An update can be carried out inside a launch action's download tasks rather than as a separate update action, so the launch pass-through does not cancel it — prevention: the appmanifest spoof makes the client see no update, and the watch and backstop reapply it, so a download task is reached only while the spoof is stale, which the next reapply corrects.
-- A spoofed manifest can fail the game's own file check and trigger a re-download — no preventive measure currently exists; Unlock restores the original appmanifest.
-- Online play, anti-cheat, and DRM protection can reject a build whose files do not match the spoofed manifest, so the game refuses to launch or connect, or bans the account, and a P2P multiplayer game can verify version consistency and refuse to play together — no preventive measure currently exists; the feature documents the limitation.
-- A third-party launcher can update or repair an app's content independently of Steam, so the pinned build is not held and the files no longer match the spoofed manifest — no preventive measure currently exists; the feature documents the limitation.
-- Multiple library folders and the Windows/Linux path separator difference complicate app discovery — prevention: discovery unions `steamapps/libraryfolders.vdf`, `config/libraryfolders.vdf`, and the Steam root directory, and the cached `manifest_path` is re-resolved when it goes stale.
-- A concurrent Steam write can race the plugin's appmanifest write — prevention: the backend writes through a temporary file and renames it into place, and per-app write operations are serialized.
-- A data root directory migration can fail across filesystems, hit a permission error, or be interrupted — prevention: the migration copies and verifies before it persists the new path and keeps the old root directory until the new one verifies.
-- A path that contains spaces or non-ASCII characters, or a data root directory on a removable drive, can break path handling — prevention: `paths.validate` rejects a data root path that is not absolute, creatable, or writable, or that is equal to or nests with the current data root directory, and discovery re-resolves a path that is gone.
-- The host's `showModal` throws when it can fall back to `findSP`, which the Properties popup cannot satisfy — prevention: `frontend/notify.tsx` defaults the modal `parent` to the current window, and the Properties tab passes the popup window, so `showModal` skips the `findSP` fallback.
-- `window.appStore.GetAppOverviewByAppID` and the state flags it reflects are undocumented client internals, so the installed check in the settings panel can be unavailable or wrong — prevention: the panel treats a missing overview or a missing field as not installed, so the record still offers `Unlock`.
-- The app Properties window is an undocumented client internal, so a client update can move its tab list or content area and drop or misplace the tab — prevention: the injection lives in `frontend/properties.tsx`, the active-tab class is derived at runtime, the content area is found relative to the `role='tablist'` and `general_Content` anchors, and a missing anchor or `AddWindowCreateHook` makes the tab a no-op.
-- The library game page is an undocumented client internal, so a client update can move its play bar, rename the `PLAY TIME` cell's class, or change the hero image URL and make the badge find no anchor or the wrong app id — prevention: the app id comes from the pathname, the hero image, a `data-appid` element, a Steam link, or an app image URL in turn, the `PLAY TIME` cell comes from a recorded class selector, a text match, and a `Panel`-display selector in turn, the label, value, and icon styles are sampled at run time over recorded fallbacks, and a missing anchor logs a warning once and leaves the page unchanged.
-- The badge sets the play bar's inline `flex-wrap` to `nowrap` while it is mounted, so a client update that relies on wrapping the play bar can push the row's cells off the page — prevention: the badge saves the container's inline `flex-wrap` on mount and restores it on unmount.
-- The running client exposes the 24-hour clock setting through no API, so the backend reads `b24HourClock` from the per-user `sharedconfig.vdf`, whose path and `FriendsUIJSON` shape are an undocumented client internal — prevention: `backend/clock.lua` tries the `UserRoamingConfigStore` path and the `UserLocalConfigStore` fallback and returns `nil` when the file or the value is absent.
-- `SteamClient.Settings.GetCurrentLanguage` resolves asynchronously, so the first render can use the language's default hours and the fallback `en` — prevention: the clock format starts at `{ locale: "en", hour12: undefined }`, and the `SteamClient.FriendSettings` and `SteamClient.Settings` change callbacks stay a best-effort live source that re-renders the badge.
-- The native icon's tint can live in a `fill` or `stroke` value the svg's computed `color` does not carry, so the badge icon can keep the fallback tint and read brighter than its neighbors — prevention: the badge samples the icon svg's computed `color` and `opacity`, falls back to the label's color and the recorded constants, and a mismatched sample only changes the icon's tint.
-- The play bar can render a cell, such as `ACHIEVEMENTS`, after the badge mounts, which would leave the badge before that cell — prevention: on every watch pass, `frontend/gamepage.tsx` checks whether the badge is the last cell of the play bar and moves it back to the end when it is not.
-- The feature has no uninstall hook, so removing the plugin leaves the lock records in place and stops the reapply — prevention: `Restore All` restores every record's `original` appmanifest and deletes each record after its appmanifest write succeeds, so running it before uninstalling the plugin deletes every successfully restored record, and a record whose write-back fails stays in place for a retry; uninstalling before running it leaves the lock records in place and stops the reapply.
-- Deleting a record without restoring it leaves an app locked with no restore basis — prevention: `Restore All` deletes a record only after its appmanifest write succeeds, and `Unlock` removes a record whose app is no longer installed only when discovery runs and finds no appmanifest.
+- `SteamClient.Console` is an undocumented client API, and a Steam client update can change or remove it  
+  Prevention: console access is confined to `frontend/console.ts`, and a missing console method returns a runtime `CaptureResult` error before any lock record is written.
+- The client's cached PICS can lag the server, so the lock mirrors a build the client has not yet replaced  
+  Prevention: the lock's effect is defined against the client's own cache, the same source the client compares against, and the backstop refresh plus the client's own PICS refresh bound the lag.
+- The client's PICS cache can lack the app block, so the capture never sees it  
+  Prevention: the capture fails with an error and the frontend aborts without locking, and a later Refresh retries.
+- The base app's PICS can omit an installed DLC depot, so a spoof built from the base dump alone leaves that depot at its stale manifest and Steam queues a manifest download  
+  Prevention: `get_required_apps` names the owning apps, the frontend captures each one, and the backend merges the depot maps before it writes.
+- A capture set grows with the installed DLC count and can exceed the time budget  
+  Prevention: the set time limit aborts the capture, and the frontend aborts without calling `lock_app` or `refresh_app`.
+- The spoof can inject a PICS-only depot into `InstalledDepots`, so Steam treats an uninstalled depot as installed  
+  Prevention: the appmanifest write overwrites only a depot the appmanifest already lists, and the record keeps only the installed depots.
+- The requested branch can differ from the branch the captured dump carries, so the parser reads the wrong `buildid` or depot manifests  
+  Prevention: the branch comes from the appmanifest's `BetaKey` and defaults to `public`, and the parser falls back to `public` branch data when the requested branch is absent.
+- A launch or update action can begin between Steam's rewrite of the appmanifest and the reapply, so an update can still start  
+  Prevention: an update action interception cancels the action, reapplies, and re-issues the launch, a launch action passes through only after an opportunistic reapply, and the backstop interval bounds how long a lost spoof survives.
+- An in-flight reapply can race `Unlock` or `Restore All` and rewrite an appmanifest for a record that was just removed  
+  Prevention: reapply re-reads the record before it writes and aborts when the record is gone, and per-app write operations are serialized.
+- The captured console spew can be truncated or interleaved with unrelated output, so the dump fails to parse  
+  Prevention: `buildinfo.clean` extracts the numeric-keyed app block, strict validation rejects a malformed dump before any value reaches the appmanifest, and a failed capture aborts the operation.
+- The app's original auto-update value can be unreadable, so the feature would lose the ability to restore it  
+  Prevention: a failed read aborts the lock before any record or appmanifest change, so the stored value is never missing.
+- Restoring an app's auto-update behavior can fail after the lock record is deleted, so the setting stays at `Launch` with no record to retry from  
+  Prevention: the restore is best-effort; `Unlock` and `Restore All` do not roll back a deleted record. The settings panel surfaces the failure through the unlock result's `auto_update_restored` and the restore result's `auto_update_failed`; the library context menu's `Unlock` keeps the `Launch` setting without a warning.
+- The app event APIs are undocumented client internals and can change across client versions, so a missed event leaves only the backstop interval  
+  Prevention: the resume hook, the settings panel, and the library context menu each reapply opportunistically.
+- Cancelling a game action and pausing an update are reported unreliable  
+  Prevention: the handler reapplies and lets the action proceed when the cancel fails, so the lock degrades instead of blocking the user.
+- An update can be carried out inside a launch action's download tasks rather than as a separate update action, so the launch pass-through does not cancel it  
+  Prevention: the appmanifest spoof makes the client see no update, and the watch and backstop reapply it, so a download task is reached only while the spoof is stale, which the next reapply corrects.
+- A spoofed manifest can fail the game's own file check and trigger a re-download  
+  No preventive measure currently exists; Unlock restores the original appmanifest.
+- Online play, anti-cheat, and DRM protection can reject a build whose files do not match the spoofed manifest, so the game refuses to launch or connect, or bans the account, and a P2P multiplayer game can verify version consistency and refuse to play together  
+  No preventive measure currently exists; the feature documents the limitation.
+- A third-party launcher can update or repair an app's content independently of Steam, so the pinned build is not held and the files no longer match the spoofed manifest  
+  No preventive measure currently exists; the feature documents the limitation.
+- Multiple library folders and the Windows/Linux path separator difference complicate app discovery  
+  Prevention: discovery unions `steamapps/libraryfolders.vdf`, `config/libraryfolders.vdf`, and the Steam root directory, and the cached `manifest_path` is re-resolved when it goes stale.
+- A concurrent Steam write can race the plugin's appmanifest write  
+  Prevention: the backend writes through a temporary file and renames it into place, and per-app write operations are serialized.
+- A data root directory migration can fail across filesystems, hit a permission error, or be interrupted  
+  Prevention: the migration copies and verifies before it persists the new path and keeps the old root directory until the new one verifies.
+- A path that contains spaces or non-ASCII characters, or a data root directory on a removable drive, can break path handling  
+  Prevention: `paths.validate` rejects a data root path that is not absolute, creatable, or writable, or that is equal to or nests with the current data root directory, and discovery re-resolves a path that is gone.
+- The host's `showModal` throws when it can fall back to `findSP`, which the Properties popup cannot satisfy  
+  Prevention: `frontend/notify.tsx` defaults the modal `parent` to the current window, and the Properties tab passes the popup window, so `showModal` skips the `findSP` fallback.
+- `window.appStore.GetAppOverviewByAppID` and the state flags it reflects are undocumented client internals, so the installed check in the settings panel can be unavailable or wrong  
+  Prevention: the panel treats a missing overview or a missing field as not installed, so the record still offers `Unlock`.
+- The app Properties window is an undocumented client internal, so a client update can move its tab list or content area and drop or misplace the tab  
+  Prevention: the injection lives in `frontend/properties.tsx`, the active-tab class is derived at runtime, the content area is found relative to the `role='tablist'` and `general_Content` anchors, and a missing anchor or `AddWindowCreateHook` makes the tab a no-op.
+- The library game page is an undocumented client internal, so a client update can move its play bar, rename the `PLAY TIME` cell's class, or change the hero image URL and make the badge find no anchor or the wrong app id  
+  Prevention: the app id comes from the pathname, the hero image, a `data-appid` element, a Steam link, or an app image URL in turn, the `PLAY TIME` cell comes from a recorded class selector, a text match, and a `Panel`-display selector in turn, the label, value, and icon styles are sampled at run time over recorded fallbacks, and a missing anchor logs a warning once and leaves the page unchanged.
+- The badge sets the play bar's inline `flex-wrap` to `nowrap` while it is mounted, so a client update that relies on wrapping the play bar can push the row's cells off the page  
+  Prevention: the badge saves the container's inline `flex-wrap` on mount and restores it on unmount.
+- The running client exposes the 24-hour clock setting through no API, so the backend reads `b24HourClock` from the per-user `sharedconfig.vdf`, whose path and `FriendsUIJSON` shape are an undocumented client internal  
+  Prevention: `backend/clock.lua` tries the `UserRoamingConfigStore` path and the `UserLocalConfigStore` fallback and returns `nil` when the file or the value is absent.
+- `SteamClient.Settings.GetCurrentLanguage` resolves asynchronously, so the first render can use the language's default hours and the fallback `en`  
+  Prevention: the clock format starts at `{ locale: "en", hour12: undefined }`, and the `SteamClient.FriendSettings` and `SteamClient.Settings` change callbacks stay a best-effort live source that re-renders the badge.
+- The native icon's tint can live in a `fill` or `stroke` value the svg's computed `color` does not carry, so the badge icon can keep the fallback tint and read brighter than its neighbors  
+  Prevention: the badge samples the icon svg's computed `color` and `opacity`, falls back to the label's color and the recorded constants, and a mismatched sample only changes the icon's tint.
+- The play bar can render a cell, such as `ACHIEVEMENTS`, after the badge mounts, which would leave the badge before that cell  
+  Prevention: on every watch pass, `frontend/gamepage.tsx` checks whether the badge is the last cell of the play bar and moves it back to the end when it is not.
+- The feature has no uninstall hook, so removing the plugin leaves the lock records in place and stops the reapply  
+  Prevention: `Restore All` restores every record's `original` appmanifest and deletes each record after its appmanifest write succeeds, so running it before uninstalling the plugin deletes every successfully restored record, and a record whose write-back fails stays in place for a retry; uninstalling before running it leaves the lock records in place and stops the reapply.
+- Deleting a record without restoring it leaves an app locked with no restore basis  
+  Prevention: `Restore All` deletes a record only after its appmanifest write succeeds, and `Unlock` removes a record whose app is no longer installed only when discovery runs and finds no appmanifest.
 
 ## Alternatives Considered
 
 - **SteamOS Game Mode support**  
-  excluded: Millennium does not officially support SteamOS installation, the SteamOS Game Mode Quick Access Menu (QAM) is a separate window with limited injection, and coexistence with Decky Loader is unsupported; [Scope](#scope) excludes SteamOS.
+  Excluded: Millennium does not officially support SteamOS installation, the SteamOS Game Mode Quick Access Menu (QAM) is a separate window with limited injection, and coexistence with Decky Loader is unsupported; [Scope](#scope) excludes SteamOS.
 - **Big Picture Mode support**  
-  excluded: it renders the Gamepad UI, Steam's controller-oriented big-picture surface, whose game pages and Gamepad-driven navigation this feature's desktop client UI is not built against. The project did not build a second Gamepad UI surface, and Millennium injects only into the outer window of that UI ([Millennium theme file structure](https://docs.steambrew.app/themes/basics/structure) records the Big Picture window's `bigpicture.custom.css`).
+  Excluded: it renders the Gamepad UI, Steam's controller-oriented big-picture surface, whose game pages and Gamepad-driven navigation this feature's desktop client UI is not built against. The project did not build a second Gamepad UI surface, and Millennium injects only into the outer window of that UI ([Millennium theme file structure](https://docs.steambrew.app/themes/basics/structure) records the Big Picture window's `bigpicture.custom.css`).
 - **macOS support**  
-  excluded: Millennium marks macOS experimental through its wrapper app installation, and the platform rule admits only officially supported platforms.
+  Excluded: Millennium marks macOS experimental through its wrapper app installation, and the platform rule admits only officially supported platforms.
 - **Downgrade support**  
-  deferred: `download_depot` can fetch an older manifest, but Valve's manifest request-code gate makes deep history unreliable, and the flow requires a manifest picker and a full depot copy.
+  Deferred: `download_depot` can fetch an older manifest, but Valve's manifest request-code gate makes deep history unreliable, and the flow requires a manifest picker and a full depot copy.
 - **Central `locked.json` instead of per-app `.lock`**  
-  rejected: one file corrupts more easily under partial writes and concurrency, and it complicates migration; per-app files are atomic and independently recoverable.
+  Rejected: one file corrupts more easily under partial writes and concurrency, and it complicates migration; per-app files are atomic and independently recoverable.
 - **A separate `appmanifest_<appid>.acf` backup instead of embedding `original`**  
-  rejected: it overlaps the record, adds migration and cleanup cost, and adds a missing-backup failure mode and a consistency-maintenance burden.
+  Rejected: it overlaps the record, adds migration and cleanup cost, and adds a missing-backup failure mode and a consistency-maintenance burden.
 - **Storing the lock records in Millennium's config API**  
-  rejected: the config API caps a plugin at 256 keys and 256 KB per value, and its uninstall prompt deletes settings, which would remove the restore basis.
+  Rejected: the config API caps a plugin at 256 keys and 256 KB per value, and its uninstall prompt deletes settings, which would remove the restore basis.
 - **A persisted build-info cache**  
-  storing the latest captured dump under a cache root directory with a freshness rule. Rejected: the cache adds a root-directory concept, a schema, and an existence/freshness/validity state for no user-visible benefit, and a stale entry can pin an old build; `app_info_print` reads the client's own cache cheaply, so the feature captures per operation and passes the dump in the operation payload instead.
+  Storing the latest captured dump under a cache root directory with a freshness rule. Rejected: the cache adds a root-directory concept, a schema, and an existence/freshness/validity state for no user-visible benefit, and a stale entry can pin an old build; `app_info_print` reads the client's own cache cheaply, so the feature captures per operation and passes the dump in the operation payload instead.
 - **Forcing `app_info_update` before a capture**  
-  rejected: `app_info_update` is asynchronous and lacks official documentation, and issuing it inside a capture window makes `app_info_print` print empty text until the refresh settles; the client's cached PICS is the same source the client compares against, so reading it without an update is sufficient and issues no server request.
+  Rejected: `app_info_update` is asynchronous and lacks official documentation, and issuing it inside a capture window makes `app_info_print` print empty text until the refresh settles; the client's cached PICS is the same source the client compares against, so reading it without an update is sufficient and issues no server request.
 - **A targeted `app_info_request` before `app_info_print`**  
-  rejected with the forced update: the request is asynchronous and undocumented, and the client's own PICS refresh already keeps the cache current enough for the spoof to match.
+  Rejected with the forced update: the request is asynchronous and undocumented, and the client's own PICS refresh already keeps the cache current enough for the spoof to match.
 - **Capturing every installed `dlcappid` instead of only the uncovered ones**  
-  rejected: the base PICS already covers the installed DLC depots of some apps, so the simple form captures apps the spoof does not need; `get_required_apps` returns the uncovered `dlcappid` values, and the difference is capture count, not correctness.
+  Rejected: the base PICS already covers the installed DLC depots of some apps, so the simple form captures apps the spoof does not need; `get_required_apps` returns the uncovered `dlcappid` values, and the difference is capture count, not correctness.
 - **Freezing the appmanifest with a read-only permission instead of reapplying**  
-  rejected: forcing read-only can break Steam's internal operations (on Windows a read-only file cannot be deleted or renamed, which can fail uninstall, moving the install folder, and verify/repair; this is not yet verified on a real machine), and edits to a Steam-owned file should stay within the necessary minimum; reapplying without touching file permissions keeps the appmanifest an ordinary, operable file in the Steam client's view and avoids the potential unreliability.
+  Rejected: forcing read-only can break Steam's internal operations (on Windows a read-only file cannot be deleted or renamed, which can fail uninstall, moving the install folder, and verify/repair; this is not yet verified on a real machine), and edits to a Steam-owned file should stay within the necessary minimum; reapplying without touching file permissions keeps the appmanifest an ordinary, operable file in the Steam client's view and avoids the potential unreliability.
 - **Opening the appmanifest and lock file with the OS default application**  
-  rejected: the platform opener's result is unreliable (on Linux `xdg-open` exits non-zero for a file whose extension carries no MIME association, and the Lua host may lack `utils.exec`), it pulls the user out of the Steam client into an external application, and the file's text is what the user needs; the in-client content dialog shows both files consistently and without an external dependency.
+  Rejected: the platform opener's result is unreliable (on Linux `xdg-open` exits non-zero for a file whose extension carries no MIME association, and the Lua host may lack `utils.exec`), it pulls the user out of the Steam client into an external application, and the file's text is what the user needs; the in-client content dialog shows both files consistently and without an external dependency.
 - **Cancelling and re-issuing a launch action**  
-  rejected: `SteamClient.Apps.RunGame` starts a new game action that fires `RegisterForGameActionStart` again, so cancelling every action makes the handler cancel the launch it just re-issued and the app never starts; the update interception alone cancels an action, and a launch passes through after an opportunistic reapply.
+  Rejected: `SteamClient.Apps.RunGame` starts a new game action that fires `RegisterForGameActionStart` again, so cancelling every action makes the handler cancel the launch it just re-issued and the app never starts; the update interception alone cancels an action, and a launch passes through after an opportunistic reapply.
 - **Re-issuing an update action through `ContinueGameAction`**  
-  rejected: the call would pass the original action name as the continuation token, which the SDK documents only with other tokens (`SkipShaders`, `skip`, `ShowDurationControl`) and whose `@remarks` ends in `todo:`, so the token's validity is unverified; the update interception re-issues the launch through `RunGame` instead.
+  Rejected: the call would pass the original action name as the continuation token, which the SDK documents only with other tokens (`SkipShaders`, `skip`, `ShowDurationControl`) and whose `@remarks` ends in `todo:`, so the token's validity is unverified; the update interception re-issues the launch through `RunGame` instead.
 - **Writing the lock record to disk in pretty-printed form**  
-  rejected: formatting serves the reader in the dialog, and keeping the stored record compact leaves the on-disk format and the `state` and `migrate` tests unchanged.
+  Rejected: formatting serves the reader in the dialog, and keeping the stored record compact leaves the on-disk format and the `state` and `migrate` tests unchanged.
 - **Showing the pretty text without a note**  
-  rejected: the pretty text differs from the file's on-disk bytes, so a silent reformat invites the reader to trust the display as the file's exact content.
+  Rejected: the pretty text differs from the file's on-disk bytes, so a silent reformat invites the reader to trust the display as the file's exact content.

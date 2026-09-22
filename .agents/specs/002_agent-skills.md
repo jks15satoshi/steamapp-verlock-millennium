@@ -58,20 +58,20 @@ A decision, or a contract shared across files, packages, or components, is recor
 ## Alternatives Considered
 
 - **A harness-native skills directory**  
-  rejected: `.agents/skills/` is the cross-client convention that a harness scans in addition to its native path, so one skill tree serves every supported harness.
+  Rejected: `.agents/skills/` is the cross-client convention that a harness scans in addition to its native path, so one skill tree serves every supported harness.
 - **Reusable guidance inside a spec**  
-  rejected: mixing guidance with decisions blurs the boundary a spec owns and grows the decision corpus; a skill keeps decisions and guidance distinct.
+  Rejected: mixing guidance with decisions blurs the boundary a spec owns and grows the decision corpus; a skill keeps decisions and guidance distinct.
 - **A separate spec for each piece of guidance**  
-  rejected: guidance is not a decision, and a spec per guidance item bloats the decision corpus and forces the full spec skeleton on advice.
+  Rejected: guidance is not a decision, and a spec per guidance item bloats the decision corpus and forces the full spec skeleton on advice.
 - **A dedicated docs directory instead of skills**  
-  rejected: a docs directory is loaded wholesale and carries no on-demand trigger; a skill's `description` selects it for the task at hand.
+  Rejected: a docs directory is loaded wholesale and carries no on-demand trigger; a skill's `description` selects it for the task at hand.
 - **Normative rules inside a skill**  
-  rejected: an obligation a spec owns stays in the spec; a skill that restates it drifts and creates a second authority.
+  Rejected: an obligation a spec owns stays in the spec; a skill that restates it drifts and creates a second authority.
 - **Vendoring an existing harness's skills**  
-  rejected: those skills encode that harness's own conventions and gates; this project borrows the mechanism, not the corpus.
+  Rejected: those skills encode that harness's own conventions and gates; this project borrows the mechanism, not the corpus.
 - **No skills mechanism**  
-  rejected: reusable guidance then has no home, and each agent re-derives it for every task.
+  Rejected: reusable guidance then has no home, and each agent re-derives it for every task.
 - **Project-local frontmatter rules instead of conformance**  
-  rejected: a second, partial copy of the format drifts from the specification and creates a competing authority; the project adopts the specification by reference instead.
+  Rejected: a second, partial copy of the format drifts from the specification and creates a competing authority; the project adopts the specification by reference instead.
 - **Following the latest specification with no anchor**  
-  rejected: the specification is unversioned, so an external edit would change the project's obligations without a spec change; pinning a commit keeps adoption a deliberate decision.
+  Rejected: the specification is unversioned, so an external edit would change the project's obligations without a spec change; pinning a commit keeps adoption a deliberate decision.

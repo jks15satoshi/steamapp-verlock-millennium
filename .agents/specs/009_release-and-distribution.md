@@ -65,14 +65,14 @@ This spec records the path so the later change treats it as a known decision rat
 ## Alternatives Considered
 
 - **A release from every push to `master`**  
-  rejected: a release is a versioned, user-facing artifact, so it needs a deliberate tag; a continuous release would decouple the artifact from a reviewed version.
+  Rejected: a release is a versioned, user-facing artifact, so it needs a deliberate tag; a continuous release would decouple the artifact from a reviewed version.
 - **Versioning from `package.json`**  
-  rejected: `millennium.toml` is the manifest starlight compiles into the plugin's metadata, so its `[plugin].version` is the version a user sees; `package.json` stays a mirror.
+  Rejected: `millennium.toml` is the manifest starlight compiles into the plugin's metadata, so its `[plugin].version` is the version a user sees; `package.json` stays a mirror.
 - **A signed release artifact**  
-  rejected: a signature verifies against the fixed `STARLIGHT_PUBLIC_KEY` in `starlight/src/verify.rs` and `src/engine/star_parser.cc`, so a signature from a maintainer-generated key fails verification and leaves the archive uninstallable; the release stays unsigned and the published SHA-256 carries integrity until the Millennium project supplies a signing key.
+  Rejected: a signature verifies against the fixed `STARLIGHT_PUBLIC_KEY` in `starlight/src/verify.rs` and `src/engine/star_parser.cc`, so a signature from a maintainer-generated key fails verification and leaves the archive uninstallable; the release stays unsigned and the published SHA-256 carries integrity until the Millennium project supplies a signing key.
 - **A hand-written release body**  
-  rejected: a hand-written body would restate the pull-request history and drift from it; the template fixes the sections while the generated changelog supplies the changes.
+  Rejected: a hand-written body would restate the pull-request history and drift from it; the template fixes the sections while the generated changelog supplies the changes.
 - **Running the checks inside the release workflow**  
-  rejected: a second copy of the format, lint, type, and test steps would drift from `verification.yml`; `workflow_call` reuses the one definition.
+  Rejected: a second copy of the format, lint, type, and test steps would drift from `verification.yml`; `workflow_call` reuses the one definition.
 - **Submitting to the plugin center in this change**  
-  rejected: the submission is a separate, audited pull request to another repository and needs the plugin-center-ready layout above; folding it into the release change mixes an external review with the release mechanics.
+  Rejected: the submission is a separate, audited pull request to another repository and needs the plugin-center-ready layout above; folding it into the release change mixes an external review with the release mechanics.
