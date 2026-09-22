@@ -72,7 +72,7 @@ Single tests:
 ## Opening a Pull Request
 
 - A bug-fix pull request references an issue. A non-trivial change also references the spec that owns it, or says why it is exempt.
-- The template asks for `Motivation` (with `Fixes #NN`, `Closes #NN`, `Resolves #NN`, `Related #NN`, or `Refs #NN`), `Changes`, and `Testing`.
+- The template asks for `Motivation` (with `Fixes #NN`, `Closes #NN`, `Resolves #NN`, `Related #NN`, or `Refs #NN`) and `Changes`; `Testing` is optional and carries only testing no automated gate can cover.
 - Keep the pull request a draft until the checks and the evidence are ready.
 - You may review and merge your own pull request.
 

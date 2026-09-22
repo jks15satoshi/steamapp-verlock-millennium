@@ -99,11 +99,11 @@ The repository's default labels classify an issue: a `Bug` carries `bug`, a `Fea
 
 A pull request title should be a commit header in the grammar of [Commit Messages](#commit-messages); the owner writes the English commit message at merge. A Git-generated merge header such as `Merge branch 'main'` is not a commit header.
 
-The body should follow the repository template, with three sections:
+The body should follow the repository template, with two required sections and one optional section:
 
 - `Motivation` states the problem and carries a closing reference (`Fixes #<issue>`, `Closes #<issue>`, or `Resolves #<issue>`) or an informational reference (`Related #<issue>` or `Refs #<issue>`).
 - `Changes` states the public-interface change and the behavior change, or `None`.
-- `Testing` lists each test method with its proof inside a `details` element.
+- `Testing` is optional; when present, it lists only the testing no automated gate (a check the repository runs mechanically) covers, such as the manual end-to-end testing [Spec 5](005_testing-strategy.md#test-layers) keeps outside those gates, with each method and its proof inside a `details` element.
 
 A bug-fix pull request should reference at least one issue in this repository; another pull request may omit the reference. A non-trivial change should reference the spec that owns it ([Spec 0](000_metaspec.md#when-to-create-a-spec)) or state why the change is exempt. A pull request should stay a draft until its checks and evidence are ready, and the maintainer should split independent changes into separate pull requests.
 

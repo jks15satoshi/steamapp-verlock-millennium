@@ -12,13 +12,13 @@
 
 ## Testing
 
-<!-- One entry per test method; keep the method visible and put its proof in the details. -->
+<!-- Optional. One entry per manual check no automated gate covers; delete this section when empty. -->
 
-- The test method and the behavior it covers.
+- The manual check and the behavior it covers.
 
   <details>
   <summary>Proof</summary>
 
-  <!-- Test output, screenshot, recording, or log. -->
+  <!-- Screenshot, recording, command output, or log. -->
 
   </details>
