@@ -184,17 +184,17 @@ The plugin adds three frontend files and changes the files below. The frontend e
 
 ## Risks
 
-- A backend failure that reaches the settings panel without a `code` shows its English `error` text  
+- A backend failure that reaches the settings panel without a `code` shows its English `error` text.  
   Prevention: the code set above covers every displayable failure, and [Spec 5](005_testing-strategy.md) owns a test that refuses a code absent from the catalogs.
-- A message key present in one catalog but not the other shows the English string through the fallback  
+- A message key present in one catalog but not the other shows the English string through the fallback.  
   Prevention: the parity test refuses a key that only one file carries.
-- A new frontend string that omits a `t(...)` call stays English  
+- A new frontend string that omits a `t(...)` call stays English.  
   Prevention: the `MessageKey` type catches a missing key only at a call site that uses one, so reviewers check the two UI files against the catalogs.
-- A Steam client update can change or remove `GetCurrentLanguage`  
+- A Steam client update can change or remove `GetCurrentLanguage`.  
   Prevention: a missing or rejected call resolves English before any lookup.
-- A language change while Steam runs can leave the already-rendered menu in the previous language until the menu is reopened  
+- A language change while Steam runs can leave the already-rendered menu in the previous language until the menu is reopened.  
   Prevention: the settings panel re-resolves the language when it mounts, and the Steam client reloads the UI on a language change.
-- A translation can lag the English string after the English catalog changes  
+- A translation can lag the English string after the English catalog changes.  
   Prevention: parity is enforced on the key set, not on the text, so a translated value is correct in the sense of being present; a reviewer refreshes a stale value when the English text changes meaning.
 
 ## Alternatives Considered

@@ -115,15 +115,15 @@ frontend to backend (`backend` FFI bridge)
 
 ## Risks
 
-- The log file has no rotation or size cap, so it grows for the life of the installation  
+- The log file has no rotation or size cap, so it grows for the life of the installation.  
   No preventive measure currently exists; the maintainer observes the growth after release before a cap or a rotation is added.
-- The host marks a `.star` plugin's logger viewer-only, so the file is the only persistent record; a host version that also writes a file would add a second one  
+- The host marks a `.star` plugin's logger viewer-only, so the file is the only persistent record; a host version that also writes a file would add a second one.  
   Prevention: the plugin's file name `steamapp-verlock.log` differs from the host's `<plugin>_log.log` name ([`logger.cc`](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/system/logger.cc)).
-- The viewer depends on the host `logger`; if its v2 behavior changes, the viewer can lose backend records  
+- The viewer depends on the host `logger`; if its v2 behavior changes, the viewer can lose backend records.  
   Prevention: the file is independent of the viewer.
-- A log record can carry an appmanifest path into a file that outlives the session  
+- A log record can carry an appmanifest path into a file that outlives the session.  
   Prevention: no record carries a token, a credential, or the contents of a build-info dump.
-- A read-only or full filesystem can make directory creation or the append fail  
+- A read-only or full filesystem can make directory creation or the append fail.  
   Prevention: every logging step is best-effort and never changes the emitting operation's result.
 
 ## Alternatives Considered

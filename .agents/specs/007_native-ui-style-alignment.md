@@ -130,13 +130,13 @@ The badge does not reuse the cell's hashed layout class, because that class carr
 
 ## Risks
 
-- A client update can rename or drop a hashed class, so the cached button class stops matching  
+- A client update can rename or drop a hashed class, so the cached button class stops matching.  
   Prevention: the plugin re-samples the class whenever a native dialog button appears, and the fallback keeps a first run styled.
-- A client update or a theme change can move a measured value, so the layout drifts  
+- A client update or a theme change can move a measured value, so the layout drifts.  
   Prevention: the layout uses the client's own classes where they exist, and this spec records the probe method for a re-measurement.
-- `localStorage` can be unavailable or cleared, so the cached button class is lost  
+- `localStorage` can be unavailable or cleared, so the cached button class is lost.  
   Prevention: the recorded class constant is the fallback, and the class is re-sampled from a native button.
-- No official Valve design specification exists for the client's internal UI, so the method cannot cite an authority  
+- No official Valve design specification exists for the client's internal UI, so the method cannot cite an authority.  
   The recorded values document the client state the method targets.
 
 ## Alternatives Considered

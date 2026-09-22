@@ -671,71 +671,71 @@ The plugin adds these files. The file layout follows the toolchain in [Spec 1](0
 
 ## Risks
 
-- `SteamClient.Console` is an undocumented client API, and a Steam client update can change or remove it  
+- `SteamClient.Console` is an undocumented client API, and a Steam client update can change or remove it.  
   Prevention: console access is confined to `frontend/console.ts`, and a missing console method returns a runtime `CaptureResult` error before any lock record is written.
-- The client's cached PICS can lag the server, so the lock mirrors a build the client has not yet replaced  
+- The client's cached PICS can lag the server, so the lock mirrors a build the client has not yet replaced.  
   Prevention: the lock's effect is defined against the client's own cache, the same source the client compares against, and the backstop refresh plus the client's own PICS refresh bound the lag.
-- The client's PICS cache can lack the app block, so the capture never sees it  
+- The client's PICS cache can lack the app block, so the capture never sees it.  
   Prevention: the capture fails with an error and the frontend aborts without locking, and a later Refresh retries.
-- The base app's PICS can omit an installed DLC depot, so a spoof built from the base dump alone leaves that depot at its stale manifest and Steam queues a manifest download  
+- The base app's PICS can omit an installed DLC depot, so a spoof built from the base dump alone leaves that depot at its stale manifest and Steam queues a manifest download.  
   Prevention: `get_required_apps` names the owning apps, the frontend captures each one, and the backend merges the depot maps before it writes.
-- A capture set grows with the installed DLC count and can exceed the time budget  
+- A capture set grows with the installed DLC count and can exceed the time budget.  
   Prevention: the set time limit aborts the capture, and the frontend aborts without calling `lock_app` or `refresh_app`.
-- The spoof can inject a PICS-only depot into `InstalledDepots`, so Steam treats an uninstalled depot as installed  
+- The spoof can inject a PICS-only depot into `InstalledDepots`, so Steam treats an uninstalled depot as installed.  
   Prevention: the appmanifest write overwrites only a depot the appmanifest already lists, and the record keeps only the installed depots.
-- The requested branch can differ from the branch the captured dump carries, so the parser reads the wrong `buildid` or depot manifests  
+- The requested branch can differ from the branch the captured dump carries, so the parser reads the wrong `buildid` or depot manifests.  
   Prevention: the branch comes from the appmanifest's `BetaKey` and defaults to `public`, and the parser falls back to `public` branch data when the requested branch is absent.
-- A launch or update action can begin between Steam's rewrite of the appmanifest and the reapply, so an update can still start  
+- A launch or update action can begin between Steam's rewrite of the appmanifest and the reapply, so an update can still start.  
   Prevention: an update action interception cancels the action, reapplies, and re-issues the launch, a launch action passes through only after an opportunistic reapply, and the backstop interval bounds how long a lost spoof survives.
-- An in-flight reapply can race `Unlock` or `Restore All` and rewrite an appmanifest for a record that was just removed  
+- An in-flight reapply can race `Unlock` or `Restore All` and rewrite an appmanifest for a record that was just removed.  
   Prevention: reapply re-reads the record before it writes and aborts when the record is gone, and per-app write operations are serialized.
-- The captured console spew can be truncated or interleaved with unrelated output, so the dump fails to parse  
+- The captured console spew can be truncated or interleaved with unrelated output, so the dump fails to parse.  
   Prevention: `buildinfo.clean` extracts the numeric-keyed app block, strict validation rejects a malformed dump before any value reaches the appmanifest, and a failed capture aborts the operation.
-- The app's original auto-update value can be unreadable, so the feature would lose the ability to restore it  
+- The app's original auto-update value can be unreadable, so the feature would lose the ability to restore it.  
   Prevention: a failed read aborts the lock before any record or appmanifest change, so the stored value is never missing.
-- Restoring an app's auto-update behavior can fail after the lock record is deleted, so the setting stays at `Launch` with no record to retry from  
+- Restoring an app's auto-update behavior can fail after the lock record is deleted, so the setting stays at `Launch` with no record to retry from.  
   Prevention: the restore is best-effort; `Unlock` and `Restore All` do not roll back a deleted record. The settings panel surfaces the failure through the unlock result's `auto_update_restored` and the restore result's `auto_update_failed`; the library context menu's `Unlock` keeps the `Launch` setting without a warning.
-- The app event APIs are undocumented client internals and can change across client versions, so a missed event leaves only the backstop interval  
+- The app event APIs are undocumented client internals and can change across client versions, so a missed event leaves only the backstop interval.  
   Prevention: the resume hook, the settings panel, and the library context menu each reapply opportunistically.
-- Cancelling a game action and pausing an update are reported unreliable  
+- Cancelling a game action and pausing an update are reported unreliable.  
   Prevention: the handler reapplies and lets the action proceed when the cancel fails, so the lock degrades instead of blocking the user.
-- An update can be carried out inside a launch action's download tasks rather than as a separate update action, so the launch pass-through does not cancel it  
+- An update can be carried out inside a launch action's download tasks rather than as a separate update action, so the launch pass-through does not cancel it.  
   Prevention: the appmanifest spoof makes the client see no update, and the watch and backstop reapply it, so a download task is reached only while the spoof is stale, which the next reapply corrects.
-- A spoofed manifest can fail the game's own file check and trigger a re-download  
+- A spoofed manifest can fail the game's own file check and trigger a re-download.  
   No preventive measure currently exists; Unlock restores the original appmanifest.
-- Online play, anti-cheat, and DRM protection can reject a build whose files do not match the spoofed manifest, so the game refuses to launch or connect, or bans the account, and a P2P multiplayer game can verify version consistency and refuse to play together  
+- Online play, anti-cheat, and DRM protection can reject a build whose files do not match the spoofed manifest, so the game refuses to launch or connect, or bans the account, and a P2P multiplayer game can verify version consistency and refuse to play together.  
   No preventive measure currently exists; the feature documents the limitation.
-- A third-party launcher can update or repair an app's content independently of Steam, so the pinned build is not held and the files no longer match the spoofed manifest  
+- A third-party launcher can update or repair an app's content independently of Steam, so the pinned build is not held and the files no longer match the spoofed manifest.  
   No preventive measure currently exists; the feature documents the limitation.
-- Multiple library folders and the Windows/Linux path separator difference complicate app discovery  
+- Multiple library folders and the Windows/Linux path separator difference complicate app discovery.  
   Prevention: discovery unions `steamapps/libraryfolders.vdf`, `config/libraryfolders.vdf`, and the Steam root directory, and the cached `manifest_path` is re-resolved when it goes stale.
-- A concurrent Steam write can race the plugin's appmanifest write  
+- A concurrent Steam write can race the plugin's appmanifest write.  
   Prevention: the backend writes through a temporary file and renames it into place, and per-app write operations are serialized.
-- A data root directory migration can fail across filesystems, hit a permission error, or be interrupted  
+- A data root directory migration can fail across filesystems, hit a permission error, or be interrupted.  
   Prevention: the migration copies and verifies before it persists the new path and keeps the old root directory until the new one verifies.
-- A path that contains spaces or non-ASCII characters, or a data root directory on a removable drive, can break path handling  
+- A path that contains spaces or non-ASCII characters, or a data root directory on a removable drive, can break path handling.  
   Prevention: `paths.validate` rejects a data root path that is not absolute, creatable, or writable, or that is equal to or nests with the current data root directory, and discovery re-resolves a path that is gone.
-- The host's `showModal` throws when it can fall back to `findSP`, which the Properties popup cannot satisfy  
+- The host's `showModal` throws when it can fall back to `findSP`, which the Properties popup cannot satisfy.  
   Prevention: `frontend/notify.tsx` defaults the modal `parent` to the current window, and the Properties tab passes the popup window, so `showModal` skips the `findSP` fallback.
-- `window.appStore.GetAppOverviewByAppID` and the state flags it reflects are undocumented client internals, so the installed check in the settings panel can be unavailable or wrong  
+- `window.appStore.GetAppOverviewByAppID` and the state flags it reflects are undocumented client internals, so the installed check in the settings panel can be unavailable or wrong.  
   Prevention: the panel treats a missing overview or a missing field as not installed, so the record still offers `Unlock`.
-- The app Properties window is an undocumented client internal, so a client update can move its tab list or content area and drop or misplace the tab  
+- The app Properties window is an undocumented client internal, so a client update can move its tab list or content area and drop or misplace the tab.  
   Prevention: the injection lives in `frontend/properties.tsx`, the active-tab class is derived at runtime, the content area is found relative to the `role='tablist'` and `general_Content` anchors, and a missing anchor or `AddWindowCreateHook` makes the tab a no-op.
-- The library game page is an undocumented client internal, so a client update can move its play bar, rename the `PLAY TIME` cell's class, or change the hero image URL and make the badge find no anchor or the wrong app id  
+- The library game page is an undocumented client internal, so a client update can move its play bar, rename the `PLAY TIME` cell's class, or change the hero image URL and make the badge find no anchor or the wrong app id.  
   Prevention: the app id comes from the pathname, the hero image, a `data-appid` element, a Steam link, or an app image URL in turn, the `PLAY TIME` cell comes from a recorded class selector, a text match, and a `Panel`-display selector in turn, the label, value, and icon styles are sampled at run time over recorded fallbacks, and a missing anchor logs a warning once and leaves the page unchanged.
-- The badge sets the play bar's inline `flex-wrap` to `nowrap` while it is mounted, so a client update that relies on wrapping the play bar can push the row's cells off the page  
+- The badge sets the play bar's inline `flex-wrap` to `nowrap` while it is mounted, so a client update that relies on wrapping the play bar can push the row's cells off the page.  
   Prevention: the badge saves the container's inline `flex-wrap` on mount and restores it on unmount.
-- The running client exposes the 24-hour clock setting through no API, so the backend reads `b24HourClock` from the per-user `sharedconfig.vdf`, whose path and `FriendsUIJSON` shape are an undocumented client internal  
+- The running client exposes the 24-hour clock setting through no API, so the backend reads `b24HourClock` from the per-user `sharedconfig.vdf`, whose path and `FriendsUIJSON` shape are an undocumented client internal.  
   Prevention: `backend/clock.lua` tries the `UserRoamingConfigStore` path and the `UserLocalConfigStore` fallback and returns `nil` when the file or the value is absent.
-- `SteamClient.Settings.GetCurrentLanguage` resolves asynchronously, so the first render can use the language's default hours and the fallback `en`  
+- `SteamClient.Settings.GetCurrentLanguage` resolves asynchronously, so the first render can use the language's default hours and the fallback `en`.  
   Prevention: the clock format starts at `{ locale: "en", hour12: undefined }`, and the `SteamClient.FriendSettings` and `SteamClient.Settings` change callbacks stay a best-effort live source that re-renders the badge.
-- The native icon's tint can live in a `fill` or `stroke` value the svg's computed `color` does not carry, so the badge icon can keep the fallback tint and read brighter than its neighbors  
+- The native icon's tint can live in a `fill` or `stroke` value the svg's computed `color` does not carry, so the badge icon can keep the fallback tint and read brighter than its neighbors.  
   Prevention: the badge samples the icon svg's computed `color` and `opacity`, falls back to the label's color and the recorded constants, and a mismatched sample only changes the icon's tint.
-- The play bar can render a cell, such as `ACHIEVEMENTS`, after the badge mounts, which would leave the badge before that cell  
+- The play bar can render a cell, such as `ACHIEVEMENTS`, after the badge mounts, which would leave the badge before that cell.  
   Prevention: on every watch pass, `frontend/gamepage.tsx` checks whether the badge is the last cell of the play bar and moves it back to the end when it is not.
-- The feature has no uninstall hook, so removing the plugin leaves the lock records in place and stops the reapply  
+- The feature has no uninstall hook, so removing the plugin leaves the lock records in place and stops the reapply.  
   Prevention: `Restore All` restores every record's `original` appmanifest and deletes each record after its appmanifest write succeeds, so running it before uninstalling the plugin deletes every successfully restored record, and a record whose write-back fails stays in place for a retry; uninstalling before running it leaves the lock records in place and stops the reapply.
-- Deleting a record without restoring it leaves an app locked with no restore basis  
+- Deleting a record without restoring it leaves an app locked with no restore basis.  
   Prevention: `Restore All` deletes a record only after its appmanifest write succeeds, and `Unlock` removes a record whose app is no longer installed only when discovery runs and finds no appmanifest.
 
 ## Alternatives Considered
