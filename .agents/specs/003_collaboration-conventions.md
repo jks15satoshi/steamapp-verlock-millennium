@@ -107,6 +107,8 @@ The body should follow the repository template, with three sections:
 
 A bug-fix pull request should reference at least one issue in this repository; another pull request may omit the reference. A non-trivial change should reference the spec that owns it ([Spec 0](000_metaspec.md#when-to-create-a-spec)) or state why the change is exempt. A pull request should stay a draft until its checks and evidence are ready, and the maintainer should split independent changes into separate pull requests.
 
+A reviewer should refuse a change that adds an abstraction, a copy, or a schema no consumer reads, duplicates an existing mechanism, ships a test that cannot fail, or states a path, field, or default the code does not carry. The `code-review` skill states the evidence that judgment rests on, and the pull request's `Changes` comment points the author to it.
+
 A pull request carries an `active` `feature` spec only while it is a draft ([Spec 0](000_metaspec.md#statuses)). A ready-for-review pull request that contains an `active` `feature` spec is refused; the check belongs to [Spec 1](001_toolchain.md) and is implemented by `.github/scripts/verify-spec-status.ts`.
 
 ### Enforcement
